@@ -6,6 +6,7 @@ Feature: Автоматические ответы
 
   # TODO: требует реального TDLib update loop для обработки callback queries
 
+  @pending
   Scenario Outline: 01. Бот автоматически отвечает на callback-запрос
     Given для источника включена опция "автоответы"
     And исходный чат типа "<тип_источника>"
