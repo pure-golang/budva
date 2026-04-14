@@ -26,20 +26,20 @@
 | Пакет | Unit | Integration | BDD | Smoke |
 |-------|------|-------------|-----|-------|
 | internal/config | ✅ 3 | — | — | — |
-| internal/controller | ✅ 3 | — | — | ✅ |
-| internal/domain | ✅ 13 | — | — | — |
-| internal/handler | ✅ 12 | ✅ | ✅ | — |
+| internal/controller | ✅ 5 | — | — | ✅ |
+| internal/domain | ✅ 7 | — | — | — |
+| internal/handler | ✅ 20 | ✅ | ✅ | — |
 | internal/repo/queue | ✅ 4 | — | — | — |
-| internal/repo/ruleset | ✅ 6 | — | — | — |
+| internal/repo/ruleset | ✅ 11 | — | — | — |
 | internal/repo/state | ✅ 11 | ✅ | — | — |
 | internal/repo/telegram | ✅ 2 | — | — | — |
 | internal/service/album | ✅ 10 | — | ✅ | — |
 | internal/service/auth | ✅ 8 | — | — | — |
 | internal/service/dedup | ✅ 3 | — | ✅ | — |
-| internal/service/facade | — | — | — | — |
+| internal/service/facade | ✅ 8 | — | — | — |
 | internal/service/filters | ✅ 8 | ✅ | ✅ | — |
 | internal/service/limiter | ✅ 1 | — | ✅ | — |
-| internal/service/message | ✅ 7 | — | — | — |
+| internal/service/message | ✅ 10 | — | — | — |
 | internal/service/transform | ✅ 16 | ✅ | ✅ | — |
 | internal/transport/grpc | ✅ 18 | — | — | — |
 | internal/transport/http | ✅ 12 | — | — | — |
@@ -71,17 +71,24 @@
 | CTRL-U-001 | TestLive_always_200 | ✅ |
 | CTRL-U-002 | TestHealthcheck_all_healthy | ✅ |
 | CTRL-U-003 | TestHealthcheck_unhealthy | ✅ |
+| CTRL-U-004 | TestReady_all_healthy | ✅ |
+| CTRL-U-005 | TestReady_unhealthy | ✅ |
 
 ---
 
 ### Domain (internal/domain)
 
-Файл: `phone_test.go` ✅
+Файлы: `phone_test.go`, `domain_test.go` ✅
 
 | ID | Тест | Статус |
 |----|------|--------|
 | DOM-U-001 | TestMaskPhoneNumber (11 subtests) | ✅ |
 | DOM-U-002 | TestMaskPhoneNumber_PreservesLength | ✅ |
+| DOM-U-003 | TestAuthorizationState_String (7 subtests) | ✅ |
+| DOM-U-004 | TestFormattedText_DeepCopy (3 subtests) | ✅ |
+| DOM-U-005 | TestContentTypeByFileExt (20 subtests) | ✅ |
+| DOM-U-006 | TestMessageContentType_IsMediaType (9 subtests) | ✅ |
+| DOM-U-007 | TestMessageContentType_HasCaption (2 subtests) | ✅ |
 
 ---
 
@@ -97,12 +104,20 @@
 | HDL-U-004 | TestOnNewMessage_ForwardWithoutCopy | ✅ |
 | HDL-U-005 | TestOnNewMessage_SendCopy | ✅ |
 | HDL-U-006 | TestOnNewMessage_FiltersCheck | ✅ |
-| HDL-U-007 | TestOnNewMessage_CannotBeSaved_WithoutSendCopy | ✅ |
-| HDL-U-008 | TestOnDeletedMessages_PermanentWithCopies | ✅ |
-| HDL-U-009 | TestOnDeletedMessages_IndelibleRule | ✅ |
-| HDL-U-010 | TestOnDeletedMessages_RetryOnMissingNewID | ✅ |
-| HDL-U-011 | TestOnMessageSendSucceeded | ✅ |
-| HDL-U-012 | TestSetRuleSet | ✅ |
+| HDL-U-007 | TestOnNewMessage_FiltersOther | ✅ |
+| HDL-U-008 | TestOnNewMessage_CannotBeSaved_WithoutSendCopy | ✅ |
+| HDL-U-009 | TestOnEditedMessage_NoRuleSet | ✅ |
+| HDL-U-010 | TestOnEditedMessage_UnknownSource | ✅ |
+| HDL-U-011 | TestOnEditedMessage_TextUpdate | ✅ |
+| HDL-U-012 | TestOnEditedMessage_CaptionUpdate | ✅ |
+| HDL-U-013 | TestOnEditedMessage_CopyOnce_Versioning | ✅ |
+| HDL-U-014 | TestOnEditedMessage_RetryOnMissingNewID | ✅ |
+| HDL-U-015 | TestOnEditedMessage_ReplyMarkupSync | ✅ |
+| HDL-U-016 | TestOnDeletedMessages_PermanentWithCopies | ✅ |
+| HDL-U-017 | TestOnDeletedMessages_IndelibleRule | ✅ |
+| HDL-U-018 | TestOnDeletedMessages_RetryOnMissingNewID | ✅ |
+| HDL-U-019 | TestOnMessageSendSucceeded | ✅ |
+| HDL-U-020 | TestSetRuleSet | ✅ |
 
 ---
 
@@ -131,6 +146,11 @@
 | REPO-U-008 | TestRepo_Load_Negation | ✅ |
 | REPO-U-009 | TestRepo_Load_FragmentUTF16Validation | ✅ |
 | REPO-U-010 | TestRepo_Load_FullPipeline | ✅ |
+| REPO-U-011 | TestRepo_Load_InvalidRuleID_Colon | ✅ |
+| REPO-U-012 | TestRepo_Load_InvalidRuleID_Comma | ✅ |
+| REPO-U-013 | TestRepo_Load_NegativeFrom | ✅ |
+| REPO-U-014 | TestRepo_Load_NegativeTo | ✅ |
+| REPO-U-015 | TestRepo_Load_FromEqualsTo | ✅ |
 
 ---
 
@@ -140,17 +160,17 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| REPO-U-011 | TestRepo_SetGet | ✅ |
-| REPO-U-012 | TestRepo_Get_not_found | ✅ |
-| REPO-U-013 | TestRepo_Delete | ✅ |
-| REPO-U-014 | TestRepo_GetSet_atomic | ✅ |
-| REPO-U-015 | TestSetCopiedMessageID_SingleDestination | ✅ |
-| REPO-U-016 | TestSetCopiedMessageID_MultipleDestinations | ✅ |
-| REPO-U-017 | TestSetCopiedMessageID_UpdateInPlace | ✅ |
-| REPO-U-018 | TestDeleteCopiedMessageIDs | ✅ |
-| REPO-U-019 | TestNewMessageID_Bidirectional | ✅ |
-| REPO-U-020 | TestIncrementCounters | ✅ |
-| REPO-U-021 | TestAnswerMessageID | ✅ |
+| REPO-U-016 | TestRepo_SetGet | ✅ |
+| REPO-U-017 | TestRepo_Get_not_found | ✅ |
+| REPO-U-018 | TestRepo_Delete | ✅ |
+| REPO-U-019 | TestRepo_GetSet_atomic | ✅ |
+| REPO-U-020 | TestSetCopiedMessageID_SingleDestination | ✅ |
+| REPO-U-021 | TestSetCopiedMessageID_MultipleDestinations | ✅ |
+| REPO-U-022 | TestSetCopiedMessageID_UpdateInPlace | ✅ |
+| REPO-U-023 | TestDeleteCopiedMessageIDs | ✅ |
+| REPO-U-024 | TestNewMessageID_Bidirectional | ✅ |
+| REPO-U-025 | TestIncrementCounters | ✅ |
+| REPO-U-026 | TestAnswerMessageID | ✅ |
 
 ---
 
@@ -160,8 +180,8 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| REPO-U-022 | TestRunAuthFlow_FullCycle | ✅ |
-| REPO-U-023 | TestRunAuthFlow_CancelDuringInput | ✅ |
+| REPO-U-027 | TestRunAuthFlow_FullCycle | ✅ |
+| REPO-U-028 | TestRunAuthFlow_CancelDuringInput | ✅ |
 
 ---
 
@@ -213,20 +233,38 @@
 
 ---
 
+### Service / Facade (internal/service/facade)
+
+Файл: `service_test.go` ✅
+
+| ID | Тест | Статус |
+|----|------|--------|
+| SVC-U-022 | TestSendMessage_Success | ✅ |
+| SVC-U-023 | TestSendMessageAlbum_with_files_and_text | ✅ |
+| SVC-U-024 | TestSendMessageAlbum_empty | ✅ |
+| SVC-U-025 | TestGetStatus_Success | ✅ |
+| SVC-U-026 | TestGetStatus_GetOption_error | ✅ |
+| SVC-U-027 | TestGetStatus_GetMe_error | ✅ |
+| SVC-U-028 | TestForwardMessage_Success | ✅ |
+| SVC-U-029 | TestDeleteMessages_Success | ✅ |
+| SVC-U-030 | TestUpdateMessage_Success | ✅ |
+
+---
+
 ### Service / Filters (internal/service/filters)
 
 Файл: `service_test.go` ✅
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-022 | TestEvaluate_no_filters | ✅ |
-| SVC-U-023 | TestEvaluate_exclude_matches | ✅ |
-| SVC-U-024 | TestEvaluate_exclude_no_match | ✅ |
-| SVC-U-025 | TestEvaluate_include_matches | ✅ |
-| SVC-U-026 | TestEvaluate_include_no_match | ✅ |
-| SVC-U-027 | TestEvaluate_empty_text_with_include | ✅ |
-| SVC-U-028 | TestEvaluate_submatch | ✅ |
-| SVC-U-029 | TestEvaluate_submatch_no_match | ✅ |
+| SVC-U-031 | TestEvaluate_no_filters | ✅ |
+| SVC-U-032 | TestEvaluate_exclude_matches | ✅ |
+| SVC-U-033 | TestEvaluate_exclude_no_match | ✅ |
+| SVC-U-034 | TestEvaluate_include_matches | ✅ |
+| SVC-U-035 | TestEvaluate_include_no_match | ✅ |
+| SVC-U-036 | TestEvaluate_empty_text_with_include | ✅ |
+| SVC-U-037 | TestEvaluate_submatch | ✅ |
+| SVC-U-038 | TestEvaluate_submatch_no_match | ✅ |
 
 ---
 
@@ -236,7 +274,7 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-030 | TestWaitForForward | ✅ |
+| SVC-U-039 | TestWaitForForward | ✅ |
 
 ---
 
@@ -246,13 +284,16 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-031 | TestGetFormattedText (5 subtests) | ✅ |
-| SVC-U-032 | TestIsSystemMessage (3 subtests) | ✅ |
-| SVC-U-033 | TestGetReplyMarkupData (3 subtests) | ✅ |
-| SVC-U-034 | TestBuildInputContent_Photo | ✅ |
-| SVC-U-035 | TestBuildInputContent_Text_InvertsLinkPreview | ✅ |
-| SVC-U-036 | TestBuildInputContent_Document | ✅ |
-| SVC-U-037 | TestBuildInputContent_VoiceNote | ✅ |
+| SVC-U-040 | TestGetFormattedText (5 subtests) | ✅ |
+| SVC-U-041 | TestIsSystemMessage (3 subtests) | ✅ |
+| SVC-U-042 | TestGetReplyMarkupData (3 subtests) | ✅ |
+| SVC-U-043 | TestBuildInputContent_Photo | ✅ |
+| SVC-U-044 | TestBuildInputContent_Text_InvertsLinkPreview | ✅ |
+| SVC-U-045 | TestBuildInputContent_Document | ✅ |
+| SVC-U-046 | TestBuildInputContent_VoiceNote | ✅ |
+| SVC-U-047 | TestBuildInputContent_Video | ✅ |
+| SVC-U-048 | TestBuildInputContent_Animation | ✅ |
+| SVC-U-049 | TestBuildInputContent_Audio | ✅ |
 
 ---
 
@@ -262,22 +303,22 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-038 | TestTransform_NoTransformations | ✅ |
-| SVC-U-039 | TestTransform_Translation | ✅ |
-| SVC-U-040 | TestTransform_Translation_SkippedForOtherChat | ✅ |
-| SVC-U-041 | TestTransform_ReplaceFragments | ✅ |
-| SVC-U-042 | TestTransform_Sign | ✅ |
-| SVC-U-043 | TestTransform_Link | ✅ |
-| SVC-U-044 | TestTransform_PrevLink | ✅ |
-| SVC-U-045 | TestAddNextLink | ✅ |
-| SVC-U-046 | TestAddNextLink_NoNextConfig | ✅ |
-| SVC-U-047 | TestAddNextLink_ChatNotInFor | ✅ |
-| SVC-U-048 | TestEncodeDecodeUTF16 (4 subtests) | ✅ |
-| SVC-U-049 | TestExtractSubstring | ✅ |
-| SVC-U-050 | TestExtractSubstring_BeyondLength | ✅ |
-| SVC-U-051 | TestReplaceFragment | ✅ |
-| SVC-U-052 | TestReplaceFragment_NoMatch | ✅ |
-| SVC-U-053 | TestReplaceFragment_NilText | ✅ |
+| SVC-U-050 | TestTransform_NoTransformations | ✅ |
+| SVC-U-051 | TestTransform_Translation | ✅ |
+| SVC-U-052 | TestTransform_Translation_SkippedForOtherChat | ✅ |
+| SVC-U-053 | TestTransform_ReplaceFragments | ✅ |
+| SVC-U-054 | TestTransform_Sign | ✅ |
+| SVC-U-055 | TestTransform_Link | ✅ |
+| SVC-U-056 | TestTransform_PrevLink | ✅ |
+| SVC-U-057 | TestAddNextLink | ✅ |
+| SVC-U-058 | TestAddNextLink_NoNextConfig | ✅ |
+| SVC-U-059 | TestAddNextLink_ChatNotInFor | ✅ |
+| SVC-U-060 | TestEncodeDecodeUTF16 (4 subtests) | ✅ |
+| SVC-U-061 | TestExtractSubstring | ✅ |
+| SVC-U-062 | TestExtractSubstring_BeyondLength | ✅ |
+| SVC-U-063 | TestReplaceFragment | ✅ |
+| SVC-U-064 | TestReplaceFragment_NoMatch | ✅ |
+| SVC-U-065 | TestReplaceFragment_NilText | ✅ |
 
 ---
 
@@ -465,50 +506,50 @@ Steps: `06_auto_steps_test.go`
 | Пакет | Unit | Integration | BDD | Smoke |
 |-------|------|-------------|-----|-------|
 | internal/config | 3 | — | — | — |
-| internal/controller | 3 | — | — | 4 |
-| internal/domain | 13 | — | — | — |
-| internal/handler | 12 | 4 | 27 | — |
+| internal/controller | 5 | — | — | 4 |
+| internal/domain | 7 | — | — | — |
+| internal/handler | 20 | 4 | 27 | — |
 | internal/repo/queue | 4 | — | — | — |
-| internal/repo/ruleset | 6 | — | — | — |
+| internal/repo/ruleset | 11 | — | — | — |
 | internal/repo/state | 11 | 4 | — | — |
 | internal/repo/telegram | 2 | — | — | — |
 | internal/service/album | 10 | — | 8 | — |
 | internal/service/auth | 8 | — | — | — |
 | internal/service/dedup | 3 | — | 1 | — |
-| internal/service/facade | — | — | — | — |
+| internal/service/facade | 9 | — | — | — |
 | internal/service/filters | 8 | 1 | 25 | — |
 | internal/service/limiter | 1 | — | 1 | — |
-| internal/service/message | 7 | — | — | — |
+| internal/service/message | 10 | — | — | — |
 | internal/service/transform | 16 | 1 | 21 | — |
 | internal/transport/grpc | 18 | — | — | — |
 | internal/transport/http | 12 | — | — | — |
 | internal/transport/http/graph | 5 | — | — | — |
 | internal/transport/term | 3 | — | — | — |
-| **Итого** | **133** | **4** | **27 scenarios** | **4** |
+| **Итого** | **166** | **4** | **27 scenarios** | **4** |
 
 ---
 
 ## Покрытие кода
 
-Снято командой `task cover` — `-coverpkg=./...`, `-covermode=atomic`. Общее покрытие: **67.8%**.
+Снято командой `task cover`. Общее покрытие: **74.4%**.
 
 | Пакет | Покрытие | Примечание |
 |-------|----------|------------|
-| internal/controller | 65.0% | health endpoints |
-| internal/domain | 60.5% | MaskPhoneNumber |
-| internal/handler | 72.4% | диспетчер обновлений |
+| internal/controller | 100.0% | health endpoints |
+| internal/domain | 100.0% | типы, MaskPhoneNumber, DeepCopy |
+| internal/handler | 77.2% | диспетчер обновлений |
 | internal/repo/queue | 92.2% | in-memory queue |
-| internal/repo/ruleset | 70.4% | YAML loader |
+| internal/repo/ruleset | 73.6% | YAML loader + валидация |
 | internal/repo/state | 81.8% | BadgerDB CRUD + copies |
-| internal/repo/telegram | 42.0% | auth flow stub |
+| internal/repo/telegram | 42.0% | Phase-A заглушки |
 | internal/repo/term | 0.0% | readline adapter, нет тестов |
 | internal/service/album | 100.0% | — |
 | internal/service/auth | 81.8% | pub-sub + state |
 | internal/service/dedup | 100.0% | — |
-| internal/service/facade | 0.0% | тонкий proxy, нет unit-тестов |
+| internal/service/facade | 84.8% | proxy + GetStatus |
 | internal/service/filters | 81.8% | evaluate + submatch |
 | internal/service/limiter | 90.0% | WaitForForward |
-| internal/service/message | 61.5% | GetFormattedText, BuildInputContent |
+| internal/service/message | 100.0% | GetFormattedText, BuildInputContent |
 | internal/service/transform | 46.7% | transform pipeline, UTF-16 |
 | internal/transport/grpc | 87.3% | все RPC |
 | internal/transport/http | 80.8% | REST auth |
