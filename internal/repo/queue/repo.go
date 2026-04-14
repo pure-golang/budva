@@ -3,7 +3,6 @@ package queue
 import (
 	"container/list"
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -115,7 +114,7 @@ func (r *Repo) processQueue() {
 func (r *Repo) executeTask(fn func()) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			r.logger.Error("Task panicked", slog.String("error", fmt.Sprintf("%v", rec)))
+			r.logger.Error("Task panicked", slog.Any("err", rec))
 		}
 	}()
 	fn()

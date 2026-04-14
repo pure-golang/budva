@@ -1,3 +1,5 @@
+//go:build smoke
+
 package smoke
 
 import (
@@ -6,8 +8,6 @@ import (
 )
 
 func TestEngineBinaryBuilds(t *testing.T) {
-	t.Parallel()
-
 	// Act
 	cmd := exec.Command("go", "build", "-o", "/dev/null", "../../cmd/engine")
 	output, err := cmd.CombinedOutput()
@@ -19,8 +19,6 @@ func TestEngineBinaryBuilds(t *testing.T) {
 }
 
 func TestFacadeBinaryBuilds(t *testing.T) {
-	t.Parallel()
-
 	// Act
 	cmd := exec.Command("go", "build", "-o", "/dev/null", "../../cmd/facade")
 	output, err := cmd.CombinedOutput()

@@ -12,10 +12,9 @@ import (
 	"github.com/pure-golang/budva-claude/internal/transport/http/mocks"
 )
 
-func newTestTransport(t *testing.T, state domain.AuthorizationState) (*Transport, *mocks.AuthService) {
+func newTestTransport(t *testing.T) (*Transport, *mocks.AuthService) {
 	t.Helper()
 	auth := mocks.NewAuthService(t)
-	auth.EXPECT().State().Return(state).Maybe()
 	return New(auth, nil), auth
 }
 
@@ -23,8 +22,8 @@ func TestGetState_WaitPhone(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(t, domain.AuthStateWaitPhone)
-	auth.EXPECT().Extra().Return(nil).Maybe()
+	tr, auth := newTestTransport(t)
+	auth.EXPECT().State().Return(domain.AuthStateWaitPhone)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/telegram/state", nil)
@@ -42,8 +41,8 @@ func TestGetState_Ready(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(t, domain.AuthStateReady)
-	auth.EXPECT().Extra().Return(nil).Maybe()
+	tr, auth := newTestTransport(t)
+	auth.EXPECT().State().Return(domain.AuthStateReady)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/telegram/state", nil)
@@ -61,7 +60,7 @@ func TestPostPhone_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(t, domain.AuthStateWaitPhone)
+	tr, auth := newTestTransport(t)
 	inputChan := make(chan string, 1)
 	auth.EXPECT().InputChan().Return(inputChan)
 	mux := http.NewServeMux()
@@ -85,7 +84,7 @@ func TestPostPhone_EmptyPhone(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(t, domain.AuthStateWaitPhone)
+	tr, _ := newTestTransport(t)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"phone":""}`)
@@ -104,7 +103,7 @@ func TestPostPhone_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(t, domain.AuthStateWaitPhone)
+	tr, _ := newTestTransport(t)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`invalid`)
@@ -122,7 +121,7 @@ func TestPostCode_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(t, domain.AuthStateWaitCode)
+	tr, auth := newTestTransport(t)
 	inputChan := make(chan string, 1)
 	auth.EXPECT().InputChan().Return(inputChan)
 	mux := http.NewServeMux()
@@ -145,7 +144,7 @@ func TestPostCode_EmptyCode(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(t, domain.AuthStateWaitCode)
+	tr, _ := newTestTransport(t)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"code":""}`)
@@ -164,7 +163,7 @@ func TestPostPassword_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(t, domain.AuthStateWaitPassword)
+	tr, auth := newTestTransport(t)
 	inputChan := make(chan string, 1)
 	auth.EXPECT().InputChan().Return(inputChan)
 	mux := http.NewServeMux()
@@ -187,7 +186,7 @@ func TestPostPassword_EmptyPassword(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(t, domain.AuthStateWaitPassword)
+	tr, _ := newTestTransport(t)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"password":""}`)
@@ -206,8 +205,8 @@ func TestResponseContentType(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(t, domain.AuthStateReady)
-	auth.EXPECT().Extra().Return(nil).Maybe()
+	tr, auth := newTestTransport(t)
+	auth.EXPECT().State().Return(domain.AuthStateReady)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/telegram/state", nil)
@@ -247,7 +246,7 @@ func TestPostPhone_NoBody(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(t, domain.AuthStateWaitPhone)
+	tr, _ := newTestTransport(t)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/phone", nil)

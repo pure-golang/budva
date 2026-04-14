@@ -2,12 +2,16 @@
 //
 // Использование:
 //
-//	r := state.New(cfg, logger)
+//	r := state.New(cfg)
 //	if err := r.Start(ctx); err != nil { ... }
 //	defer r.Close()
 //
 //	err := r.Set("key", "value")
 //	val, err := r.Get("key")
+//
+// Для тестов и внешнего KVStore:
+//
+//	r := state.NewWithKV(kv)
 //
 // Конфигурация:
 //

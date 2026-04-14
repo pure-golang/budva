@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	r := ruleset.New(cfg, logger)
+//	r := ruleset.New(cfg)
 //	rs, err := r.Load()
 //	r.WatchContext(ctx, func() { /* reload callback */ })
 //	defer r.Close()

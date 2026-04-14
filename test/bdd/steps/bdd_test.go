@@ -21,7 +21,6 @@ func TestBDD(t *testing.T) {
 			Output:   colors.Colored(os.Stdout),
 			TestingT: t,
 			Strict:   true,
-			Tags:     "~@pending",
 		},
 		ScenarioInitializer: initScenario,
 	}

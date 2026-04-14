@@ -176,16 +176,22 @@ func TestSendMessage_Success(t *testing.T) {
 
 func TestSendMessage_NilMessage(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	tr := New(&mockFacade{})
 
+	// Act
 	_, err := tr.SendMessage(context.Background(), &pb.SendMessageRequest{})
 
+	// Assert
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestSendMessage_FacadeError(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	facade := &mockFacade{
 		sendMessage: func(_ context.Context, _ int64, _ string) error {
 			return errors.New("send failed")
@@ -193,19 +199,24 @@ func TestSendMessage_FacadeError(t *testing.T) {
 	}
 	tr := New(facade)
 
+	// Act
 	_, err := tr.SendMessage(context.Background(), &pb.SendMessageRequest{
 		Message: &pb.NewMessage{ChatId: 100, Text: "hello"},
 	})
 
+	// Assert
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
 }
 
 func TestSendMessageAlbum_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	facade := &mockFacade{}
 	tr := New(facade)
 
+	// Act
 	resp, err := tr.SendMessageAlbum(context.Background(), &pb.SendMessageAlbumRequest{
 		Messages: []*pb.NewMessage{
 			{ChatId: 100, Text: "one"},
@@ -213,34 +224,45 @@ func TestSendMessageAlbum_Success(t *testing.T) {
 		},
 	})
 
+	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
 func TestSendMessageAlbum_EmptyMessages(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	tr := New(&mockFacade{})
 
+	// Act
 	_, err := tr.SendMessageAlbum(context.Background(), &pb.SendMessageAlbumRequest{})
 
+	// Assert
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestForwardMessage_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	tr := New(&mockFacade{})
 
+	// Act
 	resp, err := tr.ForwardMessage(context.Background(), &pb.ForwardMessageRequest{
 		ChatId: 100, MessageId: 1,
 	})
 
+	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
 func TestGetMessage_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	facade := &mockFacade{
 		getMessage: func(_ context.Context, chatID, messageID int64) (*domain.Message, error) {
 			return &domain.Message{
@@ -252,8 +274,10 @@ func TestGetMessage_Success(t *testing.T) {
 	}
 	tr := New(facade)
 
+	// Act
 	resp, err := tr.GetMessage(context.Background(), &pb.GetMessageRequest{ChatId: 100, MessageId: 1})
 
+	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, "result", resp.GetMessage().GetText())
 	assert.Equal(t, int64(100), resp.GetMessage().GetChatId())
@@ -261,40 +285,54 @@ func TestGetMessage_Success(t *testing.T) {
 
 func TestUpdateMessage_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	tr := New(&mockFacade{})
 
+	// Act
 	resp, err := tr.UpdateMessage(context.Background(), &pb.UpdateMessageRequest{
 		Message: &pb.Message{ChatId: 100, Id: 1, Text: "updated"},
 	})
 
+	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
 func TestUpdateMessage_NilMessage(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	tr := New(&mockFacade{})
 
+	// Act
 	_, err := tr.UpdateMessage(context.Background(), &pb.UpdateMessageRequest{})
 
+	// Assert
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestDeleteMessages_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	tr := New(&mockFacade{})
 
+	// Act
 	resp, err := tr.DeleteMessages(context.Background(), &pb.DeleteMessagesRequest{
 		ChatId: 100, MessageIds: []int64{1, 2, 3},
 	})
 
+	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
 }
 
 func TestGetMessageLink_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	facade := &mockFacade{
 		getMessageLink: func(_ context.Context, _, _ int64) (string, error) {
 			return "https://t.me/c/100/1", nil
@@ -302,14 +340,18 @@ func TestGetMessageLink_Success(t *testing.T) {
 	}
 	tr := New(facade)
 
+	// Act
 	resp, err := tr.GetMessageLink(context.Background(), &pb.GetMessageLinkRequest{ChatId: 100, MessageId: 1})
 
+	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, "https://t.me/c/100/1", resp.GetLink())
 }
 
 func TestGetMessageLinkInfo_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	facade := &mockFacade{
 		getMessageLInfo: func(_ context.Context, _ string) (*domain.MessageLinkInfo, error) {
 			return &domain.MessageLinkInfo{ChatID: 100, MessageID: 1}, nil
@@ -317,8 +359,10 @@ func TestGetMessageLinkInfo_Success(t *testing.T) {
 	}
 	tr := New(facade)
 
+	// Act
 	resp, err := tr.GetMessageLinkInfo(context.Background(), &pb.GetMessageLinkInfoRequest{Link: "https://t.me/c/100/1"})
 
+	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, int64(100), resp.GetMessage().GetChatId())
 	assert.Equal(t, int64(1), resp.GetMessage().GetId())
@@ -367,11 +411,18 @@ func TestGetChatHistory_Empty(t *testing.T) {
 
 func TestDomainToProto_Nil(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, domainToProto(nil))
+
+	// Act
+	result := domainToProto(nil)
+
+	// Assert
+	assert.Nil(t, result)
 }
 
 func TestDomainToProto_WithForwardInfo(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	msg := &domain.Message{
 		ChatID: 100,
 		ID:     1,
@@ -382,7 +433,10 @@ func TestDomainToProto_WithForwardInfo(t *testing.T) {
 		ForwardInfo: &domain.MessageForwardInfo{OriginChatID: 50},
 	}
 
+	// Act
 	result := domainToProto(msg)
+
+	// Assert
 	assert.True(t, result.GetForward())
 	assert.Equal(t, "hello", result.GetText())
 }
