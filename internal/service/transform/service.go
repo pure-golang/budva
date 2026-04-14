@@ -43,6 +43,9 @@ func New(telegram telegramGateway, state stateStore) *Service {
 
 // Transform применяет все трансформации к тексту по конфигурации источника и получателя.
 func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*domain.FormattedText, error) {
+	ctx, span := tracer.Start(ctx, "Transform")
+	defer span.End()
+
 	text := p.Text
 
 	// 1. Перевод
@@ -94,6 +97,9 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 // AddNextLink добавляет ссылку на следующую версию к существующему сообщению.
 // Возвращает обновлённый текст для последующего EditMessage.
 func (s *Service) AddNextLink(ctx context.Context, text *domain.FormattedText, src *domain.Source, dstChatID domain.ChatID, nextMessageID domain.MessageID) *domain.FormattedText {
+	ctx, span := tracer.Start(ctx, "AddNextLink")
+	defer span.End()
+
 	if src.Next == nil || !containsChatID(src.Next.For, dstChatID) {
 		return text
 	}

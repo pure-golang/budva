@@ -54,13 +54,13 @@
 
 ### DoD-reviewer
 
-| # | Серьёзность | Описание |
-|---|---|---|
-| 1 | Средняя | Ключ ошибки `"error"` вместо `"err"` — 33 места. Проверить, что skill x-log действительно требует `"err"`, и унифицировать |
-| 2 | Низкая | 2 места с нетипизированными slog-атрибутами |
-| 3 | Низкая | `slog.Default()` в defer closeMonitoring вместо `logger` |
-| 4 | Info | 5 неиспользуемых tracer (подготовка к инструментации) |
-| 5 | Низкая | .env.example не содержит переменных мониторинга |
+| # | Серьёзность | Описание | Статус |
+|---|---|---|---|
+| 1 | Средняя | Ключ ошибки `"error"` вместо `"err"` | ✓ Закрыт: уже унифицирован на `"err"` |
+| 2 | Низкая | 2 места с нетипизированными slog-атрибутами | ✓ Закрыт: все атрибуты типизированы |
+| 3 | Низкая | `slog.Default()` в defer closeMonitoring | ✓ Закрыт: используется `logger` |
+| 4 | Info | 5 неиспользуемых tracer (подготовка к инструментации) | Открыт |
+| 5 | Низкая | .env.example не содержит переменных мониторинга | ✓ Закрыт: добавлены LOG_PROVIDER, LOG_LEVEL |
 
 ### BDD-reviewer
 
@@ -88,13 +88,13 @@
 
 Остаётся: GraphQL handler + playground (HTTP), GetChatHistory (gRPC).
 
-### Приоритет 3: Observability
+### Приоритет 3: Observability (частично ✓)
 
-| Задача | Описание |
+| Задача | Статус |
 |---|---|
-| Span-инструментация | Подключить tracer.Start/span.End в repo/state, repo/ruleset, service/transform, service/filters |
-| Logging audit | Унифицировать ключ ошибки (`"error"` vs `"err"` по x-log) |
-| Monitoring env | Документировать переменные monitoring.Config в doc.go и .env.example |
+| Logging audit | ✓ Ключ `"err"` унифицирован, транспорты используют `logger.FromContext(ctx)`, defer в main исправлен |
+| Monitoring env | ✓ LOG_PROVIDER, LOG_LEVEL добавлены в .env.example |
+| Span-инструментация | Открыт: tracer.Start/span.End в repo/state, repo/ruleset, service/transform, service/filters |
 
 ### Приоритет 4: Интеграция с TDLib (фаза 11)
 
