@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -11,14 +12,28 @@ import (
 	"github.com/pure-golang/budva-claude/internal/config"
 )
 
-// Repo реализует KV-хранилище на основе BadgerDB.
+// ErrKeyNotFound означает, что ключ не найден.
+var ErrKeyNotFound = errors.New("key not found")
+
+// KVStore — интерфейс низкоуровневого KV-хранилища.
+// Production: BadgerDB. Тесты: HTTP-клиент к testcontainer.
+type KVStore interface {
+	Get(key string) (string, error)
+	Set(key, val string) error
+	Delete(key string) error
+	GetSet(key string, fn func(val string) (string, error)) (string, error)
+	Increment(key string) (uint64, error)
+}
+
+// Repo реализует KV-хранилище, делегируя операции в KVStore.
 type Repo struct {
 	logger *slog.Logger
 	cfg    config.StorageConfig
-	db     *badger.DB
+	kv     KVStore
+	db     *badger.DB // для GC и Close; nil если KVStore внешний
 }
 
-// New создаёт новый экземпляр хранилища.
+// New создаёт новый экземпляр хранилища с локальным BadgerDB.
 func New(cfg config.StorageConfig) *Repo {
 	return &Repo{
 		logger: slog.Default().With("module", "repo.state"),
@@ -26,8 +41,19 @@ func New(cfg config.StorageConfig) *Repo {
 	}
 }
 
+// NewWithKV создаёт Repo с внешним KVStore (для тестов с testcontainer).
+func NewWithKV(kv KVStore) *Repo {
+	return &Repo{
+		logger: slog.Default().With("module", "repo.state"),
+		kv:     kv,
+	}
+}
+
 // Start открывает базу данных и запускает фоновую сборку мусора.
 func (r *Repo) Start(ctx context.Context) error {
+	if r.kv != nil {
+		return nil // KVStore уже предоставлен извне
+	}
 	opts := badger.DefaultOptions(r.cfg.DatabaseDirectory)
 	opts.Logger = newBadgerLogger(r.logger)
 	db, err := badger.Open(opts)
@@ -35,6 +61,7 @@ func (r *Repo) Start(ctx context.Context) error {
 		return err
 	}
 	r.db = db
+	r.kv = &badgerKV{db: db}
 
 	go r.runGC(ctx)
 	return nil
@@ -50,82 +77,41 @@ func (r *Repo) Close() error {
 
 // Get возвращает значение по ключу.
 func (r *Repo) Get(key string) (string, error) {
-	var val string
-	err := r.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		valBytes, err := item.ValueCopy(nil)
-		if err != nil {
-			return err
-		}
-		val = string(valBytes)
-		return nil
-	})
-	return val, err
+	return r.kv.Get(key)
 }
 
 // Set устанавливает значение по ключу.
 func (r *Repo) Set(key, val string) error {
-	return r.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), []byte(val))
-	})
+	return r.kv.Set(key, val)
 }
 
 // Delete удаляет значение по ключу.
 func (r *Repo) Delete(key string) error {
-	return r.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(key))
-	})
+	return r.kv.Delete(key)
 }
 
-// GetSet выполняет атомарное чтение-изменение-запись в одной транзакции.
+// GetSet выполняет атомарное чтение-изменение-запись.
 func (r *Repo) GetSet(key string, fn func(val string) (string, error)) (string, error) {
-	var val string
-	err := r.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		var current string
-		if err != nil && err != badger.ErrKeyNotFound {
-			return err
-		}
-		if err != badger.ErrKeyNotFound {
-			valBytes, err := item.ValueCopy(nil)
-			if err != nil {
-				return err
-			}
-			current = string(valBytes)
-		}
-		val, err = fn(current)
-		if err != nil {
-			return err
-		}
-		return txn.Set([]byte(key), []byte(val))
-	})
-	return val, err
+	return r.kv.GetSet(key, fn)
 }
 
 // Increment атомарно увеличивает uint64-значение по ключу на 1.
 func (r *Repo) Increment(key string) (uint64, error) {
-	add := func(existing, newVal []byte) []byte {
-		return uint64ToBytes(bytesToUint64(existing) + bytesToUint64(newVal))
-	}
-	m := r.db.GetMergeOperator([]byte(key), add, 200*time.Millisecond)
-	defer m.Stop()
-
-	if err := m.Add(uint64ToBytes(1)); err != nil {
-		return 0, err
-	}
-	val, err := m.Get()
-	if err != nil {
-		return 0, err
-	}
-	return bytesToUint64(val), nil
+	return r.kv.Increment(key)
 }
 
 // IsKeyNotFound проверяет, является ли ошибка отсутствием ключа.
 func IsKeyNotFound(err error) bool {
-	return err == badger.ErrKeyNotFound
+	return errors.Is(err, ErrKeyNotFound) || err == badger.ErrKeyNotFound
+}
+
+// Ping проверяет доступность хранилища.
+func (r *Repo) Ping(_ context.Context) error {
+	_, err := r.kv.Get("__ping__")
+	if IsKeyNotFound(err) {
+		return nil
+	}
+	return err
 }
 
 func (r *Repo) runGC(ctx context.Context) {
@@ -148,6 +134,81 @@ func (r *Repo) runGC(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// badgerKV — локальная реализация KVStore через BadgerDB.
+type badgerKV struct {
+	db *badger.DB
+}
+
+func (b *badgerKV) Get(key string) (string, error) {
+	var val string
+	err := b.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(key))
+		if err != nil {
+			return err
+		}
+		valBytes, err := item.ValueCopy(nil)
+		if err != nil {
+			return err
+		}
+		val = string(valBytes)
+		return nil
+	})
+	return val, err
+}
+
+func (b *badgerKV) Set(key, val string) error {
+	return b.db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(key), []byte(val))
+	})
+}
+
+func (b *badgerKV) Delete(key string) error {
+	return b.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete([]byte(key))
+	})
+}
+
+func (b *badgerKV) GetSet(key string, fn func(val string) (string, error)) (string, error) {
+	var val string
+	err := b.db.Update(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(key))
+		var current string
+		if err != nil && err != badger.ErrKeyNotFound {
+			return err
+		}
+		if err != badger.ErrKeyNotFound {
+			valBytes, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			current = string(valBytes)
+		}
+		val, err = fn(current)
+		if err != nil {
+			return err
+		}
+		return txn.Set([]byte(key), []byte(val))
+	})
+	return val, err
+}
+
+func (b *badgerKV) Increment(key string) (uint64, error) {
+	add := func(existing, newVal []byte) []byte {
+		return uint64ToBytes(bytesToUint64(existing) + bytesToUint64(newVal))
+	}
+	m := b.db.GetMergeOperator([]byte(key), add, 200*time.Millisecond)
+	defer m.Stop()
+
+	if err := m.Add(uint64ToBytes(1)); err != nil {
+		return 0, err
+	}
+	val, err := m.Get()
+	if err != nil {
+		return 0, err
+	}
+	return bytesToUint64(val), nil
 }
 
 func uint64ToBytes(i uint64) []byte {

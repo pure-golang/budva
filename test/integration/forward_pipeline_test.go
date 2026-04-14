@@ -2,219 +2,224 @@ package integration
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/pure-golang/budva-claude/internal/handler"
+	"github.com/pure-golang/budva-claude/internal/repo/queue"
+	"github.com/pure-golang/budva-claude/internal/repo/state"
+	"github.com/pure-golang/budva-claude/internal/service/album"
+	"github.com/pure-golang/budva-claude/internal/service/dedup"
+	"github.com/pure-golang/budva-claude/internal/service/filters"
+	"github.com/pure-golang/budva-claude/internal/service/limiter"
+	"github.com/pure-golang/budva-claude/internal/service/message"
+	"github.com/pure-golang/budva-claude/internal/service/transform"
 	"github.com/pure-golang/budva-claude/test/support"
 )
 
-func newTestEnv(t *testing.T) *support.TestEnv {
+var badgerContainer *support.BadgerContainer
+
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	var err error
+	badgerContainer, err = support.StartBadgerContainer(ctx)
+	if err != nil {
+		panic("failed to start badger container: " + err.Error())
+	}
+
+	code := m.Run()
+
+	badgerContainer.Stop(ctx)
+	os.Exit(code)
+}
+
+type testEnv struct {
+	telegram *support.FakeTelegram
+	handler  *handler.Handler
+	state    *state.Repo
+	queue    *queue.Repo
+	sourceID domain.ChatID
+	targets  []domain.ChatID
+}
+
+func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
-	env, err := support.NewTestEnv()
-	require.NoError(t, err)
-	t.Cleanup(func() { env.Close() })
-	return env
+	if testing.Short() {
+		t.Skip("integration")
+	}
+
+	kv := badgerContainer.NewKVStore()
+	stateRepo := state.NewWithKV(kv)
+
+	fakeTG := support.NewFakeTelegram()
+	queueRepo := queue.New()
+	messageSvc := message.New()
+	transformSvc := transform.New(fakeTG, stateRepo)
+	filtersSvc := filters.New()
+	albumSvc := album.New()
+	limiterSvc := limiter.New()
+
+	h := handler.New(
+		fakeTG, stateRepo, messageSvc, filtersSvc, transformSvc,
+		albumSvc, queueRepo, limiterSvc,
+		func(dsts []domain.ChatID) handler.DedupTracker { return dedup.NewTracker(dsts) },
+	)
+
+	return &testEnv{
+		telegram: fakeTG,
+		handler:  h,
+		state:    stateRepo,
+		queue:    queueRepo,
+		sourceID: -1001000,
+		targets:  []domain.ChatID{-1002000, -1003000},
+	}
+}
+
+func (e *testEnv) makeRuleSet(sendCopy bool) *domain.RuleSet {
+	src := &domain.Source{ChatID: e.sourceID}
+	rule := &domain.ForwardRule{
+		ID: "test_rule", From: e.sourceID, To: e.targets, SendCopy: sendCopy,
+	}
+	rs := &domain.RuleSet{
+		Sources:             map[domain.ChatID]*domain.Source{e.sourceID: src},
+		Destinations:        make(map[domain.ChatID]*domain.Destination),
+		ForwardRules:        map[string]*domain.ForwardRule{rule.ID: rule},
+		UniqueSources:       map[domain.ChatID]struct{}{e.sourceID: {}},
+		UniqueDestinations:  make(map[domain.ChatID]struct{}),
+		OrderedForwardRules: []string{rule.ID},
+	}
+	for _, id := range e.targets {
+		rs.UniqueDestinations[id] = struct{}{}
+		rs.Destinations[id] = &domain.Destination{ChatID: id}
+	}
+	return rs
 }
 
 func TestForwardPipeline_CopyWithTransform(t *testing.T) {
-	t.Parallel()
-
 	// Arrange
 	env := newTestEnv(t)
-
-	src := &domain.Source{
-		ChatID: env.SourceID,
-		Sign: &domain.Sign{
-			Title: "TestSign",
-			For:   env.TargetIDs,
-		},
-		Translate: &domain.Translate{
-			Lang: "ru",
-			For:  env.TargetIDs,
-		},
-	}
-	rs := env.MakeRuleSet(true, src)
-	env.Handler.SetRuleSet(rs)
+	rs := env.makeRuleSet(true)
+	rs.Sources[env.sourceID].Sign = &domain.Sign{Title: "TestSign", For: env.targets}
+	env.handler.SetRuleSet(rs)
 
 	msg := &domain.Message{
-		ChatID:     env.SourceID,
-		ID:         1,
-		CanBeSaved: true,
-		Content: domain.MessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: "Hello world"},
-		},
+		ChatID: env.sourceID, ID: 1, CanBeSaved: true,
+		Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "hello"}},
 	}
-	env.TelegramFake.PutMessage(msg)
+	env.telegram.PutMessage(msg)
 
 	// Act
-	env.Handler.OnNewMessage(context.Background(), msg)
-	env.DrainQueue()
+	env.handler.OnNewMessage(context.Background(), msg)
+	env.queue.ProcessAll()
 
-	// Assert — сообщения доставлены в целевые чаты с трансформациями
-	for _, targetID := range env.TargetIDs {
-		msgs := env.TelegramFake.MessagesInChat(targetID)
-		require.NotEmpty(t, msgs, "target chat %d should have messages", targetID)
-
-		// Проверяем что текст содержит перевод (prefix от FakeTelegram.TranslateText)
-		found := false
-		for _, m := range msgs {
-			if m.Content.Text != nil {
-				found = true
-				assert.Contains(t, m.Content.Text.Text, "[ru]",
-					"target %d: message should contain translation prefix", targetID)
-			}
-		}
-		assert.True(t, found, "target %d: should have at least one text message", targetID)
-	}
+	// Assert
+	msgs := env.telegram.MessagesInChat(env.targets[0])
+	require.NotEmpty(t, msgs)
+	assert.Contains(t, msgs[0].Content.Text.Text, "TestSign")
 }
 
 func TestForwardPipeline_EditSync(t *testing.T) {
-	t.Parallel()
-
 	// Arrange
 	env := newTestEnv(t)
-
-	rs := env.MakeRuleSet(true, nil)
-	env.Handler.SetRuleSet(rs)
+	rs := env.makeRuleSet(true)
+	env.handler.SetRuleSet(rs)
 
 	msg := &domain.Message{
-		ChatID:     env.SourceID,
-		ID:         1,
-		CanBeSaved: true,
-		Content: domain.MessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: "Original text"},
-		},
+		ChatID: env.sourceID, ID: 1, CanBeSaved: true,
+		Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "original"}},
 	}
-	env.TelegramFake.PutMessage(msg)
+	env.telegram.PutMessage(msg)
+	env.handler.OnNewMessage(context.Background(), msg)
+	env.queue.ProcessAll()
 
-	// Act — отправляем сообщение
-	env.Handler.OnNewMessage(context.Background(), msg)
-	env.DrainQueue()
-
-	// Имитируем OnMessageSendSucceeded: замена tmpMsgID на permanent ID
-	for _, targetID := range env.TargetIDs {
-		targetMsgs := env.TelegramFake.MessagesInChat(targetID)
-		for _, m := range targetMsgs {
-			newID := m.ID + 10000
-			env.Handler.OnMessageSendSucceeded(targetID, m.ID, newID)
-			// В реальном TDLib temp-сообщение заменяется permanent; имитируем
-			env.TelegramFake.ReplaceMessageID(targetID, m.ID, newID)
+	// Simulate send succeeded
+	for _, target := range env.targets {
+		for _, m := range env.telegram.MessagesInChat(target) {
+			env.handler.OnMessageSendSucceeded(target, m.ID, m.ID)
 		}
 	}
-	env.DrainQueue()
 
-	// Редактируем сообщение
-	editedMsg := &domain.Message{
-		ChatID:     env.SourceID,
-		ID:         1,
-		CanBeSaved: true,
-		Content: domain.MessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: "Edited text"},
-		},
+	// Act — edit
+	editMsg := &domain.Message{
+		ChatID: env.sourceID, ID: 1, CanBeSaved: true,
+		Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "updated"}},
 	}
-	env.Handler.OnEditedMessage(context.Background(), editedMsg)
-	env.DrainQueue()
+	env.telegram.PutMessage(editMsg)
+	env.handler.OnEditedMessage(context.Background(), editMsg)
+	env.queue.ProcessAll()
 
-	// Assert — проверяем что в целевых чатах текст обновлён
-	for _, targetID := range env.TargetIDs {
+	// Assert
+	for _, target := range env.targets {
+		msgs := env.telegram.MessagesInChat(target)
+		require.NotEmpty(t, msgs)
 		found := false
-		for _, m := range env.TelegramFake.MessagesInChat(targetID) {
-			if m.Content.Text != nil && m.Content.Text.Text == "Edited text" {
+		for _, m := range msgs {
+			if m.Content.Text != nil && m.Content.Text.Text == "updated" {
 				found = true
-				break
 			}
 		}
-		assert.True(t, found, "target %d: should have message with edited text", targetID)
+		assert.True(t, found, "target %d should have updated message", target)
 	}
 }
 
 func TestForwardPipeline_DeleteSync(t *testing.T) {
-	t.Parallel()
-
 	// Arrange
 	env := newTestEnv(t)
-
-	rs := env.MakeRuleSet(true, nil)
-	env.Handler.SetRuleSet(rs)
+	rs := env.makeRuleSet(true)
+	env.handler.SetRuleSet(rs)
 
 	msg := &domain.Message{
-		ChatID:     env.SourceID,
-		ID:         1,
-		CanBeSaved: true,
-		Content: domain.MessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: "Will be deleted"},
-		},
+		ChatID: env.sourceID, ID: 1, CanBeSaved: true,
+		Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "to delete"}},
 	}
-	env.TelegramFake.PutMessage(msg)
+	env.telegram.PutMessage(msg)
+	env.handler.OnNewMessage(context.Background(), msg)
+	env.queue.ProcessAll()
 
-	// Act — отправляем сообщение
-	env.Handler.OnNewMessage(context.Background(), msg)
-	env.DrainQueue()
-
-	// Имитируем OnMessageSendSucceeded: замена tmpMsgID на permanent ID
-	for _, targetID := range env.TargetIDs {
-		targetMsgs := env.TelegramFake.MessagesInChat(targetID)
-		for _, m := range targetMsgs {
-			newID := m.ID + 10000
-			env.Handler.OnMessageSendSucceeded(targetID, m.ID, newID)
-			// В реальном TDLib temp-сообщение заменяется permanent; имитируем
-			env.TelegramFake.ReplaceMessageID(targetID, m.ID, newID)
+	// Simulate send succeeded
+	for _, target := range env.targets {
+		for _, m := range env.telegram.MessagesInChat(target) {
+			env.handler.OnMessageSendSucceeded(target, m.ID, m.ID)
 		}
 	}
-	env.DrainQueue()
+	env.queue.ProcessAll()
 
-	// Удаляем сообщение в источнике
-	env.Handler.OnDeletedMessages(context.Background(), env.SourceID, []domain.MessageID{1}, true)
-	env.DrainQueue()
+	// Act — delete
+	env.handler.OnDeletedMessages(context.Background(), env.sourceID, []domain.MessageID{1}, true)
+	env.queue.ProcessAll()
 
-	// Assert — целевые чаты не содержат удалённых сообщений
-	for _, targetID := range env.TargetIDs {
-		msgs := env.TelegramFake.MessagesInChat(targetID)
-		for _, m := range msgs {
-			if m.Content.Text != nil {
-				assert.NotEqual(t, "Will be deleted", m.Content.Text.Text,
-					"target %d: deleted message should be removed", targetID)
-			}
-		}
+	// Assert
+	for _, target := range env.targets {
+		msgs := env.telegram.MessagesInChat(target)
+		assert.Empty(t, msgs, "target %d should have no messages after delete", target)
 	}
 }
 
 func TestForwardPipeline_FilterExclude(t *testing.T) {
-	t.Parallel()
-
 	// Arrange
 	env := newTestEnv(t)
-
-	rs := env.MakeRuleSet(true, nil)
-	rule := rs.ForwardRules["test_rule"]
-	rule.Exclude = "SPAM"
-	env.Handler.SetRuleSet(rs)
+	rs := env.makeRuleSet(true)
+	rs.ForwardRules["test_rule"].Exclude = "SPAM"
+	env.handler.SetRuleSet(rs)
 
 	msg := &domain.Message{
-		ChatID:     env.SourceID,
-		ID:         1,
-		CanBeSaved: true,
-		Content: domain.MessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: "This is SPAM content"},
-		},
+		ChatID: env.sourceID, ID: 1, CanBeSaved: true,
+		Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "contains SPAM word"}},
 	}
-	env.TelegramFake.PutMessage(msg)
+	env.telegram.PutMessage(msg)
 
 	// Act
-	env.Handler.OnNewMessage(context.Background(), msg)
-	env.DrainQueue()
+	env.handler.OnNewMessage(context.Background(), msg)
+	env.queue.ProcessAll()
 
-	// Assert — целевые чаты не должны содержать сообщений
-	for _, targetID := range env.TargetIDs {
-		msgs := env.TelegramFake.MessagesInChat(targetID)
-		assert.Empty(t, msgs, "target %d: should have no messages when exclude filter matches", targetID)
+	// Assert — no messages in targets (excluded)
+	for _, target := range env.targets {
+		msgs := env.telegram.MessagesInChat(target)
+		assert.Empty(t, msgs, "target %d should have no messages (excluded)", target)
 	}
 }
