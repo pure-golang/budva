@@ -65,16 +65,23 @@ func TestRunInputLoop_Exit(t *testing.T) {
 		}
 
 		tr := New(auth, tg, tm, "")
-		shutdownCalled := false
+		shutdownCh := make(chan struct{}, 1)
 		tr.shutdown = func() {
-			shutdownCalled = true
+			select {
+			case shutdownCh <- struct{}{}:
+			default:
+			}
 			cancel()
 		}
 
 		go tr.runInputLoop(ctx)
-		time.Sleep(1 * time.Millisecond)
 
-		assert.True(t, shutdownCalled, "shutdown should be called after exit command")
+		select {
+		case <-shutdownCh:
+			// OK
+		case <-time.After(1 * time.Second):
+			t.Error("shutdown was not called after exit command")
+		}
 	})
 }
 
