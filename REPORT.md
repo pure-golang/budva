@@ -91,13 +91,15 @@
 | `internal/service/auth/` | Subscribe, SetState, pub-sub | Нет |
 | `internal/repo/state/copies.go` | SetCopiedMessageID, GetCopiedMessageIDs — string parsing | Нет (BadgerDB в TempDir) |
 
-### Приоритет 2: Transport-слой
+### Приоритет 2: Transport-слой (работает через интерфейсы, не зависит от TDLib)
 
 | Задача | Описание |
 |---|---|
-| `internal/transport/term/` | Перенести auth flow (phone/code/password), CLI команды (help, exit) |
-| `internal/transport/http/` | REST auth эндпоинты, GraphQL handler + playground, middleware chain |
-| `internal/transport/grpc/` | Proto-определения, кодогенерация, FacadeGRPC сервер |
+| `internal/transport/term/` | Auth flow (phone/code/password через auth.InputChan), CLI команды (help, exit), подписка на auth state |
+| `internal/transport/http/` | REST auth эндпоинты (/api/auth/telegram/*), GraphQL handler + playground, middleware chain |
+| `internal/transport/grpc/` | Proto-определения, кодогенерация, FacadeGRPC сервер (GetMessages, SendMessage, ForwardMessage и т.д.) |
+
+Все транспорты работают через частично применяемые интерфейсы (auth service, facade service, telegram repo). Под интерфейсами могут быть как стабы, так и реальный TDLib — транспорты не знают разницы.
 
 ### Приоритет 3: Observability
 
