@@ -63,3 +63,39 @@ func TestHealthcheck_unhealthy(t *testing.T) {
 	// Assert
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
+
+func TestReady_all_healthy(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	p := mocks.NewPinger(t)
+	p.EXPECT().Ping(mock.Anything).Return(nil)
+	ctrl := New(p)
+	mux := http.NewServeMux()
+	ctrl.EnrichRoutes(mux)
+
+	// Act
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+
+	// Assert
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestReady_unhealthy(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	p := mocks.NewPinger(t)
+	p.EXPECT().Ping(mock.Anything).Return(errors.New("redis is down"))
+	ctrl := New(p)
+	mux := http.NewServeMux()
+	ctrl.EnrichRoutes(mux)
+
+	// Act
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+
+	// Assert
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+}
