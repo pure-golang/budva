@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	t := term.New(authService, termRepo, logger)
+//	t := term.New(logger)
 //	t.Run(ctx)
 //
 // Пакет не читает переменные окружения напрямую.

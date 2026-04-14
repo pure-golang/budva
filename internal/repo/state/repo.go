@@ -142,7 +142,7 @@ func (r *Repo) runGC(ctx context.Context) {
 					continue
 				}
 				if err != badger.ErrNoRewrite {
-					r.logger.Error("BadgerDB GC error", "error", err)
+					r.logger.Error("BadgerDB GC error", slog.Any("error", err))
 				}
 				break
 			}

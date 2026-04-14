@@ -76,7 +76,7 @@
 | internal/service/album | Средний | AddMessage, PopMessages, конкурентность |
 | internal/service/auth | Средний | Subscribe, SetState, pub-sub |
 | internal/service/limiter | Низкий | Wait — time-based логика |
-| internal/repo/state/copies | Средний | SetCopiedMessageID, GetCopiedMessageIDs — string parsing |
+| internal/repo/state (copies.go) | Средний | SetCopiedMessageID, GetCopiedMessageIDs — string parsing |
 
 ## Code Coverage
 

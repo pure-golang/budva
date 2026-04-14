@@ -79,7 +79,7 @@ func (r *Repo) processQueue() {
 func (r *Repo) executeTask(fn func()) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			r.logger.Error("Task panicked", "error", fmt.Sprintf("%v", rec))
+			r.logger.Error("Task panicked", slog.String("error", fmt.Sprintf("%v", rec)))
 		}
 	}()
 	fn()

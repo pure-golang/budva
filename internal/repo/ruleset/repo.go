@@ -82,14 +82,14 @@ func (r *Repo) WatchContext(ctx context.Context, onChange func()) error {
 					return
 				}
 				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
-					r.logger.Info("Ruleset file changed", "file", r.cfg.Path)
+					r.logger.Info("Ruleset file changed", slog.String("file", r.cfg.Path))
 					onChange()
 				}
 			case err, ok := <-w.Errors:
 				if !ok {
 					return
 				}
-				r.logger.Error("Watcher error", "error", err)
+				r.logger.Error("Watcher error", slog.Any("error", err))
 			}
 		}
 	}()

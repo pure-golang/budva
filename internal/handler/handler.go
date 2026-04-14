@@ -262,7 +262,7 @@ func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domai
 	content := h.messages.BuildInputContent(msg, transformed)
 	tmpMsgID, err := h.telegram.SendMessage(ctx, dstChatID, content)
 	if err != nil {
-		h.logger.Error("Failed to send message", "error", err, "dst_chat_id", dstChatID)
+		h.logger.Error("Failed to send message", slog.Any("error", err), slog.Int64("dst_chat_id", dstChatID))
 		return
 	}
 

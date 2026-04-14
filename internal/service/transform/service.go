@@ -48,7 +48,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 	if p.Source.Translate != nil && containsChatID(p.Source.Translate.For, p.DstChatID) {
 		translated, err := s.telegram.TranslateText(ctx, text, p.Source.Translate.Lang)
 		if err != nil {
-			s.logger.Error("Translation failed", "error", err)
+			s.logger.Error("Translation failed", slog.Any("error", err))
 		} else {
 			text = translated
 		}

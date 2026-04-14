@@ -3,13 +3,15 @@
 // Использование:
 //
 //	svc := message.New(logger)
-//	text := svc.ExtractText(messageContent)
-//	content := svc.BuildContent(text)
+//	text := svc.GetFormattedText(msg)
+//	isSystem := svc.IsSystemMessage(msg)
+//	data := svc.GetReplyMarkupData(msg)
+//	content := svc.BuildInputContent(msg, text)
 //
 // Пакет не читает переменные окружения напрямую.
 //
 // Ограничения:
 //
-//   - Работает с FormattedText из TDLib.
+//   - Работает с domain.Message и domain.FormattedText.
 //   - Определяет тип контента (текст, фото, видео и т.д.).
 package message

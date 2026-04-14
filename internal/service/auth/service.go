@@ -42,7 +42,7 @@ func (s *Service) SetState(state domain.AuthorizationState, extra any) {
 	copy(listeners, s.listeners)
 	s.mu.Unlock()
 
-	s.logger.Info("Auth state changed", "state", state.String())
+	s.logger.Info("Auth state changed", slog.String("state", state.String()))
 	for _, l := range listeners {
 		l(state, extra)
 	}

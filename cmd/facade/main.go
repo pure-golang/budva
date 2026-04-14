@@ -44,7 +44,7 @@ func run() error {
 	closeMonitoring := monitoring.InitDefault(cfg.Monitoring)
 	defer func() {
 		if err := closeMonitoring(); err != nil {
-			slog.Default().Warn("Failed to close monitoring", "error", err)
+			slog.Default().Warn("Failed to close monitoring", slog.Any("error", err))
 		}
 	}()
 
