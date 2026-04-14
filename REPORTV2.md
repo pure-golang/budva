@@ -114,47 +114,47 @@
 | `internal/dto/graphql/` | ✓ StatusResponse |
 | gRPC proto (pb/) | ✓ Все message types |
 
-## Тестовое покрытие — КРИТИЧЕСКИЕ ПРОБЛЕМЫ
+## Тестовое покрытие
 
-Подробный разбор в `REPORT_TEST.md`. Ключевые проблемы:
+Подробный разбор в `REPORT_TEST.md`.
 
-### BDD: 18 сценариев — заглушки
+### BDD: 18 сценариев — функциональные ✓
 
-Step definitions не вызывают реальный код. Тесты "проходят" вне зависимости от корректности реализации. 7 новых бизнес-функций не покрыты BDD.
+Step definitions вызывают реальный Handler + services через `test/support/TestEnv` с FakeTelegram (in-memory stateful gateway) и BadgerDB (TempDir). Все 18 сценариев зелёные (1 @pending — auto_answers, ждёт TDLib).
 
-### Integration: 0 тестов
+### Integration: 11 тестов ✓
 
-Директория пуста. Нет тестов для handler + services pipeline, BadgerDB update-in-place, ruleset full cycle.
+BadgerDB copies (update-in-place, bidirectional mapping, counters), ruleset full pipeline (load, validate, transform, enrich, negation, UTF-16 validation).
 
-### E2E: не существует
+### Smoke: 2 теста ✓
 
-Директория отсутствует. Нет тестов lifecycle cmd/engine и cmd/facade.
+Engine и facade бинарники собираются.
 
-### Smoke: 0 тестов
+### E2E: отложено
 
-Директория пуста. Нет проверки бинарной сборки, загрузки конфига, health endpoint.
+Требует TDLib Test DC (Phase B).
 
 ## Дальнейший план
 
-### Приоритет 1: Functional BDD (red→green)
+### ~~Приоритет 1: Functional BDD~~ ✓
 
-Подключить реальный Handler + services в BDD step definitions через `test/support/`. Сделать 18 существующих сценариев функциональными.
+18 сценариев подключены к реальному Handler + services через `test/support/TestEnv`.
+
+### ~~Приоритет 3: Integration тесты~~ ✓
+
+11 тестов: BadgerDB copies, ruleset full pipeline.
+
+### ~~Приоритет 5: Smoke тесты~~ ✓
+
+2 теста: engine и facade бинарники.
 
 ### Приоритет 2: Новые BDD-сценарии
 
 7 features для: retry, rate limiting, reply chain, origin unwrapping, statistics, check/other dedup, auto-answer.
 
-### Приоритет 3: Integration тесты
+### Приоритет 4: E2E с TDLib Test DC
 
-BadgerDB operations, ruleset full pipeline, handler + real services.
-
-### Приоритет 4: E2E с TDLib stubs
-
-Engine lifecycle, facade endpoints.
-
-### Приоритет 5: Smoke тесты
-
-Binary build, config load, health endpoint.
+Engine lifecycle, facade endpoints. Требует Phase B.
 
 ### Приоритет 6: Phase B — TDLib интеграция
 
