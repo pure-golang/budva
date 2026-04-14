@@ -182,7 +182,7 @@ func (t *Transport) processAuth(state domain.AuthorizationState, extra any) {
 				return
 			}
 		} else {
-			t.term.Printf("Phone: %s***\n", phone[:min(4, len(phone))])
+			t.term.Printf("Phone: %s\n", domain.MaskPhoneNumber(phone))
 		}
 		t.auth.InputChan() <- phone
 
