@@ -1,17 +1,22 @@
-filename: "{{.InterfaceName | snakecase}}.go"
-dir: "{{.InterfaceDir}}/mocks"
-structname: "{{.InterfaceName | firstUpper}}"
-pkgname: mocks
-template: testify
-template-data:
-  unroll-variadic: true
+with-expecter: true
+disable-version-string: true
+exported: true
 packages:
   github.com/pure-golang/budva-claude/internal/handler:
     config:
       all: true
+      dir: "{{.InterfaceDir}}/mocks"
+      outpkg: mocks
+      mockname: "{{.InterfaceName | camelcase}}"
   github.com/pure-golang/budva-claude/internal/service/transform:
     config:
       all: true
+      dir: "{{.InterfaceDir}}/mocks"
+      outpkg: mocks
+      mockname: "{{.InterfaceName | camelcase}}"
   github.com/pure-golang/budva-claude/internal/controller:
     config:
       all: true
+      dir: "{{.InterfaceDir}}/mocks"
+      outpkg: mocks
+      mockname: "{{.InterfaceName | camelcase}}"
