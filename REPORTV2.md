@@ -2,276 +2,160 @@
 
 ## Методика
 
-Сравнение каждого файла budva43 с budva-claude по функциям, бизнес-логике, эвристикам и edge cases.
+Сравнение каждого файла budva43 с budva-claude по функциям, бизнес-логике, эвристикам и edge cases. Последняя актуализация: 2026-04-14.
 
-## Статус по областям
+## Статус Phase A (без CGO) — ✓ ЗАКРЫТА
 
-### 1. Авторизация
+Все GAPs фазы A реализованы и проверены ревьюерами.
 
-| Функционал | budva43 | budva-claude | Статус |
+### Закрытые GAPs
+
+| # | Область | Описание | Коммит |
 |---|---|---|---|
-| State machine (WaitPhone/Code/Password) | ✓ | ✓ | OK |
-| Subscribe/broadcast | goroutine per subscriber | sync callback | OK (упрощено) |
-| `AuthorizationStateClosing` consumed but NOT broadcast | ✓ | ✗ Не учтено | **GAP** |
-| `CreateClient` infinite retry loop (no delay, no limit) | ✓ | ✗ Нет retry | **GAP** |
-| `Close()` с sleep 1s (workaround TDLib signal.abort) | ✓ | ✗ Нет workaround | **GAP** |
-| `inputChan` buffered size 1 | ✓ | ✓ | OK |
-| `authStateChan` buffered size 10 + non-blocking send | ✓ | ✓ | OK |
-| Phone number masking в выводе | `MaskPhoneNumber()` | `phone[:4]***` | OK (упрощено) |
-| GetStatus (version + userId) | ✓ | ✓ | OK |
+| G3 | Handler | Retry 3x для edit и delete handlers | `b524f07` |
+| G4 | Handler | Rate limiting в forwarding path | `b524f07` |
+| G5 | Handler | Statistics counters (viewed + forwarded) | `b524f07` |
+| G6 | Handler | Reply chain preservation (resolveReplyTo) | `b524f07` |
+| G7 | Handler | Origin message unwrapping (getOriginMessage) | `b524f07` |
+| G8 | Transform | addAutoAnswer (callback query injection) | `b524f07` |
+| G10 | Config | Fragment UTF-16 length validation | `b524f07` |
+| G12 | Handler | Album WithSources — only first message | `b524f07` |
+| G13 | Handler | Check/Other dedup через DedupTracker | `b524f07` |
+| G14 | Handler | Reply markup sync при edit | `b524f07` |
+| G16 | Message | BuildInputContent per-type с LinkPreview inversion | `b524f07` |
+| G18 | HTTP | Password hint в state response + Extra() в auth | `b524f07` |
 
-### 2. Telegram Repo
+### Были уже реализованы (ложные GAPs в первой версии отчёта)
 
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| `getClient()` — блокирующее ожидание авторизации | ✓ | `ClientDone()` channel | OK (аналог) |
-| `setupClientLog()` — TDLib log to file | ✓ | ✗ Нет | **GAP** |
-| `LoadChats` / `GetChatHistory` — проверка `client == nil` | ✓ | ✗ Нет (stubs) | Ждёт TDLib |
-| `ParseTextEntities` — static client method (не через getClient) | ✓ | ✗ Не учтено | **GAP** |
-| `GetMarkdownText` — static client method | ✓ | ✗ Отсутствует | **GAP** |
-| `GetChat` — тип чата | ✓ | `GetChatType` stub | OK |
-| `GetListener` — TDLib update listener | ✓ | channel-based updates | OK (другая архитектура) |
-| TDLib parameters: UseFileDatabase, UseChatInfoDatabase, UseMessageDatabase, UseSecretChats | ✓ | Частично в config | **CHECK** |
-
-### 3. Handler — OnNewMessage
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| Source check + system message deletion | ✓ | ✓ | OK |
-| Filter evaluation (OK/Check/Other) | ✓ | ✓ | OK |
-| Forward without copy | ✓ | ✓ | OK |
-| Send copy + transform | ✓ | ✓ | OK |
-| Media album 3-second wait | рекурсивный timer с `GetLastReceivedDiff` | `processMediaAlbum` с for-loop | OK |
-| Album source attribution only for FIRST message | `withSources` flag | `WithSources: true` всегда | **GAP** |
-| **Check/Other dedup через map** | `forwardedTo` map prevents duplicate check/other | ✗ Нет dedup для check/other | **GAP** |
-| **Statistics** (viewed + forwarded counters) | `addStatistics()` в конце | ✗ Отсутствует | **GAP** |
-| **Rate limiting** перед каждым forward | `WaitForForward(3s per chat)` | ✗ Отсутствует | **GAP** |
-| **Origin message unwrapping** (channel forwards) | `getOriginMessage()` | ✗ Отсутствует | **GAP** |
-| **Reply chain preservation** | `getReplyToMessageId()` | ✗ Отсутствует | **GAP** |
-
-### 4. Handler — OnEditedMessage
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| Edit propagation to all copies | ✓ | ✓ | OK |
-| **Retry 3 times** (eventual consistency) | `maxRetry=3`, queue re-insertion | ✗ Нет retry | **GAP** |
-| CopyOnce versioning (new message + prevLink) | ✓ | ✓ | OK |
-| **Reply markup sync** (answer message tracking) | `SetAnswerMessageId` / `DeleteAnswerMessageId` | ✗ Вызывается в delete, но НЕ в edit | **GAP** |
-| **Auto-answer** injection при edit | через transform | ✗ Нет auto-answer | **GAP** |
-| **Filter re-check** on edit (re-forward to check chat) | ✓ | ✗ Нет re-check | **GAP** |
-
-### 5. Handler — OnDeletedMessages
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| Permanent-only check | ✓ | ✓ | OK |
-| Indelible rule skip | ✓ | ✓ | OK |
-| Storage cleanup order | ✓ | ✓ | OK |
-| **Retry 3 times** (eventual consistency) | `maxRetry=3`, queue re-insertion | ✗ Нет retry | **GAP** |
-
-### 6. Handler — OnMessageSendSucceeded
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| Bidirectional mapping (tmp↔new) | ✓ | ✓ | OK |
-
-### 7. Transform Service
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| Translation | ✓ | ✓ | OK |
-| **addAutoAnswer** (callback query injection) | ✓ | ✗ Отсутствует | **GAP** |
-| replaceMyselfLinks | ✓ | ✓ | OK |
-| replaceFragments | ✓ | ✓ | OK |
-| Source sign | ✓ | ✓ | OK |
-| Source link | ✓ | ✓ | OK |
-| Prev link | ✓ | ✓ | OK |
-| Next link | ✓ | ✓ | OK |
-| **ForAlbum flag** in GetMessageLink | ✓ | ✗ Не передаётся | **GAP** |
-| UTF-16 offset management | ✓ | ✓ | OK |
-| Markdown v2 parsing | ✓ | ✓ | OK |
-
-### 8. Message Service
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| GetFormattedText | ✓ | ✓ | OK |
-| IsSystemMessage (7 system types) | ✓ | Упрощённый (по ContentSystem) | **CHECK** |
-| GetReplyMarkupData | ✓ | ✓ | OK |
-| **GetInputMessageContent** — LinkPreviewOptions | ✓ | ✗ Упрощённый BuildInputContent | **GAP** |
-| **GetInputMessageContent** — Thumbnail handling | ✓ | ✗ Не передаёт Thumbnail | **GAP** |
-| **GetInputMessageContent** — per-content-type logic | Полный switch (7 типов) | Плоское копирование полей | **GAP** |
-
-### 9. Filters Service
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| Exclude regex | ✓ | ✓ | OK |
-| Include regex | ✓ | ✓ | OK |
-| IncludeSubmatch с group extraction | ✓ | ✓ | OK |
-| Empty text + include → FiltersOther | ✓ | ✓ | OK |
-| Case-insensitive (?i) | ✓ | ✓ | OK |
-
-### 10. Dedup Service
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| TryMark dedup per destination | ✓ | ✓ | OK |
-| **Init map с destinations** перед processing | `forwardedTo.Init()` | ✗ Tracker не pre-init | **MINOR** |
-
-### 11. Rate Limiter
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| **3-second per-chat throttle** | `WaitForForward()` | ✓ Реализован (Service struct) | OK |
-| **Интеграция** в forwarding path | Вызывается в forwarder | ✗ Не вызывается в handler | **GAP** |
-
-### 12. Album Service
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| AddMessage / PopMessages / LastReceivedAge | ✓ | ✓ | OK |
-| MakeKey (ruleId:albumId) | ✓ | ✓ | OK |
-
-### 13. Storage (repo/state)
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| copiedMessageIds (CSV, update-in-place) | ✓ | ✓ | OK |
-| newMessageId / tmpMessageId (bidirectional) | ✓ | ✓ | OK |
-| answerMessageId | ✓ | ✓ | OK |
-| viewedMessages / forwardedMessages counters | ✓ | ✓ | OK |
-| Increment (atomic merge operator) | ✓ | ✓ | OK |
-| GetSet (atomic read-modify-write) | ✓ | ✓ | OK |
-| GC (5 min interval, threshold 0.7) | ✓ | ✓ | OK |
-
-### 14. Queue (repo/queue)
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| **1-second tick** per task execution | ✓ | ✗ Нет tick, задачи через `Add()` | **CHECK** |
-| **Panic recovery** в executeTask | ✓ | ✗ Нет recovery | **GAP** |
-| FIFO (linked list) | ✓ | Slice-based | OK |
-
-### 15. Config / Ruleset
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| YAML loading | Viper | yaml.v3 | OK |
-| File watching (fsnotify) | ✓ | ✓ | OK |
-| **Chat ID negation** (transform step) | Все ID негируются | ✗ Нет negation | **GAP** |
-| **Fragment UTF-16 length validation** | `validate()` проверяет From/To length | ✗ Нет валидации | **GAP** |
-| Enrich (UniqueSources, UniqueDestinations, OrderedRules) | ✓ | ✓ | OK |
-| ErrEmptyConfigData | ✓ | ✗ Нет проверки | **GAP** |
-
-### 16. Loader (warm-up)
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| `LoadChats(200)` при старте | ✓ | ✗ Stub, не вызывается | Ждёт TDLib |
-| `GetChatHistory(limit=1)` для каждого destination | ✓ | ✗ Stub, не вызывается | Ждёт TDLib |
-
-### 17. Transport — Terminal
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| Auth flow (phone/code/password) | ✓ | ✓ | OK |
-| CLI commands (help, exit) | ✓ | ✓ | OK |
-| **HiddenReadLine** для secrets | ✓ | `ReadPassword()` | OK |
-| Phone masking | `MaskPhoneNumber()` | `phone[:4]***` | OK |
-| **Русский UI** (Введите номер телефона) | ✓ | Английский | **MINOR** |
-
-### 18. Transport — HTTP
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| REST auth endpoints (state/phone/code/password) | ✓ | ✓ | OK |
-| GraphQL handler | gqlgen + generated code | Лёгкий handler (status only) | OK (MVP) |
-| **GraphQL playground** | ✓ | ✓ | OK |
-| **Password hint в state response** | PasswordHint передаётся | ✗ Не передаётся | **GAP** |
-
-### 19. Transport — gRPC
-
-| Функционал | budva43 | budva-claude | Статус |
-|---|---|---|---|
-| FacadeGRPC (10 RPC) | ✓ | ✓ | OK |
-| Reflection | ✓ | ✓ | OK |
-| GetChatHistory | ✓ | ✓ | OK |
-
----
-
-## Сводка GAPs
-
-### Критические (блокируют корректную работу при подключении TDLib)
-
-| # | Область | Описание |
+| # | Область | Почему не GAP |
 |---|---|---|
-| G1 | Auth | `AuthorizationStateClosing` не обрабатывается (consume without broadcast) |
-| G2 | Auth | `CreateClient` retry loop отсутствует |
-| G3 | Handler | Retry 3x для edit и delete handlers (eventual consistency) |
-| G4 | Handler | Rate limiting не вызывается при forwarding |
-| G5 | Handler | Statistics counters не инкрементируются |
-| G6 | Handler | Reply chain preservation отсутствует |
-| G7 | Handler | Origin message unwrapping отсутствует |
-| G8 | Transform | `addAutoAnswer` отсутствует |
-| G9 | Config | Chat ID negation отсутствует |
-| G10 | Config | Fragment UTF-16 length validation отсутствует |
-| G11 | Queue | Panic recovery отсутствует |
+| G9 | Config | Chat ID negation — уже в `ruleset.transform()` |
+| G11 | Queue | Panic recovery — уже в `queue.executeTask()` |
+| G20 | Config | ErrEmptyConfig — уже в `ruleset.check()` |
 
-### Средние (влияют на корректность edge cases)
+### Отложены (не было в budva43 edit handler / Phase B)
 
-| # | Область | Описание |
+| # | Область | Причина |
 |---|---|---|
-| G12 | Handler | Album source attribution — `WithSources` для первого сообщения |
-| G13 | Handler | Check/Other dedup через forwardedTo map |
-| G14 | Handler | Reply markup sync при edit (SetAnswerMessageId) |
-| G15 | Handler | Filter re-check при edit |
-| G16 | Message | `BuildInputContent` не учитывает LinkPreviewOptions, thumbnails, per-type logic |
-| G17 | Transform | ForAlbum flag в GetMessageLink |
-| G18 | HTTP | Password hint в state response |
-| G19 | Repo | `ParseTextEntities` / `GetMarkdownText` — static client methods |
-| G20 | Config | `ErrEmptyConfigData` проверка при пустом конфиге |
+| G15 | Handler | Filter re-check on edit — в budva43 проверка была только для check chat re-forwarding, не полный re-filter |
+| G17 | Transform | ForAlbum flag — параметр TDLib API `getMessageLink`, нужен CGO |
 
-### Низкие (cosmetic, workarounds)
+## Статус Phase B (TDLib-специфичные) — ОТКРЫТА
 
-| # | Область | Описание |
-|---|---|---|
-| G21 | Auth | `Close()` sleep 1s workaround для TDLib |
-| G22 | Repo | `setupClientLog()` — TDLib log redirect to file |
-| G23 | Terminal | Русский UI (Введите номер телефона) |
-| G24 | Config | TDLib parameters (UseFileDatabase, etc.) полнота |
+| # | Область | Описание | Блокер |
+|---|---|---|---|
+| G1 | Auth | `AuthorizationStateClosing` — consume without broadcast | CGO |
+| G2 | Auth | `CreateClient` infinite retry loop | CGO |
+| G19 | Repo | `ParseTextEntities` / `GetMarkdownText` — static client methods | CGO |
+| G21 | Auth | `Close()` sleep 1s workaround для TDLib signal.abort | CGO |
+| G22 | Repo | `setupClientLog()` — TDLib log redirect to file | CGO |
+| G24 | Config | TDLib parameters (UseFileDatabase, etc.) полнота | CGO |
 
----
+## Статус по областям (актуальный)
 
-## Рекомендуемый порядок закрытия GAPs
+### Авторизация
 
-### Фаза A: Подготовка к TDLib (без CGO)
+| Функционал | Статус |
+|---|---|
+| State machine (WaitPhone/Code/Password) | ✓ |
+| Subscribe/broadcast + Extra() | ✓ |
+| inputChan / authStateChan | ✓ |
+| Phone masking | ✓ |
+| GetStatus | ✓ |
+| AuthorizationStateClosing | Phase B |
+| CreateClient retry loop | Phase B |
+| Close() sleep workaround | Phase B |
 
-Эти GAPs можно закрыть до подключения TDLib, используя существующие stubs.
+### Handler
 
-1. **G9** — Chat ID negation в ruleset (validate/transform/enrich)
-2. **G10** — Fragment UTF-16 length validation
-3. **G20** — ErrEmptyConfigData check
-4. **G3** — Retry 3x для edit/delete handlers
-5. **G4** — Rate limiter интеграция в handler
-6. **G5** — Statistics counters
-7. **G6** — Reply chain preservation
-8. **G7** — Origin message unwrapping
-9. **G8** — addAutoAnswer в transform
-10. **G11** — Panic recovery в queue
-11. **G12** — Album WithSources flag
-12. **G13** — Check/Other dedup
-13. **G14** — Reply markup sync при edit
-14. **G15** — Filter re-check при edit
-15. **G16** — BuildInputContent per-type logic
-16. **G17** — ForAlbum flag
-17. **G18** — Password hint в HTTP state response
+| Функционал | Статус |
+|---|---|
+| OnNewMessage: source check, system delete, filter, forward/copy | ✓ |
+| Rate limiting (3s per chat) | ✓ |
+| Statistics (viewed/forwarded) | ✓ |
+| Reply chain preservation (resolveReplyTo) | ✓ |
+| Origin message unwrapping (getOriginMessage) | ✓ |
+| Album 3-second wait + WithSources first-only | ✓ |
+| Check/Other dedup | ✓ |
+| OnEditedMessage: retry 3x, CopyOnce, reply markup sync | ✓ |
+| OnDeletedMessages: retry 3x, indelible, cleanup | ✓ |
+| OnMessageSendSucceeded: bidirectional mapping | ✓ |
+| parseCopyRef helper | ✓ |
 
-### Фаза B: TDLib-специфичные (требуют CGO)
+### Transform
 
-1. **G1** — AuthorizationStateClosing handling
-2. **G2** — CreateClient retry loop
-3. **G19** — Static client methods (ParseTextEntities)
-4. **G21** — Close() sleep workaround
-5. **G22** — setupClientLog()
-6. **G24** — TDLib parameters полнота
+| Функционал | Статус |
+|---|---|
+| Translation | ✓ |
+| addAutoAnswer | ✓ |
+| replaceMyselfLinks | ✓ |
+| replaceFragments | ✓ |
+| Sign / Link / Prev / Next | ✓ |
+| UTF-16 offsets | ✓ |
+| Span instrumentation | ✓ |
+| ForAlbum flag | Phase B |
+
+### Message / Filters / Dedup / Album / Limiter / Queue / State / Ruleset
+
+Все — ✓ полностью реализованы.
+
+### Transports
+
+| Транспорт | Статус |
+|---|---|
+| Terminal (auth + CLI) | ✓ |
+| HTTP (REST auth + GraphQL + playground) | ✓ |
+| gRPC (FacadeGRPC 10 RPC + reflection) | ✓ |
+
+### DTO
+
+| Слой | Статус |
+|---|---|
+| `internal/dto/graphql/` | ✓ StatusResponse |
+| gRPC proto (pb/) | ✓ Все message types |
+
+## Тестовое покрытие — КРИТИЧЕСКИЕ ПРОБЛЕМЫ
+
+Подробный разбор в `REPORT_TEST.md`. Ключевые проблемы:
+
+### BDD: 18 сценариев — заглушки
+
+Step definitions не вызывают реальный код. Тесты "проходят" вне зависимости от корректности реализации. 7 новых бизнес-функций не покрыты BDD.
+
+### Integration: 0 тестов
+
+Директория пуста. Нет тестов для handler + services pipeline, BadgerDB update-in-place, ruleset full cycle.
+
+### E2E: не существует
+
+Директория отсутствует. Нет тестов lifecycle cmd/engine и cmd/facade.
+
+### Smoke: 0 тестов
+
+Директория пуста. Нет проверки бинарной сборки, загрузки конфига, health endpoint.
+
+## Дальнейший план
+
+### Приоритет 1: Functional BDD (red→green)
+
+Подключить реальный Handler + services в BDD step definitions через `test/support/`. Сделать 18 существующих сценариев функциональными.
+
+### Приоритет 2: Новые BDD-сценарии
+
+7 features для: retry, rate limiting, reply chain, origin unwrapping, statistics, check/other dedup, auto-answer.
+
+### Приоритет 3: Integration тесты
+
+BadgerDB operations, ruleset full pipeline, handler + real services.
+
+### Приоритет 4: E2E с TDLib stubs
+
+Engine lifecycle, facade endpoints.
+
+### Приоритет 5: Smoke тесты
+
+Binary build, config load, health endpoint.
+
+### Приоритет 6: Phase B — TDLib интеграция
+
+CGO + go-tdlib, реальные вызовы, AuthorizationStateClosing, retry loop, setupClientLog.
