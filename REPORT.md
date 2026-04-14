@@ -42,13 +42,9 @@
 | gRPC transport | `transport/grpc/` | `internal/transport/grpc/` | Proto, FacadeGRPC (10 RPC), 18 тестов | GetChatHistory (unimplemented) |
 | Терминальный I/O | `repo/term/` | `internal/repo/term/` | ReadLine, ReadPassword, Print | — |
 
-### Заглушки-сервисы (конструктор + logger, без бизнес-логики)
+### Удалённые заглушки
 
-| Пакет | Причина |
-|---|---|
-| `internal/service/engine/` | Диспетчеризация вынесена в cmd/engine |
-| `internal/service/forwarder/` | Логика пересылки вынесена в handler |
-| `internal/service/loader/` | Загрузка ruleset вынесена в cmd/engine |
+Пакеты `service/engine`, `service/forwarder`, `service/loader` удалены — логика живёт в handler и cmd.
 
 ## Открытые findings от ревьюверов (раунд 4)
 
@@ -106,6 +102,6 @@
 | Update loop | Подключить TDLib Listener к update dispatcher |
 | E2E тесты | Против Telegram Test DC |
 
-### Приоритет 5: Конфликт x-bdd-godog vs linter
+### ~~Приоритет 5: Конфликт x-bdd-godog vs linter~~ ✓
 
-Решить: либо обновить x-bdd-godog skill (убрать числовые префиксы из step-файлов), либо настроить исключение в golangci-lint для `test/bdd/steps/`.
+Конфликта нет — `task lint` проходит без ошибок.

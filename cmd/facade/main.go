@@ -21,8 +21,12 @@ import (
 	repoterm "github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
 	"github.com/pure-golang/budva-claude/internal/service/facade"
+	grpctransport "github.com/pure-golang/budva-claude/internal/transport/grpc"
+	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
 	httptransport "github.com/pure-golang/budva-claude/internal/transport/http"
 	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -66,7 +70,7 @@ func run() error {
 
 	// 5. Сервисы
 	authSvc := auth.New()
-	_ = facade.New(telegramRepo)
+	facadeSvc := facade.New(telegramRepo)
 
 	// 6. HTTP transport
 	mux := http.NewServeMux()
@@ -79,7 +83,13 @@ func run() error {
 
 	httpServer := ahttp.NewDefault(cfg.HTTPServer, handler)
 
-	// 7. Terminal transport
+	// 7. gRPC transport
+	grpcTransport := grpctransport.New(facadeSvc)
+	grpcServer := grpc.NewServer()
+	pb.RegisterFacadeGRPCServer(grpcServer, grpcTransport)
+	reflection.Register(grpcServer)
+
+	// 8. Terminal transport
 	termRepo := repoterm.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
 	termTransport := termtransport.New(authSvc, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
@@ -88,7 +98,7 @@ func run() error {
 		}
 	}()
 
-	// 8. Запуск HTTP-сервера
+	// 9. Запуск серверов
 	go func() {
 		logger.Info("HTTP server starting", slog.Int("port", cfg.HTTPServer.Port))
 		httpServer.Run()
@@ -97,6 +107,8 @@ func run() error {
 	logger.Info("Facade started, waiting for shutdown signal")
 	<-ctx.Done()
 	logger.Info("Shutting down facade")
+
+	grpcServer.GracefulStop()
 
 	if err := httpServer.Shutdown(); err != nil {
 		logger.Error("HTTP server shutdown error", slog.Any("err", err))

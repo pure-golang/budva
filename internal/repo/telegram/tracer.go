@@ -1,5 +1,0 @@
-package telegram
-
-import "go.opentelemetry.io/otel"
-
-var tracer = otel.Tracer("github.com/pure-golang/budva-claude/internal/repo/telegram")

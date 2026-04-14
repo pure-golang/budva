@@ -8,8 +8,12 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
+
+var tracer = otel.Tracer("github.com/pure-golang/budva-claude/internal/service/transform")
 
 type telegramGateway interface {
 	TranslateText(ctx context.Context, text *domain.FormattedText, lang string) (*domain.FormattedText, error)
