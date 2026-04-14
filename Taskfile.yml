@@ -5,27 +5,9 @@ includes:
     flatten: true
     excludes:
       - mock
-      - test
-      - test-v
-      - test-short
 
 tasks:
   mock:
     desc: "Generate mocks (via mockery v3)"
     cmds:
       - go run github.com/vektra/mockery/v3@latest
-
-  test:
-    desc: "Run all tests"
-    cmds:
-      - GOEXPERIMENT=synctest go test -race -failfast -count=1 ./...
-
-  test-v:
-    desc: "Run all tests with verbose output"
-    cmds:
-      - GOEXPERIMENT=synctest go test -v -race -failfast -count=1 ./...
-
-  test-short:
-    desc: "Run short tests"
-    cmds:
-      - GOEXPERIMENT=synctest go test -v -race -short -failfast -count=1 ./...

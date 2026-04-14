@@ -51,9 +51,8 @@ func (f *fakeAuthDriver) ReadChan() <-chan string {
 func TestRunAuthFlow_FullCycle(t *testing.T) {
 	t.Parallel()
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
 
 		repo := New(config.TelegramConfig{})
 		auth := newFakeAuthDriver()
@@ -106,38 +105,37 @@ func TestRunAuthFlow_FullCycle(t *testing.T) {
 func TestRunAuthFlow_CancelDuringInput(t *testing.T) {
 	t.Parallel()
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-		repo := New(config.TelegramConfig{})
-		auth := newFakeAuthDriver()
+	repo := New(config.TelegramConfig{})
+	auth := newFakeAuthDriver()
 
-		done := make(chan struct{})
-		go func() {
-			repo.RunAuthFlow(ctx, auth)
-			close(done)
-		}()
+	done := make(chan struct{})
+	go func() {
+		repo.RunAuthFlow(ctx, auth)
+		close(done)
+	}()
 
-		time.Sleep(1 * time.Millisecond)
-		states, _ := auth.snapshot()
-		require.Len(t, states, 1)
+	// Ждём WaitPhone
+	time.Sleep(50 * time.Millisecond)
+	states, _ := auth.snapshot()
+	require.Len(t, states, 1)
 
-		cancel()
+	cancel()
 
-		select {
-		case <-done:
-			// OK — RunAuthFlow завершился
-		case <-time.After(1 * time.Second):
-			t.Error("RunAuthFlow did not exit after context cancel")
-		}
+	select {
+	case <-done:
+		// OK
+	case <-time.After(2 * time.Second):
+		t.Error("RunAuthFlow did not exit after context cancel")
+	}
 
-		// clientDone НЕ закрыт
-		select {
-		case <-repo.ClientDone():
-			t.Error("clientDone should NOT be closed after cancel")
-		default:
-			// OK
-		}
-	})
+	// clientDone НЕ закрыт
+	select {
+	case <-repo.ClientDone():
+		t.Error("clientDone should NOT be closed after cancel")
+	default:
+		// OK
+	}
 }

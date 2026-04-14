@@ -22,7 +22,7 @@ func (f *fakeAuth) Subscribe(listener func(domain.AuthorizationState, any)) {
 		f.subscribeFn(listener)
 	}
 }
-func (f *fakeAuth) InputChan() chan<- string { return f.inputChan }
+func (f *fakeAuth) InputChan() chan<- string         { return f.inputChan }
 func (f *fakeAuth) State() domain.AuthorizationState { return f.state }
 
 type fakeTelegram struct {
@@ -36,27 +36,22 @@ func (f *fakeTelegram) GetOption(_ context.Context, _ string) (string, error) {
 func (f *fakeTelegram) GetMe(_ context.Context) (int64, error) { return 123, nil }
 
 type fakeTerm struct {
-	readLineFn    func() (string, error)
+	readLineFn     func() (string, error)
 	readPasswordFn func() (string, error)
-	printed       []string
 }
 
-func (f *fakeTerm) ReadLine() (string, error) { return f.readLineFn() }
+func (f *fakeTerm) ReadLine() (string, error)     { return f.readLineFn() }
 func (f *fakeTerm) ReadPassword() (string, error) { return f.readPasswordFn() }
-func (f *fakeTerm) Println(a ...any) {
-	// no-op в тестах
-}
-func (f *fakeTerm) Printf(format string, a ...any) {
-	// no-op в тестах
-}
+func (f *fakeTerm) Println(_ ...any)              {}
+func (f *fakeTerm) Printf(_ string, _ ...any)     {}
 
 func TestRunInputLoop_Exit(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 
-	synctest.Run(func() {
 		clientDone := make(chan struct{})
 		close(clientDone)
 
@@ -64,23 +59,22 @@ func TestRunInputLoop_Exit(t *testing.T) {
 			subscribeFn: func(func(domain.AuthorizationState, any)) {},
 			inputChan:   make(chan string, 1),
 		}
-		telegram := &fakeTelegram{clientDone: clientDone}
-		term := &fakeTerm{
+		tg := &fakeTelegram{clientDone: clientDone}
+		tm := &fakeTerm{
 			readLineFn: func() (string, error) { return "exit", nil },
 		}
 
-		tr := New(auth, telegram, term, "")
-		tr.shutdown = cancel
-
-		go tr.runInputLoop(ctx)
-
-		select {
-		case <-ctx.Done():
-			// OK
-		case <-time.After(1 * time.Second):
-			t.Error("Transport did not stop after exit command")
+		tr := New(auth, tg, tm, "")
+		shutdownCalled := false
+		tr.shutdown = func() {
+			shutdownCalled = true
 			cancel()
 		}
+
+		go tr.runInputLoop(ctx)
+		time.Sleep(1 * time.Millisecond)
+
+		assert.True(t, shutdownCalled, "shutdown should be called after exit command")
 	})
 }
 

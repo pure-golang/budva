@@ -23,5 +23,5 @@ func setupSuite(tb testing.TB) *integrationSuite {
 }
 
 func (s *integrationSuite) makeRuleSet(sendCopy bool) *domain.RuleSet {
-	return s.Stack.MakeRuleSet(sendCopy, nil)
+	return s.MakeRuleSet(sendCopy, nil)
 }

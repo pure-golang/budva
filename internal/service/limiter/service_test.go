@@ -1,7 +1,6 @@
 package limiter
 
 import (
-	"context"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -12,10 +11,8 @@ import (
 func TestWaitForForward(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
 		limiter := New()
 		chatID := int64(123)
 
@@ -28,7 +25,5 @@ func TestWaitForForward(t *testing.T) {
 		limiter.WaitForForward(ctx, chatID)
 		elapsed = time.Since(start)
 		assert.Equal(t, 3*time.Second, elapsed, "Второй вызов должен ждать 3 секунды")
-
-		cancel()
 	})
 }
