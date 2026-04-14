@@ -2,6 +2,7 @@ package steps
 
 import (
 	"context"
+	"regexp"
 
 	"github.com/cucumber/godog"
 
@@ -19,9 +20,10 @@ type scenarioCtx struct {
 	sentMsg      *domain.Message
 
 	// Опции правила
-	sendCopy  bool
-	copyOnce  bool
-	indelible bool
+	sendCopy             bool
+	copyOnce             bool
+	indelible            bool
+	deleteSystemMessages bool
 
 	// Опции источника
 	src *domain.Source
@@ -63,12 +65,14 @@ func (s *scenarioCtx) reset() error {
 	s.sendCopy = false
 	s.copyOnce = false
 	s.indelible = false
+	s.deleteSystemMessages = false
 	s.src = &domain.Source{ChatID: env.SourceID}
 	s.excludePattern = ""
 	s.includePattern = ""
 	s.submatchPattern = ""
 	s.replaceFrom = nil
 	s.replaceTo = nil
+	s.skipRetryDrain = false
 	s.checkChatID = 0
 	s.forwardedMsg = nil
 	return nil
@@ -76,6 +80,7 @@ func (s *scenarioCtx) reset() error {
 
 // applyRuleSet собирает RuleSet из накопленного состояния и устанавливает в handler.
 func (s *scenarioCtx) applyRuleSet() {
+	s.src.DeleteSystemMessages = s.deleteSystemMessages
 	rs := s.env.MakeRuleSet(s.sendCopy, s.src)
 
 	rule := rs.ForwardRules["test_rule"]
@@ -83,6 +88,14 @@ func (s *scenarioCtx) applyRuleSet() {
 	rule.Indelible = s.indelible
 	rule.Exclude = s.excludePattern
 	rule.Include = s.includePattern
+	if s.submatchPattern != "" {
+		rule.IncludeSubmatch = []*domain.SubmatchRule{{
+			Regexp:         regexp.QuoteMeta(s.submatchPattern),
+			CompiledRegexp: regexp.MustCompile(regexp.QuoteMeta(s.submatchPattern)),
+			Group:          0,
+			Match:          []string{s.submatchPattern},
+		}}
+	}
 	rule.Check = s.checkChatID
 
 	if len(s.replaceFrom) > 0 {

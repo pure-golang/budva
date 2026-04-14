@@ -225,6 +225,69 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		return nil
 	})
 
+	// --- System messages ---
+
+	ctx.Given(`^удаление системных сообщений включено$`, func() error {
+		s.deleteSystemMessages = true
+		return nil
+	})
+
+	ctx.Given(`^удаление системных сообщений выключено$`, func() error {
+		s.deleteSystemMessages = false
+		return nil
+	})
+
+	ctx.When(`^в исходном чате появляется системное сообщение$`, func() error {
+		s.applyRuleSet()
+
+		msg := &domain.Message{
+			ChatID: s.env.SourceID,
+			ID:     1,
+			Content: domain.MessageContent{
+				Type: domain.ContentSystem,
+			},
+		}
+		s.sentMsg = msg
+		s.env.Telegram.PutMessage(msg)
+
+		s.env.Handler.OnNewMessage(context.Background(), msg)
+		s.env.DrainQueue()
+
+		return nil
+	})
+
+	ctx.Then(`^системное сообщение удаляется из исходного чата$`, func() error {
+		msgs := s.env.Telegram.MessagesInChat(s.env.SourceID)
+		for _, m := range msgs {
+			if m.ID == s.sentMsg.ID {
+				return fmt.Errorf("system message %d still exists in source chat", s.sentMsg.ID)
+			}
+		}
+		return nil
+	})
+
+	ctx.Then(`^системное сообщение остаётся в исходном чате$`, func() error {
+		msgs := s.env.Telegram.MessagesInChat(s.env.SourceID)
+		for _, m := range msgs {
+			if m.ID == s.sentMsg.ID {
+				return nil
+			}
+		}
+		return fmt.Errorf("system message %d was deleted from source chat", s.sentMsg.ID)
+	})
+
+	ctx.Then(`^сообщение не пересылается в целевые чаты$`, func() error {
+		for _, targetID := range s.env.TargetIDs {
+			msgs := s.env.Telegram.MessagesInChat(targetID)
+			if len(msgs) > 0 {
+				return fmt.Errorf("unexpected messages in target chat %d: %d", targetID, len(msgs))
+			}
+		}
+		return nil
+	})
+
+	// --- Statistics ---
+
 	ctx.Then(`^счётчик пересланных сообщений увеличивается$`, func() error {
 		date := time.Now().Format("2006-01-02")
 		for _, targetID := range s.env.TargetIDs {

@@ -1,4 +1,3 @@
-// Package support содержит shared test infrastructure для integration/bdd/e2e слоёв.
 package support
 
 import (
