@@ -2,15 +2,12 @@
 //
 // Использование:
 //
-//	svc := forwarder.New(sender, stateStore, transformer, logger)
-//	err := svc.Forward(ctx, rule, message)
-//	err := svc.SendCopy(ctx, rule, message)
+//	svc := forwarder.New(logger)
 //
 // Пакет не читает переменные окружения напрямую.
 //
 // Ограничения:
 //
-//   - Зависит от sender, stateStore, transformer через частично применяемые интерфейсы.
-//   - Обрабатывает медиа-альбомы как группу.
-//   - Записывает маппинг temp→real message ID в state.
+//   - Текущая реализация — заглушка; бизнес-логика пересылки
+//     перенесена в handler для упрощения DI-графа.
 package forwarder

@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	r := term.New(os.Stdin, os.Stdout)
+//	r := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd()))
 //	line, err := r.ReadLine()
 //	password, err := r.ReadPassword()
 //

@@ -1,17 +1,16 @@
-// Package auth реализует state machine авторизации Telegram через TDLib.
+// Package auth реализует state machine авторизации Telegram.
 //
 // Использование:
 //
-//	svc := auth.New(telegramAuth, logger)
-//	svc.HandleState(state)
-//	svc.SubmitPhone(phone)
-//	svc.SubmitCode(code)
-//	svc.SubmitPassword(password)
+//	svc := auth.New(logger)
+//	svc.Subscribe(func(state domain.AuthorizationState, extra any) { ... })
+//	svc.SetState(domain.AuthStateReady, nil)
+//	input := svc.ReadInput()
 //
 // Пакет не читает переменные окружения напрямую.
 //
 // Ограничения:
 //
-//   - Зависит от TDLib через частично применяемый интерфейс telegramAuth.
-//   - Оповещает подписчиков об изменении состояния авторизации.
+//   - Оповещает подписчиков синхронно при изменении состояния.
+//   - InputChan() используется для ввода телефона, кода и пароля.
 package auth

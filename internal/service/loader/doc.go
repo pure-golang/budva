@@ -2,14 +2,12 @@
 //
 // Использование:
 //
-//	svc := loader.New(rulesetLoader, chatWarmer, logger)
-//	rs, err := svc.Load(ctx)
+//	svc := loader.New(logger)
 //
 // Пакет не читает переменные окружения напрямую.
 //
 // Ограничения:
 //
-//   - Вызывается после успешной авторизации.
-//   - Загружает ruleset и прогревает чаты через GetChatHistory.
-//   - Повторно вызывается при hot-reload ruleset.yml.
+//   - Текущая реализация — заглушка; загрузка ruleset выполняется в cmd/engine.
+//   - Прогрев чатов через GetChatHistory будет добавлен при интеграции TDLib.
 package loader

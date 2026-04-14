@@ -2,8 +2,7 @@
 //
 // Использование:
 //
-//	svc := dedup.New()
-//	tracker := svc.NewTracker(destinationIDs)
+//	tracker := dedup.NewTracker(destinationIDs)
 //	sent := tracker.TryMark(chatID)
 //
 // Пакет не читает переменные окружения напрямую.

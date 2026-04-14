@@ -2,15 +2,12 @@
 //
 // Использование:
 //
-//	svc := engine.New(deps, logger)
-//	svc.HandleNewMessage(ctx, message)
-//	svc.HandleEditedMessage(ctx, message)
-//	svc.HandleDeletedMessages(ctx, chatID, messageIDs)
+//	svc := engine.New(logger)
 //
 // Пакет не читает переменные окружения напрямую.
 //
 // Ограничения:
 //
-//   - Оркестрирует обработку обновлений через очередь задач.
-//   - Зависит от сервисов через частично применяемые интерфейсы.
+//   - Текущая реализация — заглушка; диспетчеризация обновлений
+//     выполняется в cmd/engine через select по telegramRepo.Updates().
 package engine

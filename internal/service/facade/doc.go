@@ -2,14 +2,12 @@
 //
 // Использование:
 //
-//	svc := facade.New(gateway, logger)
-//	status, err := svc.GetStatus(ctx)
-//	messages, err := svc.GetMessages(ctx, chatID, messageIDs)
+//	svc := facade.New(logger)
 //
 // Пакет не читает переменные окружения напрямую.
 //
 // Ограничения:
 //
-//   - Зависит от Telegram-шлюза через частично применяемый интерфейс gateway.
+//   - Текущая реализация — заглушка; методы будут добавлены при реализации транспортов.
 //   - Один сервис обслуживает оба транспорта (gRPC и GraphQL).
 package facade
