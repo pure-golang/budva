@@ -12,9 +12,10 @@ import (
 	"github.com/pure-golang/budva-claude/internal/service/transform/mocks"
 )
 
-func newTestService() (*Service, *mocks.TelegramGateway, *mocks.StateStore) {
-	tg := &mocks.TelegramGateway{}
-	st := &mocks.StateStore{}
+func newTestService(t *testing.T) (*Service, *mocks.TelegramGateway, *mocks.StateStore) {
+	t.Helper()
+	tg := mocks.NewTelegramGateway(t)
+	st := mocks.NewStateStore(t)
 	return New(tg, st), tg, st
 }
 
@@ -22,7 +23,7 @@ func TestTransform_NoTransformations(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService()
+	svc, _, _ := newTestService(t)
 	p := domain.TransformParams{
 		Text:   &domain.FormattedText{Text: "hello"},
 		Source: &domain.Source{ChatID: 100},
@@ -40,14 +41,14 @@ func TestTransform_Translation(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService()
+	svc, tg, _ := newTestService(t)
 	src := &domain.Source{
 		ChatID:    100,
 		Translate: &domain.Translate{Lang: "ru", For: []int64{200}},
 	}
 	text := &domain.FormattedText{Text: "hello"}
 	translated := &domain.FormattedText{Text: "привет"}
-	tg.On("TranslateText", mock.Anything, text, "ru").Return(translated, nil)
+	tg.EXPECT().TranslateText(mock.Anything, text, "ru").Return(translated, nil)
 
 	p := domain.TransformParams{
 		Text:      text,
@@ -67,7 +68,7 @@ func TestTransform_Translation_SkippedForOtherChat(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService()
+	svc, _, _ := newTestService(t)
 	src := &domain.Source{
 		ChatID:    100,
 		Translate: &domain.Translate{Lang: "ru", For: []int64{200}},
@@ -90,7 +91,7 @@ func TestTransform_ReplaceFragments(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService()
+	svc, _, _ := newTestService(t)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID: 200,
@@ -117,7 +118,7 @@ func TestTransform_Sign(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService()
+	svc, tg, _ := newTestService(t)
 	src := &domain.Source{
 		ChatID: 100,
 		Sign:   &domain.Sign{Title: "Source", For: []int64{200}},
@@ -128,7 +129,7 @@ func TestTransform_Sign(t *testing.T) {
 			{Offset: 0, Length: 10, Type: domain.TextEntityBold},
 		},
 	}
-	tg.On("ParseTextEntities", mock.Anything, "**Source**").Return(parsedSign, nil)
+	tg.EXPECT().ParseTextEntities(mock.Anything, "**Source**").Return(parsedSign, nil)
 	p := domain.TransformParams{
 		Text:        &domain.FormattedText{Text: "hello"},
 		Source:      src,
@@ -148,19 +149,19 @@ func TestTransform_Link(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService()
+	svc, tg, _ := newTestService(t)
 	src := &domain.Source{
 		ChatID: 100,
 		Link:   &domain.Link{Title: "Orig", For: []int64{200}},
 	}
-	tg.On("GetMessageLink", mock.Anything, int64(100), int64(1)).Return("https://t.me/c/100/1", nil)
+	tg.EXPECT().GetMessageLink(mock.Anything, int64(100), int64(1)).Return("https://t.me/c/100/1", nil)
 	parsed := &domain.FormattedText{
 		Text: "Orig",
 		Entities: []domain.TextEntity{
 			{Offset: 0, Length: 4, Type: domain.TextEntityTextURL, URL: "https://t.me/c/100/1"},
 		},
 	}
-	tg.On("ParseTextEntities", mock.Anything, "[Orig](https://t.me/c/100/1)").Return(parsed, nil)
+	tg.EXPECT().ParseTextEntities(mock.Anything, "[Orig](https://t.me/c/100/1)").Return(parsed, nil)
 	p := domain.TransformParams{
 		Text:         &domain.FormattedText{Text: "hello"},
 		Source:       src,
@@ -182,19 +183,19 @@ func TestTransform_PrevLink(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService()
+	svc, tg, _ := newTestService(t)
 	src := &domain.Source{
 		ChatID: 100,
 		Prev:   &domain.Prev{Title: "Prev", For: []int64{200}},
 	}
-	tg.On("GetMessageLink", mock.Anything, int64(200), int64(50)).Return("https://t.me/c/200/50", nil)
+	tg.EXPECT().GetMessageLink(mock.Anything, int64(200), int64(50)).Return("https://t.me/c/200/50", nil)
 	parsed := &domain.FormattedText{
 		Text: "Prev",
 		Entities: []domain.TextEntity{
 			{Offset: 0, Length: 4, Type: domain.TextEntityTextURL, URL: "https://t.me/c/200/50"},
 		},
 	}
-	tg.On("ParseTextEntities", mock.Anything, "[Prev](https://t.me/c/200/50)").Return(parsed, nil)
+	tg.EXPECT().ParseTextEntities(mock.Anything, "[Prev](https://t.me/c/200/50)").Return(parsed, nil)
 	p := domain.TransformParams{
 		Text:          &domain.FormattedText{Text: "hello"},
 		Source:        src,
@@ -215,19 +216,19 @@ func TestAddNextLink(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService()
+	svc, tg, _ := newTestService(t)
 	src := &domain.Source{
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{200}},
 	}
-	tg.On("GetMessageLink", mock.Anything, int64(200), int64(60)).Return("https://t.me/c/200/60", nil)
+	tg.EXPECT().GetMessageLink(mock.Anything, int64(200), int64(60)).Return("https://t.me/c/200/60", nil)
 	parsed := &domain.FormattedText{
 		Text: "Next",
 		Entities: []domain.TextEntity{
 			{Offset: 0, Length: 4, Type: domain.TextEntityTextURL, URL: "https://t.me/c/200/60"},
 		},
 	}
-	tg.On("ParseTextEntities", mock.Anything, "[Next](https://t.me/c/200/60)").Return(parsed, nil)
+	tg.EXPECT().ParseTextEntities(mock.Anything, "[Next](https://t.me/c/200/60)").Return(parsed, nil)
 	text := &domain.FormattedText{Text: "original"}
 
 	// Act
@@ -241,7 +242,7 @@ func TestAddNextLink_NoNextConfig(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService()
+	svc, _, _ := newTestService(t)
 	src := &domain.Source{ChatID: 100}
 	text := &domain.FormattedText{Text: "original"}
 
@@ -256,7 +257,7 @@ func TestAddNextLink_ChatNotInFor(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService()
+	svc, _, _ := newTestService(t)
 	src := &domain.Source{
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{300}},

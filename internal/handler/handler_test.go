@@ -27,18 +27,18 @@ func (q *syncQueue) drain() {
 	q.tasks = nil
 }
 
-func newTestHandler() (*Handler, *testDeps) {
+func newTestHandler(t *testing.T) (*Handler, *testDeps) {
+	t.Helper()
 	d := &testDeps{
-		telegram:  &mocks.TelegramGateway{},
-		state:     &mocks.StateStore{},
-		messages:  &mocks.MessageService{},
-		filters:   &mocks.FilterService{},
-		transform: &mocks.TransformService{},
-		albums:    &mocks.AlbumService{},
+		telegram:  mocks.NewTelegramGateway(t),
+		state:     mocks.NewStateStore(t),
+		messages:  mocks.NewMessageService(t),
+		filters:   mocks.NewFilterService(t),
+		transform: mocks.NewTransformService(t),
+		albums:    mocks.NewAlbumService(t),
 		queue:     &syncQueue{},
 	}
-	tracker := &mocks.DedupTracker{}
-	tracker.On("TryMark", mock.Anything).Return(true)
+	tracker := mocks.NewDedupTracker(t)
 
 	h := New(
 		d.telegram,
@@ -89,7 +89,7 @@ func TestOnNewMessage_NoRuleSet(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, _ := newTestHandler()
+	h, _ := newTestHandler(t)
 
 	// Act + Assert
 	h.OnNewMessage(context.Background(), &domain.Message{ChatID: 100, ID: 1})
@@ -99,7 +99,7 @@ func TestOnNewMessage_UnknownSource(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, _ := newTestHandler()
+	h, _ := newTestHandler(t)
 	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
 	h.SetRuleSet(rs)
 
@@ -111,7 +111,7 @@ func TestOnNewMessage_SystemMessage_DeleteEnabled(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
 	rs.Sources[100] = &domain.Source{ChatID: 100, DeleteSystemMessages: true}
 	h.SetRuleSet(rs)
@@ -121,22 +121,19 @@ func TestOnNewMessage_SystemMessage_DeleteEnabled(t *testing.T) {
 		ID:      1,
 		Content: domain.MessageContent{Type: domain.ContentSystem},
 	}
-	d.messages.On("IsSystemMessage", msg).Return(true)
-	d.telegram.On("DeleteMessages", mock.Anything, int64(100), []int64{int64(1)}, true).Return(nil)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(true)
+	d.telegram.EXPECT().DeleteMessages(mock.Anything, int64(100), []int64{int64(1)}, true).Return(nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
 	d.queue.drain()
-
-	// Assert
-	d.telegram.AssertCalled(t, "DeleteMessages", mock.Anything, int64(100), []int64{int64(1)}, true)
 }
 
 func TestOnNewMessage_SystemMessage_DeleteDisabled(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
 	rs.Sources[100] = &domain.Source{ChatID: 100, DeleteSystemMessages: false}
 	h.SetRuleSet(rs)
@@ -146,27 +143,24 @@ func TestOnNewMessage_SystemMessage_DeleteDisabled(t *testing.T) {
 		ID:      1,
 		Content: domain.MessageContent{Type: domain.ContentSystem},
 	}
-	d.messages.On("IsSystemMessage", msg).Return(true)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(true)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-
-	// Assert
-	d.telegram.AssertNotCalled(t, "DeleteMessages", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestOnNewMessage_NilFormattedText(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
 	rs.Sources[100] = &domain.Source{ChatID: 100}
 	h.SetRuleSet(rs)
 
 	msg := &domain.Message{ChatID: 100, ID: 1}
-	d.messages.On("IsSystemMessage", msg).Return(false)
-	d.messages.On("GetFormattedText", msg).Return(nil)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messages.EXPECT().GetFormattedText(msg).Return(nil)
 
 	// Act + Assert
 	h.OnNewMessage(context.Background(), msg)
@@ -176,7 +170,7 @@ func TestOnNewMessage_ForwardWithoutCopy(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: false}
 	rs := makeRuleSet(rule)
 	rs.Sources[100] = &domain.Source{ChatID: 100}
@@ -184,24 +178,22 @@ func TestOnNewMessage_ForwardWithoutCopy(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
 	text := &domain.FormattedText{Text: "hello"}
-	d.messages.On("IsSystemMessage", msg).Return(false)
-	d.messages.On("GetFormattedText", msg).Return(text)
-	d.filters.On("Evaluate", "hello", rule).Return(domain.FiltersOK)
-	d.telegram.On("ForwardMessages", mock.Anything, int64(100), int64(200), []int64{int64(1)}).Return([]int64{int64(300)}, nil)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.filters.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
+	d.tracker.EXPECT().TryMark(int64(200)).Return(true)
+	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(200), []int64{int64(1)}).Return([]int64{int64(300)}, nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
 	d.queue.drain()
-
-	// Assert
-	d.telegram.AssertCalled(t, "ForwardMessages", mock.Anything, int64(100), int64(200), []int64{int64(1)})
 }
 
 func TestOnNewMessage_SendCopy(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true}
 	rs := makeRuleSet(rule)
 	rs.Sources[100] = &domain.Source{ChatID: 100}
@@ -221,29 +213,26 @@ func TestOnNewMessage_SendCopy(t *testing.T) {
 	transformed := &domain.FormattedText{Text: "transformed"}
 	inputContent := domain.InputMessageContent{Type: domain.ContentText, Text: transformed}
 
-	d.messages.On("IsSystemMessage", msg).Return(false)
-	d.messages.On("GetFormattedText", msg).Return(text)
-	d.messages.On("GetReplyMarkupData", msg).Return([]byte(nil))
-	d.messages.On("BuildInputContent", msg, transformed).Return(inputContent)
-	d.filters.On("Evaluate", "hello", rule).Return(domain.FiltersOK)
-	d.transform.On("Transform", mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.telegram.On("SendMessage", mock.Anything, int64(200), inputContent).Return(int64(500), nil)
-	d.state.On("SetCopiedMessageID", int64(100), int64(1), "r1:200:500").Return(nil)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.messages.EXPECT().BuildInputContent(msg, transformed).Return(inputContent)
+	d.filters.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
+	d.tracker.EXPECT().TryMark(int64(200)).Return(true)
+	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegram.EXPECT().SendMessage(mock.Anything, int64(200), inputContent).Return(int64(500), nil)
+	d.state.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:500").Return(nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
 	d.queue.drain()
-
-	// Assert
-	d.telegram.AssertCalled(t, "SendMessage", mock.Anything, int64(200), inputContent)
-	d.state.AssertCalled(t, "SetCopiedMessageID", int64(100), int64(1), "r1:200:500")
 }
 
 func TestOnNewMessage_FiltersCheck(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true, Check: 300}
 	rs := makeRuleSet(rule)
 	rs.Sources[100] = &domain.Source{ChatID: 100}
@@ -251,24 +240,21 @@ func TestOnNewMessage_FiltersCheck(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
 	text := &domain.FormattedText{Text: "suspicious"}
-	d.messages.On("IsSystemMessage", msg).Return(false)
-	d.messages.On("GetFormattedText", msg).Return(text)
-	d.filters.On("Evaluate", "suspicious", rule).Return(domain.FiltersCheck)
-	d.telegram.On("ForwardMessages", mock.Anything, int64(100), int64(300), []int64{int64(1)}).Return([]int64{int64(400)}, nil)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.filters.EXPECT().Evaluate("suspicious", rule).Return(domain.FiltersCheck)
+	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(300), []int64{int64(1)}).Return([]int64{int64(400)}, nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
 	d.queue.drain()
-
-	// Assert
-	d.telegram.AssertCalled(t, "ForwardMessages", mock.Anything, int64(100), int64(300), []int64{int64(1)})
 }
 
 func TestOnNewMessage_FiltersOther(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true, Other: 400}
 	rs := makeRuleSet(rule)
 	rs.Sources[100] = &domain.Source{ChatID: 100}
@@ -276,24 +262,21 @@ func TestOnNewMessage_FiltersOther(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
 	text := &domain.FormattedText{Text: "filtered out"}
-	d.messages.On("IsSystemMessage", msg).Return(false)
-	d.messages.On("GetFormattedText", msg).Return(text)
-	d.filters.On("Evaluate", "filtered out", rule).Return(domain.FiltersOther)
-	d.telegram.On("ForwardMessages", mock.Anything, int64(100), int64(400), []int64{int64(1)}).Return([]int64{int64(500)}, nil)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.filters.EXPECT().Evaluate("filtered out", rule).Return(domain.FiltersOther)
+	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(400), []int64{int64(1)}).Return([]int64{int64(500)}, nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
 	d.queue.drain()
-
-	// Assert
-	d.telegram.AssertCalled(t, "ForwardMessages", mock.Anything, int64(100), int64(400), []int64{int64(1)})
 }
 
 func TestOnNewMessage_CannotBeSaved_WithoutSendCopy(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: false}
 	rs := makeRuleSet(rule)
 	rs.Sources[100] = &domain.Source{ChatID: 100}
@@ -301,21 +284,18 @@ func TestOnNewMessage_CannotBeSaved_WithoutSendCopy(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: false}
 	text := &domain.FormattedText{Text: "hello"}
-	d.messages.On("IsSystemMessage", msg).Return(false)
-	d.messages.On("GetFormattedText", msg).Return(text)
+	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-
-	// Assert
-	d.telegram.AssertNotCalled(t, "ForwardMessages", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestOnEditedMessage_NoRuleSet(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, _ := newTestHandler()
+	h, _ := newTestHandler(t)
 
 	// Act + Assert
 	h.OnEditedMessage(context.Background(), &domain.Message{ChatID: 100, ID: 1})
@@ -325,7 +305,7 @@ func TestOnEditedMessage_UnknownSource(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, _ := newTestHandler()
+	h, _ := newTestHandler(t)
 	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
 	h.SetRuleSet(rs)
 
@@ -337,85 +317,71 @@ func TestOnDeletedMessages_NonPermanent(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, _ := newTestHandler(t)
 	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
 	h.SetRuleSet(rs)
 
 	// Act
 	h.OnDeletedMessages(context.Background(), 100, []int64{1}, false)
-
-	// Assert
-	d.state.AssertNotCalled(t, "GetCopiedMessageIDs", mock.Anything, mock.Anything)
 }
 
 func TestOnDeletedMessages_PermanentWithCopies(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}}
 	rs := makeRuleSet(rule)
 	h.SetRuleSet(rs)
 
-	d.state.On("GetCopiedMessageIDs", int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.On("GetNewMessageID", int64(200), int64(500)).Return(int64(600))
-	d.telegram.On("DeleteMessages", mock.Anything, int64(200), []int64{int64(600)}, true).Return(nil)
-	d.state.On("DeleteNewMessageID", int64(200), int64(500)).Return(nil)
-	d.state.On("DeleteTmpMessageID", int64(200), int64(600)).Return(nil)
-	d.state.On("DeleteAnswerMessageID", int64(200), int64(500)).Return(nil)
-	d.state.On("DeleteCopiedMessageIDs", int64(100), int64(1)).Return(nil)
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.telegram.EXPECT().DeleteMessages(mock.Anything, int64(200), []int64{int64(600)}, true).Return(nil)
+	d.state.EXPECT().DeleteNewMessageID(int64(200), int64(500)).Return(nil)
+	d.state.EXPECT().DeleteTmpMessageID(int64(200), int64(600)).Return(nil)
+	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+	d.state.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
 
 	// Act
 	h.OnDeletedMessages(context.Background(), 100, []int64{1}, true)
 	d.queue.drain()
-
-	// Assert
-	d.telegram.AssertCalled(t, "DeleteMessages", mock.Anything, int64(200), []int64{int64(600)}, true)
-	d.state.AssertCalled(t, "DeleteCopiedMessageIDs", int64(100), int64(1))
 }
 
 func TestOnDeletedMessages_IndelibleRule(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
+	h, d := newTestHandler(t)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, Indelible: true}
 	rs := makeRuleSet(rule)
 	h.SetRuleSet(rs)
 
-	d.state.On("GetCopiedMessageIDs", int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.On("DeleteCopiedMessageIDs", int64(100), int64(1)).Return(nil)
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.state.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
 
 	// Act
 	h.OnDeletedMessages(context.Background(), 100, []int64{1}, true)
 	d.queue.drain()
-
-	// Assert
-	d.telegram.AssertNotCalled(t, "DeleteMessages", mock.Anything, int64(200), mock.Anything, mock.Anything)
 }
 
 func TestOnMessageSendSucceeded(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, d := newTestHandler()
-	d.state.On("SetNewMessageID", int64(200), int64(500), int64(600)).Return(nil)
-	d.state.On("SetTmpMessageID", int64(200), int64(600), int64(500)).Return(nil)
+	h, d := newTestHandler(t)
+	d.state.EXPECT().SetNewMessageID(int64(200), int64(500), int64(600)).Return(nil)
+	d.state.EXPECT().SetTmpMessageID(int64(200), int64(600), int64(500)).Return(nil)
 
 	// Act
 	h.OnMessageSendSucceeded(200, 500, 600)
 	d.queue.drain()
-
-	// Assert
-	d.state.AssertCalled(t, "SetNewMessageID", int64(200), int64(500), int64(600))
-	d.state.AssertCalled(t, "SetTmpMessageID", int64(200), int64(600), int64(500))
 }
 
 func TestSetRuleSet(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, _ := newTestHandler()
+	h, _ := newTestHandler(t)
 	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
 
 	// Act
