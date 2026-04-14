@@ -241,3 +241,93 @@ func TestBuildInputContent_VoiceNote(t *testing.T) {
 	assert.Equal(t, int32(30), got.Duration)
 	assert.Empty(t, got.FileID)
 }
+
+func TestBuildInputContent_Video(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	svc := New()
+	msg := &domain.Message{
+		Content: domain.MessageContent{
+			Type:            domain.ContentVideo,
+			FileID:          "vid123",
+			ThumbnailFileID: "thumb789",
+			Width:           1920,
+			Height:          1080,
+			Duration:        120,
+		},
+	}
+	text := &domain.FormattedText{Text: "video caption"}
+
+	// Act
+	got := svc.BuildInputContent(msg, text)
+
+	// Assert
+	assert.Equal(t, domain.ContentVideo, got.Type)
+	assert.Equal(t, text, got.Text)
+	assert.Equal(t, "vid123", got.FileID)
+	assert.Equal(t, "thumb789", got.ThumbnailFileID)
+	assert.Equal(t, int32(1920), got.Width)
+	assert.Equal(t, int32(1080), got.Height)
+	assert.Equal(t, int32(120), got.Duration)
+}
+
+func TestBuildInputContent_Animation(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	svc := New()
+	msg := &domain.Message{
+		Content: domain.MessageContent{
+			Type:            domain.ContentAnimation,
+			FileID:          "anim123",
+			ThumbnailFileID: "athumb456",
+			Width:           320,
+			Height:          240,
+			Duration:        5,
+		},
+	}
+	text := &domain.FormattedText{Text: "gif"}
+
+	// Act
+	got := svc.BuildInputContent(msg, text)
+
+	// Assert
+	assert.Equal(t, domain.ContentAnimation, got.Type)
+	assert.Equal(t, "anim123", got.FileID)
+	assert.Equal(t, "athumb456", got.ThumbnailFileID)
+	assert.Equal(t, int32(320), got.Width)
+	assert.Equal(t, int32(240), got.Height)
+	assert.Equal(t, int32(5), got.Duration)
+	assert.Empty(t, got.FileName)
+}
+
+func TestBuildInputContent_Audio(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	svc := New()
+	msg := &domain.Message{
+		Content: domain.MessageContent{
+			Type:            domain.ContentAudio,
+			FileID:          "audio123",
+			ThumbnailFileID: "cover456",
+			Duration:        240,
+			FileName:        "track.mp3",
+			MimeType:        "audio/mpeg",
+		},
+	}
+	text := &domain.FormattedText{Text: "audio"}
+
+	// Act
+	got := svc.BuildInputContent(msg, text)
+
+	// Assert
+	assert.Equal(t, domain.ContentAudio, got.Type)
+	assert.Equal(t, "audio123", got.FileID)
+	assert.Equal(t, "cover456", got.ThumbnailFileID)
+	assert.Equal(t, int32(240), got.Duration)
+	assert.Equal(t, "track.mp3", got.FileName)
+	assert.Equal(t, "audio/mpeg", got.MimeType)
+	assert.Zero(t, got.Width)
+}
