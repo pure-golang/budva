@@ -220,6 +220,14 @@ func (f *FakeTelegram) ReplaceMessageID(chatID domain.ChatID, oldID, newID domai
 	f.messages[chatID][newID] = msg
 }
 
+// Reset очищает все сообщения (аналог truncateTables между subtests).
+func (f *FakeTelegram) Reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.messages = make(map[domain.ChatID]map[domain.MessageID]*domain.Message)
+	f.nextMsgID = 1000
+}
+
 // --- Методы для assertions в тестах ---
 
 // PutMessage помещает сообщение в store (для Given-шагов).
