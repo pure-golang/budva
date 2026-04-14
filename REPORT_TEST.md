@@ -1,152 +1,102 @@
 # Аудит тестового покрытия budva-claude
 
-## Текущее состояние по слоям
+Последняя актуализация: 2026-04-14.
 
-| Слой | Расположение | Файлов | Функциональность |
+## Сводка
+
+| Слой | Расположение | Количество | Статус |
 |---|---|---|---|
-| Unit | `*_test.go` рядом с кодом | 15 | Работают, покрывают компоненты изолированно |
-| BDD | `test/bdd/` | 18 features + 6 step-файлов | **Заглушки** — steps не вызывают реальный код |
-| Integration | `test/integration/` | 0 | Пусто |
-| E2E | `test/e2e/` | — | Директория не существует |
-| Smoke | `test/smoke/` | 0 | Пусто |
+| Unit | `*_test.go` рядом с кодом | 131 тест, 18 пакетов | ✓ |
+| BDD | `test/bdd/` | 93 сценария, 25 features | ✓ Функциональные |
+| Integration | `test/integration/` | 4 подтеста | ✓ |
+| Smoke | `test/smoke/` | 4 теста | ✓ (build tag `smoke`) |
+| E2E | `test/e2e/` | — | Отложено (Phase B) |
 
-## Unit-тесты — что покрыто
+## Unit-тесты — по пакетам
 
 | Пакет | Тестов | Что проверяется |
 |---|---|---|
-| handler | 12 | OnNewMessage (7 сценариев), OnEditedMessage, OnDeletedMessages (retry, indelible), OnMessageSendSucceeded, SetRuleSet |
-| transform | 16 | Transform pipeline (7 шагов), AddNextLink, UTF-16, replaceFragment |
-| message | 16 | GetFormattedText, IsSystemMessage, GetReplyMarkupData, BuildInputContent (4 типа) |
-| auth | 8 | Subscribe, SetState, Extra, InputChan, ReadInput, concurrency |
-| album | 10 | AddMessage, PopMessages, LastReceivedAge, MakeKey |
-| filters | 8 | Evaluate: exclude, include, submatch, empty text |
-| dedup | 3 | TryMark, dedup per destination |
-| config | 3 | envconfig loading |
+| config | 3 | envconfig loading, defaults |
 | controller | 3 | healthcheck, live, unhealthy |
-| repo/state | 4 | BadgerDB get/set/increment |
-| repo/ruleset | 3 | YAML load, validate, transform/enrich |
+| domain | 13 | MaskPhoneNumber (11 сценариев + property-based длина) |
+| handler | 12 | OnNewMessage (7 сценариев), OnEditedMessage, OnDeletedMessages (retry, indelible), OnMessageSendSucceeded, SetRuleSet |
 | repo/queue | 4 | Add, processQueue, panic recovery, StartContext |
+| repo/ruleset | 6 | YAML load, validate, negation, UTF-16 fragment validation, full pipeline |
+| repo/state | 11 | BadgerDB get/set/delete/atomic, copies (single/multi/update-in-place), bidirectional mapping, increment counters, answer message ID |
+| service/album | 10 | AddMessage, PopMessages, LastReceivedAge, MakeKey |
+| service/auth | 8 | Subscribe, SetState, Extra, InputChan, ReadInput, concurrency |
+| service/dedup | 3 | TryMark, dedup per destination |
+| service/limiter | 1 | WaitForForward (synctest: первый вызов — 0s, второй — 3s) |
+| service/filters | 8 | Evaluate: exclude, include, submatch, empty text |
+| service/message | 7 | GetFormattedText, IsSystemMessage, GetReplyMarkupData, BuildInputContent (4 типа) |
+| service/transform | 16 | Transform pipeline, AddNextLink, UTF-16 encode/decode, replaceFragment |
+| transport/grpc | 18 | FacadeGRPC все RPC + helpers + error cases (mockery EXPECT) |
 | transport/http | 12 | REST auth endpoints (state, phone, code, password, hint) |
-| transport/grpc | 19 | FacadeGRPC все 10 RPC + helpers |
-| transport/http/graph | 5 | GraphQL handler, playground |
+| transport/http/graph | 5 | GraphQL handler, status query/error, invalid body, unknown query, gqlgen playground |
+| transport/term | 3 | runInputLoop exit command (synctest), processAuth WaitPassword (with/without hint) |
 
-**Итого: ~126 unit-тестов, 15 пакетов**
+## BDD-тесты — 93 сценария (25 features)
 
-## Unit-тесты — что НЕ покрыто
+Step definitions вызывают реальный Handler + services через `test/support/Stack` с FakeTelegram (in-memory stateful gateway) и BadgerDB (TempDir).
 
-| Пакет | Что не тестируется |
-|---|---|
-| handler | editMessages (полный путь с transform), forwardMessage (SendCopy путь с origin), resolveReplyTo, getOriginMessage, processMediaAlbum, statistics, runNextLinkWorkflow |
-| transform | replaceMyselfLinks (complex link rewriting), addAutoAnswer |
-| limiter | WaitForForward (timing-based) |
-| repo/state | copies.go (SetCopiedMessageID update-in-place logic) |
-| facade | Все методы (0 тестов) |
+### Покрытые бизнес-эпики
 
-## BDD — состояние сценариев
-
-### Покрытые бизнес-функции (18 scenarios)
-
-| Эпик | Feature | Сценариев | Step status |
+| Эпик | Features | Сценариев | Описание |
 |---|---|---|---|
-| 01_DELIVERY | copy, forward | 2 | Заглушка |
-| 02_FILTERS | exclude, include, submatch | 4 | Заглушка |
-| 03_TRANSFORM | replace links, remove external, fragments, source link, sign, translate | 6 | Заглушка |
-| 04_MEDIA | album copy, album forward | 2 | Заглушка |
-| 05_SYNC | versioning, edit update, indelible, delete sync | 4 | Заглушка |
-| 06_AUTO | auto answers | 1 | @pending |
+| 01_DELIVERY | copy, forward, rate limiting, reply chain, origin unwrapping, statistics | ~20 | Пересылка, копирование, rate limit, reply chain, origin unwrap, статистика |
+| 02_FILTERS | exclude, include, submatch, check/other dedup | ~15 | Фильтрация по паттернам, дедупликация |
+| 03_TRANSFORM | replace links, remove external, fragments, source link, sign, translate | ~20 | Трансформация текста и ссылок |
+| 04_MEDIA | album copy, album forward | ~10 | Медиа-альбомы |
+| 05_SYNC | versioning, edit update, indelible, delete sync, retry | ~20 | Синхронизация изменений с retry |
+| 06_AUTO | auto answers | ~8 | Автоматические ответы (частично @pending — ждёт TDLib) |
 
-### НЕ покрытые бизнес-функции
+## Integration-тесты — 4 подтеста
 
-| Функция | Реализована в коде | BDD сценарий |
-|---|---|---|
-| Rate limiting (3s per chat) | ✓ handler + limiter | ✗ Нет |
-| Statistics (viewed/forwarded) | ✓ handler | ✗ Нет |
-| Reply chain preservation | ✓ handler.resolveReplyTo | ✗ Нет |
-| Origin message unwrapping | ✓ handler.getOriginMessage | ✗ Нет |
-| Check/Other dedup | ✓ handler via DedupTracker | ✗ Нет |
-| Retry 3x on edit/delete | ✓ handler.editMessagesWithRetry | ✗ Нет |
-| Password hint in HTTP | ✓ transport/http | ✗ Нет |
-| Fragment UTF-16 validation | ✓ ruleset validate | ✗ Нет |
+`test/integration/suite_test.go` — cross-component pipeline:
 
-### Проблема: BDD steps не выполняют реальный код
-
-Все step definitions — in-memory state tracking:
-
-```go
-// Так выглядит "тест" сейчас:
-func (s *scenarioCtx) messageIsDeliveredToAllTargets() error {
-    s.delivered = true  // ← просто ставит флаг
-    return nil
-}
-```
-
-Ни один step не создаёт `Handler`, `RuleSet`, `Service` и не вызывает бизнес-логику. Тесты проходят вне зависимости от корректности кода.
-
-## Integration тесты — пусто
-
-Директория `test/integration/` существует, но пуста. Нужны тесты для:
-
-| Компонент | Что тестировать |
+| Подтест | Что проверяется |
 |---|---|
-| repo/state (BadgerDB) | SetCopiedMessageID update-in-place, Increment atomicity, GetSet transaction |
-| repo/ruleset | Load → validate → transform → enrich → check полный цикл с реальным YAML |
-| handler + services | Полный forwarding pipeline с реальными service implementations |
+| copy_with_transform | handler → state → transform → forward полный цикл |
+| edit_sync | edit propagation через state mapping |
+| delete_sync | delete propagation |
+| filter_exclude | фильтрация на уровне pipeline |
 
-## E2E тесты — не существует
+BadgerDB через TempDir (без testcontainers). FakeTelegram через `telegramGateway` interface.
 
-Директория `test/e2e/` отсутствует. При наличии TDLib stubs можно тестировать:
+## Smoke-тесты — 4 теста
 
-| Сценарий | Описание |
+`test/smoke/smoke_test.go` (build tag `smoke`):
+
+| Тест | Что проверяется |
 |---|---|
-| cmd/engine startup | Запуск → загрузка конфига → подписка на updates → shutdown |
-| cmd/facade startup | Запуск → HTTP endpoints доступны → gRPC reflection → shutdown |
-| Forwarding pipeline | Update → handler → transform → send → storage mapping |
+| TestHealthcheck | `/healthcheck` endpoint → 200 |
+| TestHealth | `/health` endpoint → 200 |
+| TestLive | `/live` endpoint → 200 |
+| TestReady | `/ready` endpoint → 200 |
 
-## Smoke тесты — пусто
+Запускаются через testcontainers-compose + Dockerfile. Поднимают реальный стек в Docker.
 
-Директория `test/smoke/` существует, но пуста. Нужны:
+## E2E — отложено
 
-| Проверка | Описание |
+Требует TDLib Test DC (Phase B). Запланировано:
+- Engine lifecycle (startup → process updates → shutdown)
+- Facade endpoints (HTTP + gRPC functional)
+
+## Моки
+
+Все моки генерируются через mockery v3 (`.mockery.yml`). Используется EXPECT() API.
+
+| Пакет | Интерфейсы |
 |---|---|
-| Binary builds | `go build ./cmd/engine` и `./cmd/facade` |
-| Config loads | Минимальный `.env` → `InitConfig` без ошибок |
-| Health endpoint | HTTP GET /live → 200 |
+| handler/mocks | telegramGateway, stateStore, messageService, filterService, transformService, DedupTracker, albumService, taskQueue, rateLimiter |
+| transform/mocks | telegramGateway, stateStore |
+| controller/mocks | pinger |
+| transport/http/mocks | authService |
+| transport/grpc/mocks | facadeService |
+| transport/http/graph/mocks | statusProvider |
 
-## План закрытия gaps
+Inline моки не используются — все заменены на mockery.
 
-### Приоритет 1: Сделать BDD functional (red→green)
+## Требования к запуску
 
-Подключить реальный `Handler` + services в BDD step definitions. Для этого нужен `test/support/` с:
-- `TestHandler` — собранный handler с mockery-моками для telegram
-- `TestRuleSet` — fixture-набор правил
-- `TestContext` — shared state между steps
-
-**Результат:** 18 существующих сценариев будут проверять реальную бизнес-логику.
-
-### Приоритет 2: Добавить BDD для новых функций
-
-7 новых .feature файлов:
-- `05_SYNC/05_retry_eventual_consistency.feature`
-- `01_DELIVERY/03_rate_limiting.feature`
-- `01_DELIVERY/04_reply_chain.feature`
-- `01_DELIVERY/05_origin_unwrapping.feature`
-- `01_DELIVERY/06_statistics.feature`
-- `02_FILTERS/04_check_other_dedup.feature`
-- `06_AUTO/02_auto_answers_functional.feature` (замена @pending)
-
-### Приоритет 3: Integration тесты
-
-- `test/integration/state_copies_test.go` — BadgerDB update-in-place
-- `test/integration/ruleset_load_test.go` — полный YAML pipeline
-- `test/integration/handler_pipeline_test.go` — handler + real services
-
-### Приоритет 4: E2E с TDLib stubs
-
-- `test/e2e/engine_lifecycle_test.go` — startup → process updates → shutdown
-- `test/e2e/facade_endpoints_test.go` — HTTP + gRPC endpoints functional
-
-### Приоритет 5: Smoke тесты
-
-- `test/smoke/build_test.go` — бинарники собираются
-- `test/smoke/config_test.go` — конфиг загружается
-- `test/smoke/health_test.go` — health endpoint отвечает
+Для тестов, использующих `testing/synctest` (limiter, term), требуется `GOEXPERIMENT=synctest`. Taskfile настроен автоматически (`task test`, `task test-short`, `task test-v`).

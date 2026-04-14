@@ -60,8 +60,8 @@
 | State machine (WaitPhone/Code/Password) | ✓ |
 | Subscribe/broadcast + Extra() | ✓ |
 | inputChan / authStateChan | ✓ |
-| Phone masking | ✓ |
-| GetStatus | ✓ |
+| Phone masking (MaskPhoneNumber) | ✓ |
+| GetStatus (+ ReleaseVersion) | ✓ |
 | AuthorizationStateClosing | Phase B |
 | CreateClient retry loop | Phase B |
 | Close() sleep workaround | Phase B |
@@ -104,31 +104,31 @@
 | Транспорт | Статус |
 |---|---|
 | Terminal (auth + CLI) | ✓ |
-| HTTP (REST auth + GraphQL + playground) | ✓ |
+| HTTP (REST auth + GraphQL + gqlgen playground) | ✓ |
 | gRPC (FacadeGRPC 10 RPC + reflection) | ✓ |
 
 ### DTO
 
 | Слой | Статус |
 |---|---|
-| `internal/dto/graphql/` | ✓ StatusResponse |
+| `internal/dto/graphql/` | ✓ StatusResponse (+ ReleaseVersion) |
 | gRPC proto (pb/) | ✓ Все message types |
 
 ## Тестовое покрытие
 
 Подробный разбор в `REPORT_TEST.md`.
 
-### BDD: 18 сценариев — функциональные ✓
+### BDD: 93 сценария (25 features) — функциональные ✓
 
-Step definitions вызывают реальный Handler + services через `test/support/TestEnv` с FakeTelegram (in-memory stateful gateway) и BadgerDB (TempDir). Все 18 сценариев зелёные (1 @pending — auto_answers, ждёт TDLib).
+Step definitions вызывают реальный Handler + services через `test/support/Stack` с FakeTelegram (in-memory stateful gateway) и BadgerDB (TempDir). Покрыты: forwarding, filtering, transform, retry, rate limiting, reply chain, origin unwrapping, statistics, check/other dedup, album, edit, delete и другие бизнес-сценарии.
 
-### Integration: 11 тестов ✓
+### Integration: 4 теста ✓
 
-BadgerDB copies (update-in-place, bidirectional mapping, counters), ruleset full pipeline (load, validate, transform, enrich, negation, UTF-16 validation).
+Cross-component pipeline: handler → state → transform. BadgerDB через TempDir (без testcontainers).
 
-### Smoke: 2 теста ✓
+### Smoke: 4 теста ✓
 
-Engine и facade бинарники собираются.
+testcontainers-compose + Dockerfile: health endpoints engine и facade.
 
 ### E2E: отложено
 
@@ -138,19 +138,19 @@ Engine и facade бинарники собираются.
 
 ### ~~Приоритет 1: Functional BDD~~ ✓
 
-18 сценариев подключены к реальному Handler + services через `test/support/TestEnv`.
+93 сценария (25 features) подключены к реальному Handler + services через `test/support/Stack`.
+
+### ~~Приоритет 2: Новые BDD-сценарии~~ ✓
+
+Все реализованы: retry, rate limiting, reply chain, origin unwrapping, statistics, check/other dedup, auto-answer и другие.
 
 ### ~~Приоритет 3: Integration тесты~~ ✓
 
-11 тестов: BadgerDB copies, ruleset full pipeline.
+4 теста: cross-component pipeline handler → state → transform.
 
 ### ~~Приоритет 5: Smoke тесты~~ ✓
 
-2 теста: engine и facade бинарники.
-
-### Приоритет 2: Новые BDD-сценарии
-
-7 features для: retry, rate limiting, reply chain, origin unwrapping, statistics, check/other dedup, auto-answer.
+4 теста: testcontainers-compose + Dockerfile, health endpoints.
 
 ### Приоритет 4: E2E с TDLib Test DC
 
