@@ -18,6 +18,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/controller"
 	"github.com/pure-golang/budva-claude/internal/repo/telegram"
+	repoterm "github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
 	"github.com/pure-golang/budva-claude/internal/service/facade"
 	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
@@ -63,7 +64,7 @@ func run() error {
 	}()
 
 	// 5. Сервисы
-	_ = auth.New()
+	authSvc := auth.New()
 	_ = facade.New()
 
 	// 6. HTTP transport
@@ -76,9 +77,10 @@ func run() error {
 	httpServer := ahttp.NewDefault(cfg.HTTPServer, handler)
 
 	// 7. Terminal transport
-	termTransport := termtransport.New()
+	termRepo := repoterm.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
+	termTransport := termtransport.New(authSvc, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
-		if err := termTransport.Run(ctx); err != nil {
+		if err := termTransport.Run(ctx, cancel); err != nil {
 			logger.Error("Terminal transport error", slog.Any("err", err))
 		}
 	}()

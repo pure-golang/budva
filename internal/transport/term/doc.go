@@ -2,8 +2,9 @@
 //
 // Использование:
 //
-//	t := term.New(logger)
-//	t.Run(ctx)
+//	t := term.New(authService, telegramGateway, termIO, phoneNumber)
+//	t.Run(ctx, shutdownFunc)
+//	defer t.Close()
 //
 // Пакет не читает переменные окружения напрямую.
 //
@@ -11,4 +12,5 @@
 //
 //   - Интерактивный ввод: телефон, код подтверждения, пароль.
 //   - Блокирует горутину до завершения контекста.
+//   - Зависит от authService, telegramGateway и termIO через частично применяемые интерфейсы.
 package term
