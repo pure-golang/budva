@@ -328,6 +328,234 @@ func TestOnMessageSendSucceeded(t *testing.T) {
 	d.queue.drain()
 }
 
+func TestOnNewMessage_FiltersOther(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, d := newTestHandler(t)
+	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true, Other: 400}
+	rs := makeRuleSet(rule)
+	rs.Sources[100] = &domain.Source{ChatID: 100}
+	h.SetRuleSet(rs)
+
+	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
+	text := &domain.FormattedText{Text: "unrelated"}
+	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.filters.EXPECT().Evaluate("unrelated", rule).Return(domain.FiltersOther)
+	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(400))
+	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(400), []int64{int64(1)}).Return([]int64{int64(500)}, nil)
+	// Stats (viewed only, not forwarded for FiltersOther)
+	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+
+	// Act
+	h.OnNewMessage(context.Background(), msg)
+	d.queue.drain()
+}
+
+func TestOnEditedMessage_NoRuleSet(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, _ := newTestHandler(t)
+
+	// Act — не паникует при отсутствии ruleset
+	h.OnEditedMessage(context.Background(), &domain.Message{ChatID: 100, ID: 1})
+}
+
+func TestOnEditedMessage_UnknownSource(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, _ := newTestHandler(t)
+	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
+	h.SetRuleSet(rs)
+
+	// Act — неизвестный source игнорируется
+	h.OnEditedMessage(context.Background(), &domain.Message{ChatID: 999, ID: 1})
+}
+
+func TestOnEditedMessage_TextUpdate(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, d := newTestHandler(t)
+	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true}
+	rs := makeRuleSet(rule)
+	rs.Sources[100] = &domain.Source{ChatID: 100}
+	rs.Destinations[200] = &domain.Destination{ChatID: 200}
+	h.SetRuleSet(rs)
+
+	msg := &domain.Message{
+		ChatID: 100, ID: 1,
+		Content: domain.MessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: "edited text"},
+		},
+	}
+	text := &domain.FormattedText{Text: "edited text"}
+	transformed := &domain.FormattedText{Text: "transformed edit"}
+
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegram.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+
+	// Act
+	h.OnEditedMessage(context.Background(), msg)
+	d.queue.drain()
+}
+
+func TestOnEditedMessage_CaptionUpdate(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, d := newTestHandler(t)
+	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true}
+	rs := makeRuleSet(rule)
+	rs.Sources[100] = &domain.Source{ChatID: 100}
+	rs.Destinations[200] = &domain.Destination{ChatID: 200}
+	h.SetRuleSet(rs)
+
+	msg := &domain.Message{
+		ChatID: 100, ID: 1,
+		Content: domain.MessageContent{
+			Type: domain.ContentPhoto,
+			Text: &domain.FormattedText{Text: "new caption"},
+		},
+	}
+	text := &domain.FormattedText{Text: "new caption"}
+	transformed := &domain.FormattedText{Text: "transformed caption"}
+
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegram.EXPECT().EditMessageCaption(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+
+	// Act
+	h.OnEditedMessage(context.Background(), msg)
+	d.queue.drain()
+}
+
+func TestOnEditedMessage_CopyOnce_Versioning(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, d := newTestHandler(t)
+	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true, CopyOnce: true}
+	rs := makeRuleSet(rule)
+	rs.Sources[100] = &domain.Source{ChatID: 100}
+	rs.Destinations[200] = &domain.Destination{ChatID: 200}
+	h.SetRuleSet(rs)
+
+	msg := &domain.Message{
+		ChatID: 100, ID: 1, CanBeSaved: true,
+		Content: domain.MessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: "v2"},
+		},
+	}
+	text := &domain.FormattedText{Text: "v2"}
+	transformed := &domain.FormattedText{Text: "transformed v2"}
+	inputContent := domain.InputMessageContent{Type: domain.ContentText, Text: transformed, DisableLinkPreview: true}
+
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.messages.EXPECT().BuildInputContent(msg, transformed).Return(inputContent)
+	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(200))
+	d.telegram.EXPECT().SendMessage(mock.Anything, int64(200), mock.AnythingOfType("domain.InputMessageContent")).Return(int64(700), nil)
+	d.state.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:700").Return(nil)
+
+	// Act
+	h.OnEditedMessage(context.Background(), msg)
+	d.queue.drain()
+}
+
+func TestOnEditedMessage_RetryOnMissingNewID(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, d := newTestHandler(t)
+	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true}
+	rs := makeRuleSet(rule)
+	rs.Sources[100] = &domain.Source{ChatID: 100}
+	rs.Destinations[200] = &domain.Destination{ChatID: 200}
+	h.SetRuleSet(rs)
+
+	msg := &domain.Message{
+		ChatID: 100, ID: 1,
+		Content: domain.MessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: "edit"},
+		},
+	}
+	text := &domain.FormattedText{Text: "edit"}
+	transformed := &domain.FormattedText{Text: "transformed"}
+
+	call := 0
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"}).Times(2)
+	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).RunAndReturn(func(_ int64, _ int64) int64 {
+		call++
+		if call == 1 {
+			return 0
+		}
+		return 600
+	}).Times(2)
+	d.messages.EXPECT().GetFormattedText(msg).Return(text).Times(2)
+	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegram.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+
+	// Act
+	h.OnEditedMessage(context.Background(), msg)
+	d.queue.drain()
+}
+
+func TestOnEditedMessage_ReplyMarkupSync(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, d := newTestHandler(t)
+	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true}
+	rs := makeRuleSet(rule)
+	rs.Sources[100] = &domain.Source{ChatID: 100}
+	rs.Destinations[200] = &domain.Destination{ChatID: 200}
+	h.SetRuleSet(rs)
+
+	msg := &domain.Message{
+		ChatID: 100, ID: 1,
+		Content: domain.MessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: "with button"},
+		},
+		ReplyMarkup: &domain.ReplyMarkup{CallbackData: []byte("action")},
+	}
+	text := &domain.FormattedText{Text: "with button"}
+	transformed := &domain.FormattedText{Text: "transformed"}
+
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte("action"))
+	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegram.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.state.EXPECT().SetAnswerMessageID(int64(200), int64(500), int64(100), int64(1)).Return(nil)
+
+	// Act
+	h.OnEditedMessage(context.Background(), msg)
+	d.queue.drain()
+}
+
 func TestSetRuleSet(t *testing.T) {
 	t.Parallel()
 
