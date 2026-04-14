@@ -99,4 +99,19 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		}
 		return nil
 	})
+
+	// --- Check/Other dedup ---
+
+	ctx.Given(`^назначен check-чат для отклонённых сообщений$`, func() error {
+		s.checkChatID = -1004000
+		return nil
+	})
+
+	ctx.Then(`^сообщение появляется в check-чате ровно один раз$`, func() error {
+		msgs := s.env.TelegramFake.MessagesInChat(s.checkChatID)
+		if len(msgs) != 1 {
+			return fmt.Errorf("expected exactly 1 message in check chat %d, got %d", s.checkChatID, len(msgs))
+		}
+		return nil
+	})
 }

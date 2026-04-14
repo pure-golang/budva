@@ -583,8 +583,10 @@ func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID
 			}
 		}
 
-		if err := h.state.DeleteCopiedMessageIDs(chatID, msgID); err != nil {
-			h.logger.Error("Failed to delete copied message IDs", slog.Any("err", err))
+		if !needRetry {
+			if err := h.state.DeleteCopiedMessageIDs(chatID, msgID); err != nil {
+				h.logger.Error("Failed to delete copied message IDs", slog.Any("err", err))
+			}
 		}
 	}
 

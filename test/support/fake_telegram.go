@@ -63,6 +63,13 @@ func (f *FakeTelegram) SendMessage(_ context.Context, chatID domain.ChatID, cont
 			Text: content.Text,
 		},
 	}
+	// Сохраняем ReplyTo для проверки reply chain в тестах
+	if content.ReplyToMessageID != 0 {
+		msg.ReplyTo = &domain.MessageReplyTo{
+			ChatID:    chatID,
+			MessageID: content.ReplyToMessageID,
+		}
+	}
 
 	if f.messages[chatID] == nil {
 		f.messages[chatID] = make(map[domain.MessageID]*domain.Message)

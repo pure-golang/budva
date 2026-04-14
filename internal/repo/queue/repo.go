@@ -62,9 +62,29 @@ func (r *Repo) run(ctx context.Context) {
 	}
 }
 
-// ProcessAll синхронно выполняет все задачи в очереди (для тестов).
+// ProcessAll синхронно выполняет все задачи в очереди, включая добавленные во время выполнения.
 func (r *Repo) ProcessAll() {
 	for {
+		r.mu.Lock()
+		front := r.queue.Front()
+		if front == nil {
+			r.mu.Unlock()
+			return
+		}
+		fn := front.Value.(func())
+		r.queue.Remove(front)
+		r.mu.Unlock()
+		r.executeTask(fn)
+	}
+}
+
+// ProcessBatch синхронно выполняет только текущие задачи, без обработки добавленных во время выполнения.
+func (r *Repo) ProcessBatch() {
+	r.mu.Lock()
+	n := r.queue.Len()
+	r.mu.Unlock()
+
+	for range n {
 		r.mu.Lock()
 		front := r.queue.Front()
 		if front == nil {

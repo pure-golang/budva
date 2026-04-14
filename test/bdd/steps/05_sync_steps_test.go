@@ -168,7 +168,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			[]domain.MessageID{s.sentMsg.ID},
 			true,
 		)
-		s.env.DrainQueue()
+		if s.skipRetryDrain {
+			s.env.Queue.ProcessBatch()
+		} else {
+			s.env.DrainQueue()
+		}
 
 		return nil
 	})
@@ -245,6 +249,49 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) > 0 {
 				return fmt.Errorf("copies should be deleted from target chat %d, got %d", targetID, len(msgs))
+			}
+		}
+		return nil
+	})
+
+	// --- Retry eventual consistency ---
+
+	ctx.When(`^permanent ID записывается в хранилище$`, func() error {
+		// Записываем permanent IDs напрямую в state (минуя queue)
+		// чтобы retry-задача нашла их при следующем ProcessAll.
+		for _, targetID := range s.env.TargetIDs {
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			for _, m := range msgs {
+				_ = s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID))
+				_ = s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID))
+			}
+		}
+		return nil
+	})
+
+	ctx.Given(`^permanent ID ещё не записан в хранилище$`, func() error {
+		// Удаляем newMsgId маппинг, чтобы GetNewMessageID вернул 0
+		for _, targetID := range s.env.TargetIDs {
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			for _, m := range msgs {
+				_ = s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", m.ChatID, m.ID))
+			}
+		}
+		// When "удаляет" должен выполнить только 1 batch (без retry drain)
+		s.skipRetryDrain = true
+		return nil
+	})
+
+	ctx.Then(`^после повторной попытки копии удаляются из целевых чатов$`, func() error {
+		// permanent IDs записаны в предыдущем When step.
+		// Retry-задачи уже обработаны ProcessAll.
+		// Проверяем что копии удалены.
+		s.env.DrainQueue()
+
+		for _, targetID := range s.env.TargetIDs {
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			if len(msgs) > 0 {
+				return fmt.Errorf("copies should be deleted from target chat %d after retry, got %d", targetID, len(msgs))
 			}
 		}
 		return nil

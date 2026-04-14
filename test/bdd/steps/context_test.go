@@ -34,6 +34,15 @@ type scenarioCtx struct {
 	// Замены фрагментов
 	replaceFrom []string
 	replaceTo   []string
+
+	// Retry testing
+	skipRetryDrain bool
+
+	// Check/Other чаты
+	checkChatID domain.ChatID
+
+	// Пересланное сообщение из канала
+	forwardedMsg *domain.Message
 }
 
 func (s *scenarioCtx) reset() error {
@@ -58,6 +67,8 @@ func (s *scenarioCtx) reset() error {
 	s.submatchPattern = ""
 	s.replaceFrom = nil
 	s.replaceTo = nil
+	s.checkChatID = 0
+	s.forwardedMsg = nil
 	return nil
 }
 
@@ -70,6 +81,7 @@ func (s *scenarioCtx) applyRuleSet() {
 	rule.Indelible = s.indelible
 	rule.Exclude = s.excludePattern
 	rule.Include = s.includePattern
+	rule.Check = s.checkChatID
 
 	if len(s.replaceFrom) > 0 {
 		for _, dstID := range s.env.TargetIDs {
