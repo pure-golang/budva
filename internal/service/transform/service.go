@@ -40,21 +40,8 @@ func New(telegram telegramGateway, state stateStore, logger *slog.Logger) *Servi
 	}
 }
 
-// TransformParams описывает параметры трансформации.
-type TransformParams struct {
-	Text          *domain.FormattedText
-	Source        *domain.Source
-	Destination   *domain.Destination
-	DstChatID     domain.ChatID
-	SrcChatID     domain.ChatID
-	SrcMessageID  domain.MessageID
-	PrevMessageID domain.MessageID
-	WithSources   bool
-	ReplyMarkup   []byte
-}
-
 // Transform применяет все трансформации к тексту по конфигурации источника и получателя.
-func (s *Service) Transform(ctx context.Context, p TransformParams) (*domain.FormattedText, error) {
+func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*domain.FormattedText, error) {
 	text := p.Text
 
 	// 1. Перевод

@@ -32,3 +32,10 @@ func (t *Tracker) TryMark(chatID domain.ChatID) bool {
 	t.forwarded[chatID] = true
 	return true
 }
+
+// NewTrackerFactory возвращает фабрику для создания Tracker.
+func NewTrackerFactory() func(destinations []domain.ChatID) *Tracker {
+	return func(destinations []domain.ChatID) *Tracker {
+		return NewTracker(destinations)
+	}
+}

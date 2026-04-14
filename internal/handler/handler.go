@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/service/dedup"
-	"github.com/pure-golang/budva-claude/internal/service/transform"
 )
 
 type telegramGateway interface {
@@ -52,9 +50,17 @@ type filterService interface {
 }
 
 type transformService interface {
-	Transform(ctx context.Context, p transform.TransformParams) (*domain.FormattedText, error)
+	Transform(ctx context.Context, params domain.TransformParams) (*domain.FormattedText, error)
 	AddNextLink(ctx context.Context, text *domain.FormattedText, src *domain.Source, dstChatID domain.ChatID, nextMessageID domain.MessageID) *domain.FormattedText
 }
+
+// DedupTracker отслеживает дедупликацию доставки.
+type DedupTracker interface {
+	TryMark(chatID domain.ChatID) bool
+}
+
+// DedupFactory создаёт новый трекер дедупликации для набора целевых чатов.
+type DedupFactory = func(destinations []domain.ChatID) DedupTracker
 
 type albumService interface {
 	AddMessage(key domain.MediaAlbumKey, messageID domain.MessageID) bool
@@ -68,15 +74,16 @@ type taskQueue interface {
 
 // Handler обрабатывает обновления Telegram.
 type Handler struct {
-	logger    *slog.Logger
-	telegram  telegramGateway
-	state     stateStore
-	messages  messageService
-	filters   filterService
-	transform transformService
-	albums    albumService
-	queue     taskQueue
-	ruleset   atomic.Pointer[domain.RuleSet]
+	logger     *slog.Logger
+	telegram   telegramGateway
+	state      stateStore
+	messages   messageService
+	filters    filterService
+	transform  transformService
+	albums     albumService
+	queue      taskQueue
+	newTracker DedupFactory
+	ruleset    atomic.Pointer[domain.RuleSet]
 }
 
 // New создаёт новый экземпляр обработчика обновлений.
@@ -88,17 +95,19 @@ func New(
 	transformSvc transformService,
 	albums albumService,
 	queue taskQueue,
+	newTracker DedupFactory,
 	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
-		logger:    logger.With("module", "handler"),
-		telegram:  telegram,
-		state:     state,
-		messages:  messages,
-		filters:   filters,
-		transform: transformSvc,
-		albums:    albums,
-		queue:     queue,
+		logger:     logger.With("module", "handler"),
+		telegram:   telegram,
+		state:      state,
+		messages:   messages,
+		filters:    filters,
+		transform:  transformSvc,
+		albums:     albums,
+		queue:      queue,
+		newTracker: newTracker,
 	}
 }
 
@@ -204,7 +213,7 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 	mode := h.filters.Evaluate(text.Text, rule)
 	src := rs.Sources[msg.ChatID]
 
-	tracker := dedup.NewTracker(rule.To)
+	tracker := h.newTracker(rule.To)
 
 	switch mode {
 	case domain.FiltersOK:
@@ -238,7 +247,7 @@ func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domai
 		return
 	}
 
-	transformed, _ := h.transform.Transform(ctx, transform.TransformParams{
+	transformed, _ := h.transform.Transform(ctx, domain.TransformParams{
 		Text:          text.DeepCopy(),
 		Source:        src,
 		Destination:   dst,
@@ -366,7 +375,7 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 			h.forwardMessage(ctx, ruleID, rule, msg, text, src, dst, dstChatID, newMsgID)
 		} else {
 			// Обновляем существующую копию
-			transformed, _ := h.transform.Transform(ctx, transform.TransformParams{
+			transformed, _ := h.transform.Transform(ctx, domain.TransformParams{
 				Text:         text.DeepCopy(),
 				Source:       src,
 				Destination:  dst,

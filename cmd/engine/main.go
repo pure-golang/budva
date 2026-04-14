@@ -21,6 +21,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/repo/telegram"
 	"github.com/pure-golang/budva-claude/internal/service/album"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
+	"github.com/pure-golang/budva-claude/internal/service/dedup"
 	"github.com/pure-golang/budva-claude/internal/service/filters"
 	"github.com/pure-golang/budva-claude/internal/service/message"
 	"github.com/pure-golang/budva-claude/internal/service/transform"
@@ -92,6 +93,9 @@ func run() error {
 		transformSvc,
 		albumSvc,
 		queueRepo,
+		func(dsts []domain.ChatID) handler.DedupTracker {
+			return dedup.NewTracker(dsts)
+		},
 		slog.Default(),
 	)
 
