@@ -114,13 +114,13 @@ func (r *Repo) LoadChats(_ context.Context, _ int32) error {
 	return nil
 }
 
-// GetChatHistory загружает историю чата для прогрева.
-func (r *Repo) GetChatHistory(_ context.Context, _ domain.ChatID, _ int32) error {
+// WarmUpChat загружает историю чата для прогрева кеша.
+func (r *Repo) WarmUpChat(_ context.Context, _ domain.ChatID, _ int32) error {
 	return nil
 }
 
-// GetChatMessages возвращает сообщения чата с пагинацией.
-func (r *Repo) GetChatMessages(_ context.Context, _ domain.ChatID, _ domain.MessageID, _ int32, _ int32) ([]*domain.Message, error) {
+// GetChatHistory возвращает сообщения чата с пагинацией.
+func (r *Repo) GetChatHistory(_ context.Context, _ domain.ChatID, _ domain.MessageID, _ int32, _ int32) ([]*domain.Message, error) {
 	return nil, nil
 }
 

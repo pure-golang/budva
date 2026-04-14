@@ -16,7 +16,7 @@ import (
 
 type mockFacade struct {
 	getMessage      func(ctx context.Context, chatID, messageID int64) (*domain.Message, error)
-	getChatMessages func(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error)
+	getChatHistory func(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error)
 	sendMessage     func(ctx context.Context, chatID int64, text string) error
 	sendAlbum       func(ctx context.Context, chatID int64, texts []string) error
 	forwardMessage  func(ctx context.Context, chatID, messageID int64) error
@@ -33,9 +33,9 @@ func (m *mockFacade) GetMessage(ctx context.Context, chatID, messageID int64) (*
 	return nil, errors.New("not mocked")
 }
 
-func (m *mockFacade) GetChatMessages(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error) {
-	if m.getChatMessages != nil {
-		return m.getChatMessages(ctx, chatID, fromMessageID, offset, limit)
+func (m *mockFacade) GetChatHistory(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error) {
+	if m.getChatHistory != nil {
+		return m.getChatHistory(ctx, chatID, fromMessageID, offset, limit)
 	}
 	return nil, nil
 }
@@ -329,7 +329,7 @@ func TestGetChatHistory_Success(t *testing.T) {
 
 	// Arrange
 	facade := &mockFacade{
-		getChatMessages: func(_ context.Context, chatID, _ int64, _, _ int32) ([]*domain.Message, error) {
+		getChatHistory: func(_ context.Context, chatID, _ int64, _, _ int32) ([]*domain.Message, error) {
 			return []*domain.Message{
 				{ChatID: chatID, ID: 1, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "msg1"}}},
 				{ChatID: chatID, ID: 2, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "msg2"}}},

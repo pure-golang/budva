@@ -9,7 +9,7 @@ import (
 
 type telegramGateway interface {
 	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
-	GetChatMessages(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error)
+	GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error)
 	SendMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error)
 	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, contents []domain.InputMessageContent) ([]domain.MessageID, error)
 	ForwardMessages(ctx context.Context, fromChatID domain.ChatID, toChatID domain.ChatID, messageIDs []domain.MessageID) ([]domain.MessageID, error)
@@ -78,9 +78,9 @@ func (s *Service) DeleteMessages(ctx context.Context, chatID domain.ChatID, mess
 	return s.telegram.DeleteMessages(ctx, chatID, messageIDs, true)
 }
 
-// GetChatMessages возвращает сообщения чата с пагинацией.
-func (s *Service) GetChatMessages(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error) {
-	return s.telegram.GetChatMessages(ctx, chatID, fromMessageID, offset, limit)
+// GetChatHistory возвращает сообщения чата с пагинацией.
+func (s *Service) GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error) {
+	return s.telegram.GetChatHistory(ctx, chatID, fromMessageID, offset, limit)
 }
 
 // GetMessageLink возвращает публичную ссылку на сообщение.
