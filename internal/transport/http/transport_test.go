@@ -9,24 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/pure-golang/budva-claude/internal/transport/http/mocks"
 )
 
-type mockAuth struct {
-	state     domain.AuthorizationState
-	extra     any
-	inputChan chan string
-}
-
-func (m *mockAuth) Subscribe(_ func(domain.AuthorizationState, any)) {}
-func (m *mockAuth) InputChan() chan<- string                         { return m.inputChan }
-func (m *mockAuth) State() domain.AuthorizationState                 { return m.state }
-func (m *mockAuth) Extra() any                                       { return m.extra }
-
-func newTestTransport(state domain.AuthorizationState) (*Transport, *mockAuth) {
-	auth := &mockAuth{
-		state:     state,
-		inputChan: make(chan string, 1),
-	}
+func newTestTransport(t *testing.T, state domain.AuthorizationState) (*Transport, *mocks.AuthService) {
+	t.Helper()
+	auth := mocks.NewAuthService(t)
+	auth.EXPECT().State().Return(state).Maybe()
 	return New(auth, nil), auth
 }
 
@@ -34,7 +23,8 @@ func TestGetState_WaitPhone(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateWaitPhone)
+	tr, auth := newTestTransport(t, domain.AuthStateWaitPhone)
+	auth.EXPECT().Extra().Return(nil).Maybe()
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/telegram/state", nil)
@@ -52,7 +42,8 @@ func TestGetState_Ready(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateReady)
+	tr, auth := newTestTransport(t, domain.AuthStateReady)
+	auth.EXPECT().Extra().Return(nil).Maybe()
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/telegram/state", nil)
@@ -70,7 +61,9 @@ func TestPostPhone_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(domain.AuthStateWaitPhone)
+	tr, auth := newTestTransport(t, domain.AuthStateWaitPhone)
+	inputChan := make(chan string, 1)
+	auth.EXPECT().InputChan().Return(inputChan)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"phone":"+1234567890"}`)
@@ -84,7 +77,7 @@ func TestPostPhone_Success(t *testing.T) {
 	// Assert
 	assert.Equal(t, http.StatusAccepted, w.Code)
 	assert.Contains(t, w.Body.String(), `"status":"accepted"`)
-	got := <-auth.inputChan
+	got := <-inputChan
 	assert.Equal(t, "+1234567890", got)
 }
 
@@ -92,7 +85,7 @@ func TestPostPhone_EmptyPhone(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateWaitPhone)
+	tr, _ := newTestTransport(t, domain.AuthStateWaitPhone)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"phone":""}`)
@@ -111,7 +104,7 @@ func TestPostPhone_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateWaitPhone)
+	tr, _ := newTestTransport(t, domain.AuthStateWaitPhone)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`invalid`)
@@ -129,7 +122,9 @@ func TestPostCode_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(domain.AuthStateWaitCode)
+	tr, auth := newTestTransport(t, domain.AuthStateWaitCode)
+	inputChan := make(chan string, 1)
+	auth.EXPECT().InputChan().Return(inputChan)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"code":"12345"}`)
@@ -142,7 +137,7 @@ func TestPostCode_Success(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, http.StatusAccepted, w.Code)
-	got := <-auth.inputChan
+	got := <-inputChan
 	assert.Equal(t, "12345", got)
 }
 
@@ -150,7 +145,7 @@ func TestPostCode_EmptyCode(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateWaitCode)
+	tr, _ := newTestTransport(t, domain.AuthStateWaitCode)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"code":""}`)
@@ -169,7 +164,9 @@ func TestPostPassword_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, auth := newTestTransport(domain.AuthStateWaitPassword)
+	tr, auth := newTestTransport(t, domain.AuthStateWaitPassword)
+	inputChan := make(chan string, 1)
+	auth.EXPECT().InputChan().Return(inputChan)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"password":"secret123"}`)
@@ -182,7 +179,7 @@ func TestPostPassword_Success(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, http.StatusAccepted, w.Code)
-	got := <-auth.inputChan
+	got := <-inputChan
 	assert.Equal(t, "secret123", got)
 }
 
@@ -190,7 +187,7 @@ func TestPostPassword_EmptyPassword(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateWaitPassword)
+	tr, _ := newTestTransport(t, domain.AuthStateWaitPassword)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	body := strings.NewReader(`{"password":""}`)
@@ -209,7 +206,8 @@ func TestResponseContentType(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateReady)
+	tr, auth := newTestTransport(t, domain.AuthStateReady)
+	auth.EXPECT().Extra().Return(nil).Maybe()
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/telegram/state", nil)
@@ -227,11 +225,9 @@ func TestGetState_PasswordHint(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	auth := &mockAuth{
-		state:     domain.AuthStateWaitPassword,
-		extra:     &domain.WaitPasswordState{PasswordHint: "pet name"},
-		inputChan: make(chan string, 1),
-	}
+	auth := mocks.NewAuthService(t)
+	auth.EXPECT().State().Return(domain.AuthStateWaitPassword)
+	auth.EXPECT().Extra().Return(&domain.WaitPasswordState{PasswordHint: "pet name"})
 	tr := New(auth, nil)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
@@ -251,7 +247,7 @@ func TestPostPhone_NoBody(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	tr, _ := newTestTransport(domain.AuthStateWaitPhone)
+	tr, _ := newTestTransport(t, domain.AuthStateWaitPhone)
 	mux := http.NewServeMux()
 	tr.EnrichRoutes(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/phone", nil)
