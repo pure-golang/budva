@@ -24,6 +24,7 @@ import (
 	grpctransport "github.com/pure-golang/budva-claude/internal/transport/grpc"
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
 	httptransport "github.com/pure-golang/budva-claude/internal/transport/http"
+	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
 	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -76,7 +77,8 @@ func run() error {
 	mux := http.NewServeMux()
 	ctrl := controller.New()
 	ctrl.EnrichRoutes(mux)
-	httpTransport := httptransport.New(authSvc)
+	gqlResolver := graph.NewResolver(facadeSvc)
+	httpTransport := httptransport.New(authSvc, gqlResolver)
 	httpTransport.EnrichRoutes(mux)
 
 	handler := amiddleware.Chain(mux, amiddleware.Monitoring(), amiddleware.Recovery)

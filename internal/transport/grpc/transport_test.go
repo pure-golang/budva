@@ -16,6 +16,7 @@ import (
 
 type mockFacade struct {
 	getMessage      func(ctx context.Context, chatID, messageID int64) (*domain.Message, error)
+	getChatMessages func(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error)
 	sendMessage     func(ctx context.Context, chatID int64, text string) error
 	sendAlbum       func(ctx context.Context, chatID int64, texts []string) error
 	forwardMessage  func(ctx context.Context, chatID, messageID int64) error
@@ -30,6 +31,13 @@ func (m *mockFacade) GetMessage(ctx context.Context, chatID, messageID int64) (*
 		return m.getMessage(ctx, chatID, messageID)
 	}
 	return nil, errors.New("not mocked")
+}
+
+func (m *mockFacade) GetChatMessages(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error) {
+	if m.getChatMessages != nil {
+		return m.getChatMessages(ctx, chatID, fromMessageID, offset, limit)
+	}
+	return nil, nil
 }
 
 func (m *mockFacade) SendMessage(ctx context.Context, chatID int64, text string) error {
@@ -316,14 +324,45 @@ func TestGetMessageLinkInfo_Success(t *testing.T) {
 	assert.Equal(t, int64(1), resp.GetMessage().GetId())
 }
 
-func TestGetChatHistory_Unimplemented(t *testing.T) {
+func TestGetChatHistory_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
+	facade := &mockFacade{
+		getChatMessages: func(_ context.Context, chatID, _ int64, _, _ int32) ([]*domain.Message, error) {
+			return []*domain.Message{
+				{ChatID: chatID, ID: 1, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "msg1"}}},
+				{ChatID: chatID, ID: 2, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "msg2"}}},
+			}, nil
+		},
+	}
+	tr := New(facade)
+
+	// Act
+	resp, err := tr.GetChatHistory(context.Background(), &pb.GetChatHistoryRequest{
+		ChatId: 100, FromMessageId: 0, Offset: 0, Limit: 10,
+	})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, resp.GetMessages(), 2)
+	assert.Equal(t, "msg1", resp.GetMessages()[0].GetText())
+}
+
+func TestGetChatHistory_Empty(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	tr := New(&mockFacade{})
 
-	_, err := tr.GetChatHistory(context.Background(), &pb.GetChatHistoryRequest{})
+	// Act
+	resp, err := tr.GetChatHistory(context.Background(), &pb.GetChatHistoryRequest{
+		ChatId: 100, Limit: 10,
+	})
 
-	require.Error(t, err)
-	assert.Equal(t, codes.Unimplemented, status.Code(err))
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, resp.GetMessages())
 }
 
 func TestDomainToProto_Nil(t *testing.T) {

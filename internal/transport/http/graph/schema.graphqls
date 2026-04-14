@@ -1,0 +1,8 @@
+type Status {
+  tdlibVersion: String!
+  userId: Int!
+}
+
+type Query {
+  status: Status!
+}

@@ -119,6 +119,11 @@ func (r *Repo) GetChatHistory(_ context.Context, _ domain.ChatID, _ int32) error
 	return nil
 }
 
+// GetChatMessages возвращает сообщения чата с пагинацией.
+func (r *Repo) GetChatMessages(_ context.Context, _ domain.ChatID, _ domain.MessageID, _ int32, _ int32) ([]*domain.Message, error) {
+	return nil, nil
+}
+
 // GetChatType возвращает тип чата (для определения возможности получить ссылку).
 func (r *Repo) GetChatType(_ context.Context, _ domain.ChatID) (string, error) {
 	return "supergroup", nil

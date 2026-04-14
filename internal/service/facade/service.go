@@ -4,10 +4,12 @@ import (
 	"context"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
+	dtogql "github.com/pure-golang/budva-claude/internal/dto/graphql"
 )
 
 type telegramGateway interface {
 	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
+	GetChatMessages(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error)
 	SendMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error)
 	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, contents []domain.InputMessageContent) ([]domain.MessageID, error)
 	ForwardMessages(ctx context.Context, fromChatID domain.ChatID, toChatID domain.ChatID, messageIDs []domain.MessageID) ([]domain.MessageID, error)
@@ -76,6 +78,11 @@ func (s *Service) DeleteMessages(ctx context.Context, chatID domain.ChatID, mess
 	return s.telegram.DeleteMessages(ctx, chatID, messageIDs, true)
 }
 
+// GetChatMessages возвращает сообщения чата с пагинацией.
+func (s *Service) GetChatMessages(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error) {
+	return s.telegram.GetChatMessages(ctx, chatID, fromMessageID, offset, limit)
+}
+
 // GetMessageLink возвращает публичную ссылку на сообщение.
 func (s *Service) GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error) {
 	return s.telegram.GetMessageLink(ctx, chatID, messageID)
@@ -86,14 +93,8 @@ func (s *Service) GetMessageLinkInfo(ctx context.Context, link string) (*domain.
 	return s.telegram.GetMessageLinkInfo(ctx, link)
 }
 
-// Status содержит информацию о состоянии сервиса.
-type Status struct {
-	TDLibVersion string
-	UserID       int64
-}
-
 // GetStatus возвращает текущий статус сервиса.
-func (s *Service) GetStatus(ctx context.Context) (*Status, error) {
+func (s *Service) GetStatus(ctx context.Context) (*dtogql.StatusResponse, error) {
 	version, err := s.telegram.GetOption(ctx, "version")
 	if err != nil {
 		return nil, err
@@ -102,7 +103,7 @@ func (s *Service) GetStatus(ctx context.Context) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Status{
+	return &dtogql.StatusResponse{
 		TDLibVersion: version,
 		UserID:       userID,
 	}, nil

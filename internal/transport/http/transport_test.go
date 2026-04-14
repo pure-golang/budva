@@ -25,7 +25,7 @@ func newTestTransport(state domain.AuthorizationState) (*Transport, *mockAuth) {
 		state:     state,
 		inputChan: make(chan string, 1),
 	}
-	return New(auth), auth
+	return New(auth, nil), auth
 }
 
 func TestGetState_WaitPhone(t *testing.T) {

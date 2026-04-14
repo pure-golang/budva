@@ -8,6 +8,7 @@ import (
 	alogger "github.com/pure-golang/adapters/logger"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
 )
 
 type authService interface {
@@ -18,13 +19,15 @@ type authService interface {
 
 // Transport реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
 type Transport struct {
-	auth authService
+	auth     authService
+	resolver *graph.Resolver
 }
 
 // New создаёт новый экземпляр HTTP-транспорта.
-func New(auth authService) *Transport {
+func New(auth authService, resolver *graph.Resolver) *Transport {
 	return &Transport{
-		auth: auth,
+		auth:     auth,
+		resolver: resolver,
 	}
 }
 
@@ -34,6 +37,10 @@ func (t *Transport) EnrichRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/telegram/phone", t.handlePostPhone)
 	mux.HandleFunc("POST /api/auth/telegram/code", t.handlePostCode)
 	mux.HandleFunc("POST /api/auth/telegram/password", t.handlePostPassword)
+	if t.resolver != nil {
+		mux.HandleFunc("POST /graphql", t.resolver.Handler())
+		mux.HandleFunc("GET /playground", graph.PlaygroundHandler("/graphql"))
+	}
 }
 
 type stateResponse struct {

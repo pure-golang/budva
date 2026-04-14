@@ -15,6 +15,7 @@ import (
 
 type facadeService interface {
 	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
+	GetChatMessages(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error)
 	SendMessage(ctx context.Context, chatID domain.ChatID, text string) error
 	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, texts []string) error
 	ForwardMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) error
@@ -52,8 +53,16 @@ func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest)
 }
 
 // GetChatHistory возвращает историю чата с пагинацией.
-func (t *Transport) GetChatHistory(_ context.Context, _ *pb.GetChatHistoryRequest) (*pb.MessagesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "not implemented")
+func (t *Transport) GetChatHistory(ctx context.Context, req *pb.GetChatHistoryRequest) (*pb.MessagesResponse, error) {
+	msgs, err := t.facade.GetChatMessages(ctx, req.GetChatId(), req.GetFromMessageId(), req.GetOffset(), req.GetLimit())
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	var messages []*pb.Message
+	for _, msg := range msgs {
+		messages = append(messages, domainToProto(msg))
+	}
+	return &pb.MessagesResponse{Messages: messages}, nil
 }
 
 // SendMessage отправляет сообщение.
