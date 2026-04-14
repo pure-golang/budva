@@ -21,6 +21,7 @@ import (
 	repoterm "github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
 	"github.com/pure-golang/budva-claude/internal/service/facade"
+	httptransport "github.com/pure-golang/budva-claude/internal/transport/http"
 	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
 )
 
@@ -71,6 +72,8 @@ func run() error {
 	mux := http.NewServeMux()
 	ctrl := controller.New()
 	ctrl.EnrichRoutes(mux)
+	httpTransport := httptransport.New(authSvc)
+	httpTransport.EnrichRoutes(mux)
 
 	handler := amiddleware.Chain(mux, amiddleware.Monitoring(), amiddleware.Recovery)
 

@@ -1,7 +1,11 @@
-// Package http реализует HTTP-транспорт с REST и GraphQL эндпоинтами.
+// Package http реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
 //
-// Текущая реализация — placeholder; HTTP-сервер пока собирается в cmd/facade
-// напрямую через ahttp.NewDefault и controller.EnrichRoutes.
+// Эндпоинты:
+//
+//	GET  /api/auth/telegram/state    — текущее состояние авторизации
+//	POST /api/auth/telegram/phone    — отправка номера телефона
+//	POST /api/auth/telegram/code     — отправка кода подтверждения
+//	POST /api/auth/telegram/password — отправка пароля 2FA
 //
 // Конфигурация:
 //
@@ -10,6 +14,5 @@
 //
 // Ограничения:
 //
-//   - REST эндпоинты для авторизации будут добавлены при реализации auth flow.
-//   - GraphQL эндпоинт будет добавлен при реализации facade.
+//   - GraphQL эндпоинт будет добавлен при реализации facade service.
 package http
