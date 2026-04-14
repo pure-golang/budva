@@ -97,10 +97,9 @@ func New(
 	albums albumService,
 	queue taskQueue,
 	newTracker DedupFactory,
-	logger *slog.Logger,
 ) *Handler {
 	return &Handler{
-		logger:     logger.With("module", "handler"),
+		logger:     slog.Default().With("module", "handler"),
 		telegram:   telegram,
 		state:      state,
 		messages:   messages,

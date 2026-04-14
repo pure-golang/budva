@@ -10,8 +10,8 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр фасада.
-func New(logger *slog.Logger) *Service {
+func New() *Service {
 	return &Service{
-		logger: logger.With("module", "service.facade"),
+		logger: slog.Default().With("module", "service.facade"),
 	}
 }

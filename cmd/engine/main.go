@@ -57,7 +57,7 @@ func run() error {
 	logger.Info("Starting engine")
 
 	// 4. Repository-адаптеры
-	stateRepo := state.New(cfg.Storage, slog.Default())
+	stateRepo := state.New(cfg.Storage)
 	if err := stateRepo.Start(ctx); err != nil {
 		return fmt.Errorf("state repo: %w", err)
 	}
@@ -67,9 +67,9 @@ func run() error {
 		}
 	}()
 
-	rulesetRepo := ruleset.New(cfg.Ruleset, slog.Default())
+	rulesetRepo := ruleset.New(cfg.Ruleset)
 
-	telegramRepo := telegram.New(cfg.Telegram, slog.Default())
+	telegramRepo := telegram.New(cfg.Telegram)
 	if err := telegramRepo.Start(ctx); err != nil {
 		return fmt.Errorf("telegram repo: %w", err)
 	}
@@ -79,7 +79,7 @@ func run() error {
 		}
 	}()
 
-	queueRepo := queue.New(slog.Default())
+	queueRepo := queue.New()
 	if err := queueRepo.StartContext(ctx); err != nil {
 		return fmt.Errorf("queue repo: %w", err)
 	}
@@ -90,11 +90,11 @@ func run() error {
 	}()
 
 	// 5. Сервисы
-	_ = auth.New(slog.Default())
-	messageSvc := message.New(slog.Default())
-	transformSvc := transform.New(telegramRepo, stateRepo, slog.Default())
-	filtersSvc := filters.New(slog.Default())
-	albumSvc := album.New(slog.Default())
+	_ = auth.New()
+	messageSvc := message.New()
+	transformSvc := transform.New(telegramRepo, stateRepo)
+	filtersSvc := filters.New()
+	albumSvc := album.New()
 
 	// 6. Handler
 	h := handler.New(
@@ -108,7 +108,6 @@ func run() error {
 		func(dsts []domain.ChatID) handler.DedupTracker {
 			return dedup.NewTracker(dsts)
 		},
-		slog.Default(),
 	)
 
 	// 7. Ruleset
@@ -163,7 +162,7 @@ func run() error {
 	}()
 
 	// 10. Terminal transport
-	termTransport := termtransport.New(slog.Default())
+	termTransport := termtransport.New()
 	go func() {
 		if err := termTransport.Run(ctx); err != nil {
 			logger.Error("Terminal transport error", slog.Any("error", err))

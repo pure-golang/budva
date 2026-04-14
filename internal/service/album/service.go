@@ -22,9 +22,9 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр сервиса медиа-альбомов.
-func New(logger *slog.Logger) *Service {
+func New() *Service {
 	return &Service{
-		logger: logger.With("module", "service.album"),
+		logger: slog.Default().With("module", "service.album"),
 		albums: make(map[domain.MediaAlbumKey]*entry),
 	}
 }

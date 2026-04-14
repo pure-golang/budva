@@ -10,8 +10,8 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр загрузчика.
-func New(logger *slog.Logger) *Service {
+func New() *Service {
 	return &Service{
-		logger: logger.With("module", "service.loader"),
+		logger: slog.Default().With("module", "service.loader"),
 	}
 }

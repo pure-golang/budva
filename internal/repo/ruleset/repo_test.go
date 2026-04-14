@@ -1,7 +1,6 @@
 package ruleset
 
 import (
-	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,7 +48,7 @@ func TestRepo_Load(t *testing.T) {
 	err := os.WriteFile(path, []byte(testRuleset), 0o600)
 	require.NoError(t, err)
 
-	r := New(config.RulesetConfig{Path: path}, slog.Default())
+	r := New(config.RulesetConfig{Path: path})
 
 	// Act
 	rs, err := r.Load()
@@ -78,7 +77,7 @@ func TestRepo_Load_empty_config(t *testing.T) {
 	err := os.WriteFile(path, []byte("{}"), 0o600)
 	require.NoError(t, err)
 
-	r := New(config.RulesetConfig{Path: path}, slog.Default())
+	r := New(config.RulesetConfig{Path: path})
 
 	// Act
 	_, err = r.Load()
@@ -91,7 +90,7 @@ func TestRepo_Load_file_not_found(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	r := New(config.RulesetConfig{Path: "/nonexistent/ruleset.yml"}, slog.Default())
+	r := New(config.RulesetConfig{Path: "/nonexistent/ruleset.yml"})
 
 	// Act
 	_, err := r.Load()

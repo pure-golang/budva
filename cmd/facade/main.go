@@ -52,7 +52,7 @@ func run() error {
 	logger.Info("Starting facade")
 
 	// 4. Repository-адаптеры
-	telegramRepo := telegram.New(cfg.Telegram, slog.Default())
+	telegramRepo := telegram.New(cfg.Telegram)
 	if err := telegramRepo.Start(ctx); err != nil {
 		return fmt.Errorf("telegram repo: %w", err)
 	}
@@ -63,8 +63,8 @@ func run() error {
 	}()
 
 	// 5. Сервисы
-	_ = auth.New(slog.Default())
-	_ = facade.New(slog.Default())
+	_ = auth.New()
+	_ = facade.New()
 
 	// 6. HTTP transport
 	mux := http.NewServeMux()
@@ -76,7 +76,7 @@ func run() error {
 	httpServer := ahttp.NewDefault(cfg.HTTPServer, handler)
 
 	// 7. Terminal transport
-	termTransport := termtransport.New(slog.Default())
+	termTransport := termtransport.New()
 	go func() {
 		if err := termTransport.Run(ctx); err != nil {
 			logger.Error("Terminal transport error", slog.Any("error", err))

@@ -11,9 +11,9 @@ type Transport struct {
 }
 
 // New создаёт новый экземпляр терминального транспорта.
-func New(logger *slog.Logger) *Transport {
+func New() *Transport {
 	return &Transport{
-		logger: logger.With("module", "transport.term"),
+		logger: slog.Default().With("module", "transport.term"),
 	}
 }
 

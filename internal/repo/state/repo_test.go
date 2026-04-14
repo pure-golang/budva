@@ -2,7 +2,6 @@ package state
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,7 +14,7 @@ func newTestRepo(t *testing.T) *Repo {
 	cfg := config.StorageConfig{
 		DatabaseDirectory: t.TempDir(),
 	}
-	r := New(cfg, slog.Default())
+	r := New(cfg)
 	err := r.Start(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() {

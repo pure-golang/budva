@@ -18,9 +18,9 @@ type Repo struct {
 }
 
 // New создаёт новый экземпляр Telegram-репозитория.
-func New(cfg config.TelegramConfig, logger *slog.Logger) *Repo {
+func New(cfg config.TelegramConfig) *Repo {
 	return &Repo{
-		logger:     logger.With("module", "repo.telegram"),
+		logger:     slog.Default().With("module", "repo.telegram"),
 		cfg:        cfg,
 		clientDone: make(chan struct{}),
 		updates:    make(chan domain.Update, 100),

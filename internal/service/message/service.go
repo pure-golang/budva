@@ -12,9 +12,9 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр сервиса сообщений.
-func New(logger *slog.Logger) *Service {
+func New() *Service {
 	return &Service{
-		logger: logger.With("module", "service.message"),
+		logger: slog.Default().With("module", "service.message"),
 	}
 }
 

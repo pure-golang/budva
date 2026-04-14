@@ -33,9 +33,9 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр сервиса трансформаций.
-func New(telegram telegramGateway, state stateStore, logger *slog.Logger) *Service {
+func New(telegram telegramGateway, state stateStore) *Service {
 	return &Service{
-		logger:   logger.With("module", "service.transform"),
+		logger:   slog.Default().With("module", "service.transform"),
 		telegram: telegram,
 		state:    state,
 	}

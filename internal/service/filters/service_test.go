@@ -1,7 +1,6 @@
 package filters
 
 import (
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,7 +12,7 @@ func TestEvaluate_no_filters(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{}
 
 	// Act
@@ -27,7 +26,7 @@ func TestEvaluate_exclude_matches(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{Exclude: "EXCLUDE"}
 
 	// Act
@@ -41,7 +40,7 @@ func TestEvaluate_exclude_no_match(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{Exclude: "EXCLUDE"}
 
 	// Act
@@ -55,7 +54,7 @@ func TestEvaluate_include_matches(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{Include: "INCLUDE"}
 
 	// Act
@@ -69,7 +68,7 @@ func TestEvaluate_include_no_match(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{Include: "INCLUDE"}
 
 	// Act
@@ -83,7 +82,7 @@ func TestEvaluate_empty_text_with_include(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{Include: "INCLUDE"}
 
 	// Act
@@ -97,7 +96,7 @@ func TestEvaluate_submatch(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{
 		IncludeSubmatch: []*domain.SubmatchRule{
 			{Regexp: `\$(\w+)`, Group: 1, Match: []string{"TSLA"}},
@@ -115,7 +114,7 @@ func TestEvaluate_submatch_no_match(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc := New(slog.Default())
+	svc := New()
 	rule := &domain.ForwardRule{
 		IncludeSubmatch: []*domain.SubmatchRule{
 			{Regexp: `\$(\w+)`, Group: 1, Match: []string{"TSLA"}},

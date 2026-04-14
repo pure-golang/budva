@@ -10,8 +10,8 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр движка.
-func New(logger *slog.Logger) *Service {
+func New() *Service {
 	return &Service{
-		logger: logger.With("module", "service.engine"),
+		logger: slog.Default().With("module", "service.engine"),
 	}
 }

@@ -14,9 +14,9 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр сервиса фильтрации.
-func New(logger *slog.Logger) *Service {
+func New() *Service {
 	return &Service{
-		logger: logger.With("module", "service.filters"),
+		logger: slog.Default().With("module", "service.filters"),
 	}
 }
 

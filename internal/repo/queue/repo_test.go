@@ -2,7 +2,6 @@ package queue
 
 import (
 	"context"
-	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,7 +13,7 @@ func TestRepo_Add_and_Len(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	r := New(slog.Default())
+	r := New()
 
 	// Act
 	r.Add(func() {})
@@ -28,7 +27,7 @@ func TestRepo_ProcessQueue_executes_task(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	r := New(slog.Default())
+	r := New()
 	var called atomic.Bool
 	r.Add(func() { called.Store(true) })
 
@@ -44,7 +43,7 @@ func TestRepo_ProcessQueue_recovers_from_panic(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	r := New(slog.Default())
+	r := New()
 	r.Add(func() { panic("test panic") })
 
 	// Act / Assert — не паникует
@@ -56,7 +55,7 @@ func TestRepo_StartContext_processes_tasks(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	r := New(slog.Default())
+	r := New()
 	var called atomic.Bool
 	r.Add(func() { called.Store(true) })
 

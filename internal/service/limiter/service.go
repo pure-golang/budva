@@ -19,9 +19,9 @@ type Service struct {
 }
 
 // New создаёт новый экземпляр лимитера.
-func New(logger *slog.Logger) *Service {
+func New() *Service {
 	return &Service{
-		logger:        logger.With("module", "service.limiter"),
+		logger:        slog.Default().With("module", "service.limiter"),
 		lastForwarded: make(map[domain.ChatID]time.Time),
 	}
 }
