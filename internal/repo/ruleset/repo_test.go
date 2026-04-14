@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/pure-golang/budva/internal/config"
+	"github.com/pure-golang/budva-claude/internal/config"
 )
 
 const testRuleset = `

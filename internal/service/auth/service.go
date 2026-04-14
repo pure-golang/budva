@@ -3,34 +3,27 @@ package auth
 import (
 	"log/slog"
 	"sync"
-)
 
-// AuthState описывает состояние авторизации.
-type AuthState string
-
-const (
-	StateWaitPhone    AuthState = "waitPhone"
-	StateWaitCode     AuthState = "waitCode"
-	StateWaitPassword AuthState = "waitPassword"
-	StateReady        AuthState = "ready"
-	StateClosed       AuthState = "closed"
+	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 // StateListener получает уведомления об изменении состояния авторизации.
-type StateListener = func(state AuthState)
+type StateListener = func(state domain.AuthorizationState, extra any)
 
 // Service управляет авторизацией в Telegram.
 type Service struct {
 	logger    *slog.Logger
 	mu        sync.RWMutex
-	state     AuthState
+	state     domain.AuthorizationState
 	listeners []StateListener
+	inputChan chan string
 }
 
 // New создаёт новый экземпляр сервиса авторизации.
 func New(logger *slog.Logger) *Service {
 	return &Service{
-		logger: logger.With("module", "service.auth"),
+		logger:    logger.With("module", "service.auth"),
+		inputChan: make(chan string, 1),
 	}
 }
 
@@ -42,22 +35,32 @@ func (s *Service) Subscribe(listener StateListener) {
 }
 
 // SetState устанавливает новое состояние и оповещает подписчиков.
-func (s *Service) SetState(state AuthState) {
+func (s *Service) SetState(state domain.AuthorizationState, extra any) {
 	s.mu.Lock()
 	s.state = state
 	listeners := make([]StateListener, len(s.listeners))
 	copy(listeners, s.listeners)
 	s.mu.Unlock()
 
-	s.logger.Info("Auth state changed", "state", string(state))
+	s.logger.Info("Auth state changed", "state", state.String())
 	for _, l := range listeners {
-		l(state)
+		l(state, extra)
 	}
 }
 
 // State возвращает текущее состояние авторизации.
-func (s *Service) State() AuthState {
+func (s *Service) State() domain.AuthorizationState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.state
+}
+
+// InputChan возвращает канал для ввода данных авторизации (телефон, код, пароль).
+func (s *Service) InputChan() chan<- string {
+	return s.inputChan
+}
+
+// ReadInput ожидает ввод от пользователя (блокирует).
+func (s *Service) ReadInput() string {
+	return <-s.inputChan
 }

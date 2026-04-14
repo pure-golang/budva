@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/pure-golang/budva/internal/domain"
+	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 func TestEvaluate_no_filters(t *testing.T) {

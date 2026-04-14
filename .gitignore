@@ -32,4 +32,5 @@ go.work.sum
 # .vscode/
 
 # For level85
-.golangci.yml
+.golangci.ymlengine
+facade

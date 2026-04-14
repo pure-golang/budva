@@ -11,16 +11,16 @@ import (
 	"syscall"
 
 	aenv "github.com/pure-golang/adapters/env"
-	ahttp "github.com/pure-golang/adapters/httpserver/std"
 	amiddleware "github.com/pure-golang/adapters/httpserver/middleware"
+	ahttp "github.com/pure-golang/adapters/httpserver/std"
 	"github.com/pure-golang/platform/monitoring"
 
-	"github.com/pure-golang/budva/internal/config"
-	"github.com/pure-golang/budva/internal/controller"
-	"github.com/pure-golang/budva/internal/repo/telegram"
-	"github.com/pure-golang/budva/internal/service/auth"
-	"github.com/pure-golang/budva/internal/service/facade"
-	termtransport "github.com/pure-golang/budva/internal/transport/term"
+	"github.com/pure-golang/budva-claude/internal/config"
+	"github.com/pure-golang/budva-claude/internal/controller"
+	"github.com/pure-golang/budva-claude/internal/repo/telegram"
+	"github.com/pure-golang/budva-claude/internal/service/auth"
+	"github.com/pure-golang/budva-claude/internal/service/facade"
+	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
 )
 
 func main() {

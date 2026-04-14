@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/pure-golang/budva/internal/domain"
+	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 // Service определяет режим фильтрации для сообщений.

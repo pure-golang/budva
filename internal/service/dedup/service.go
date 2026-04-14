@@ -3,7 +3,7 @@ package dedup
 import (
 	"sync"
 
-	"github.com/pure-golang/budva/internal/domain"
+	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 // Tracker отслеживает, в какие целевые чаты уже было отправлено сообщение.

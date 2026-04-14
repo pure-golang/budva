@@ -8,7 +8,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 
-	"github.com/pure-golang/budva/internal/config"
+	"github.com/pure-golang/budva-claude/internal/config"
 )
 
 // Repo реализует KV-хранилище на основе BadgerDB.

@@ -12,23 +12,19 @@ import (
 	aenv "github.com/pure-golang/adapters/env"
 	"github.com/pure-golang/platform/monitoring"
 
-	"github.com/pure-golang/budva/internal/config"
-	"github.com/pure-golang/budva/internal/handler"
-	"github.com/pure-golang/budva/internal/repo/queue"
-	"github.com/pure-golang/budva/internal/repo/ruleset"
-	"github.com/pure-golang/budva/internal/repo/state"
-	"github.com/pure-golang/budva/internal/repo/telegram"
-	"github.com/pure-golang/budva/internal/service/album"
-	"github.com/pure-golang/budva/internal/service/auth"
-	"github.com/pure-golang/budva/internal/service/dedup"
-	"github.com/pure-golang/budva/internal/service/engine"
-	"github.com/pure-golang/budva/internal/service/filters"
-	"github.com/pure-golang/budva/internal/service/forwarder"
-	"github.com/pure-golang/budva/internal/service/limiter"
-	"github.com/pure-golang/budva/internal/service/loader"
-	"github.com/pure-golang/budva/internal/service/message"
-	"github.com/pure-golang/budva/internal/service/transform"
-	termtransport "github.com/pure-golang/budva/internal/transport/term"
+	"github.com/pure-golang/budva-claude/internal/config"
+	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/pure-golang/budva-claude/internal/handler"
+	"github.com/pure-golang/budva-claude/internal/repo/queue"
+	"github.com/pure-golang/budva-claude/internal/repo/ruleset"
+	"github.com/pure-golang/budva-claude/internal/repo/state"
+	"github.com/pure-golang/budva-claude/internal/repo/telegram"
+	"github.com/pure-golang/budva-claude/internal/service/album"
+	"github.com/pure-golang/budva-claude/internal/service/auth"
+	"github.com/pure-golang/budva-claude/internal/service/filters"
+	"github.com/pure-golang/budva-claude/internal/service/message"
+	"github.com/pure-golang/budva-claude/internal/service/transform"
+	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
 )
 
 func main() {
@@ -78,26 +74,71 @@ func run() error {
 
 	// 5. Сервисы
 	_ = auth.New(slog.Default())
-	_ = message.New(slog.Default())
-	_ = transform.New(telegramRepo, slog.Default())
-	_ = filters.New(slog.Default())
-	_ = album.New(slog.Default())
-	_ = forwarder.New(slog.Default())
-	_ = dedup.NewTracker(nil)
-	_ = limiter.New(slog.Default())
-	_ = loader.New(slog.Default())
-	_ = engine.New(slog.Default())
+	messageSvc := message.New(slog.Default())
+	transformSvc := transform.New(telegramRepo, stateRepo, slog.Default())
+	filtersSvc := filters.New(slog.Default())
+	albumSvc := album.New(slog.Default())
 
-	// 6. Handlers
-	_ = handler.New(slog.Default())
+	// 6. Handler
+	h := handler.New(
+		telegramRepo,
+		stateRepo,
+		messageSvc,
+		filtersSvc,
+		transformSvc,
+		albumSvc,
+		queueRepo,
+		slog.Default(),
+	)
 
 	// 7. Ruleset
-	_, err := rulesetRepo.Load()
+	rs, err := rulesetRepo.Load()
 	if err != nil {
 		logger.Warn("Failed to load ruleset", "error", err)
+	} else {
+		h.SetRuleSet(rs)
 	}
 
-	// 8. Terminal transport
+	// 8. Watcher для hot-reload
+	if err := rulesetRepo.WatchContext(ctx, func() {
+		newRS, loadErr := rulesetRepo.Load()
+		if loadErr != nil {
+			logger.Error("Failed to reload ruleset", "error", loadErr)
+			return
+		}
+		h.SetRuleSet(newRS)
+		logger.Info("Ruleset reloaded")
+	}); err != nil {
+		logger.Warn("Failed to watch ruleset", "error", err)
+	}
+	defer rulesetRepo.Close()
+
+	// 9. Update dispatcher
+	go func() {
+		<-telegramRepo.ClientDone()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case update, ok := <-telegramRepo.Updates():
+				if !ok {
+					return
+				}
+				switch update.Type {
+				case domain.UpdateNewMessage:
+					h.OnNewMessage(ctx, update.Message)
+				case domain.UpdateMessageEdited:
+					h.OnEditedMessage(ctx, update.Message)
+				case domain.UpdateDeleteMessages:
+					h.OnDeletedMessages(ctx, update.ChatID, update.MessageIDs, update.IsPermanent)
+				case domain.UpdateMessageSendSucceeded:
+					h.OnMessageSendSucceeded(update.Message.ChatID, update.OldMessageID, update.Message.ID)
+				}
+			}
+		}
+	}()
+
+	// 10. Terminal transport
 	termTransport := termtransport.New(slog.Default())
 	go termTransport.Run(ctx)
 
