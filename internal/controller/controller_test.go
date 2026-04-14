@@ -1,20 +1,16 @@
 package controller
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pure-golang/budva-claude/internal/controller/mocks"
 )
-
-type mockPinger struct {
-	err error
-}
-
-func (m *mockPinger) Ping(_ context.Context) error { return m.err }
 
 func TestLive_always_200(t *testing.T) {
 	t.Parallel()
@@ -36,7 +32,9 @@ func TestHealthcheck_all_healthy(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	ctrl := New(&mockPinger{})
+	p := mocks.NewPinger(t)
+	p.EXPECT().Ping(mock.Anything).Return(nil)
+	ctrl := New(p)
 	mux := http.NewServeMux()
 	ctrl.EnrichRoutes(mux)
 
@@ -52,7 +50,9 @@ func TestHealthcheck_unhealthy(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	ctrl := New(&mockPinger{err: errors.New("db is down")})
+	p := mocks.NewPinger(t)
+	p.EXPECT().Ping(mock.Anything).Return(errors.New("db is down"))
+	ctrl := New(p)
 	mux := http.NewServeMux()
 	ctrl.EnrichRoutes(mux)
 
