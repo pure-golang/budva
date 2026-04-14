@@ -204,6 +204,22 @@ func (f *FakeTelegram) GetChatHistory(_ context.Context, _ domain.ChatID, _ doma
 	return nil, nil
 }
 
+// ReplaceMessageID имитирует замену temporary ID на permanent ID (как в TDLib OnMessageSendSucceeded).
+func (f *FakeTelegram) ReplaceMessageID(chatID domain.ChatID, oldID, newID domain.MessageID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.messages[chatID] == nil {
+		return
+	}
+	msg := f.messages[chatID][oldID]
+	if msg == nil {
+		return
+	}
+	delete(f.messages[chatID], oldID)
+	msg.ID = newID
+	f.messages[chatID][newID] = msg
+}
+
 // --- Методы для assertions в тестах ---
 
 // PutMessage помещает сообщение в store (для Given-шагов).

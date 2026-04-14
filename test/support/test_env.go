@@ -18,15 +18,39 @@ import (
 	"github.com/pure-golang/budva-claude/internal/config"
 )
 
+// TelegramGateway — интерфейс для подмены Telegram в тестах.
+// FakeTelegram (in-memory) реализует его сейчас; при переходе на Variant 3
+// будет заменён на реальный TDLib с Test DC без изменения TestEnv.
+type TelegramGateway interface {
+	SendMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error)
+	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, contents []domain.InputMessageContent) ([]domain.MessageID, error)
+	ForwardMessages(ctx context.Context, fromChatID domain.ChatID, toChatID domain.ChatID, messageIDs []domain.MessageID) ([]domain.MessageID, error)
+	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
+	EditMessageText(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text *domain.FormattedText) error
+	EditMessageCaption(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text *domain.FormattedText) error
+	DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID, revoke bool) error
+	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error)
+	GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error)
+	TranslateText(ctx context.Context, text *domain.FormattedText, lang string) (*domain.FormattedText, error)
+	GetCallbackQueryAnswer(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, data []byte) (string, error)
+	GetChatType(ctx context.Context, chatID domain.ChatID) (string, error)
+	ParseTextEntities(ctx context.Context, text string) (*domain.FormattedText, error)
+	GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error)
+	ClientDone() <-chan struct{}
+	GetOption(ctx context.Context, name string) (string, error)
+	GetMe(ctx context.Context) (int64, error)
+}
+
 // TestEnv содержит собранный стек для BDD/integration тестов.
 type TestEnv struct {
-	Telegram  *FakeTelegram
-	Handler   *handler.Handler
-	State     *state.Repo
-	Queue     *queue.Repo
-	SourceID  domain.ChatID
-	TargetIDs []domain.ChatID
-	tmpDir    string
+	Telegram     TelegramGateway
+	TelegramFake *FakeTelegram // assertion-методы: PutMessage, MessagesInChat, HasMessageWithText
+	Handler      *handler.Handler
+	State        *state.Repo
+	Queue        *queue.Repo
+	SourceID     domain.ChatID
+	TargetIDs    []domain.ChatID
+	tmpDir       string
 }
 
 // NewTestEnv собирает полный стек: handler + real services + fake telegram + real BadgerDB.
@@ -69,13 +93,14 @@ func NewTestEnv() (*TestEnv, error) {
 	)
 
 	return &TestEnv{
-		Telegram:  fakeTG,
-		Handler:   h,
-		State:     stateRepo,
-		Queue:     queueRepo,
-		SourceID:  -1001000,
-		TargetIDs: []domain.ChatID{-1002000, -1003000},
-		tmpDir:    tmpDir,
+		Telegram:     fakeTG,
+		TelegramFake: fakeTG,
+		Handler:      h,
+		State:        stateRepo,
+		Queue:        queueRepo,
+		SourceID:     -1001000,
+		TargetIDs:    []domain.ChatID{-1002000, -1003000},
+		tmpDir:       tmpDir,
 	}, nil
 }
 

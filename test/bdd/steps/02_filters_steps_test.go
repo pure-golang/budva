@@ -40,7 +40,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -62,7 +62,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -72,7 +72,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение не появляется в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) > 0 {
 				return fmt.Errorf("expected no messages in target chat %d, got %d", targetID, len(msgs))
 			}
@@ -82,7 +82,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение с текстом "([^"]*)" появляется во всех целевых чатах$`, func(expected string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d for expected text %q", targetID, expected)
 			}

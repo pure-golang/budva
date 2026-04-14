@@ -63,7 +63,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -85,7 +85,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -97,7 +97,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		// Сообщение уже было обработано handler в предыдущем Given-шаге,
 		// проверяем что копии появились и симулируем OnMessageSendSucceeded
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("message was not copied to target chat %d", targetID)
 			}
@@ -119,7 +119,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		beforeMsgs := make(map[domain.ChatID]map[domain.MessageID]bool)
 		for _, targetID := range s.env.TargetIDs {
 			beforeMsgs[targetID] = make(map[domain.MessageID]bool)
-			for _, m := range s.env.Telegram.MessagesInChat(targetID) {
+			for _, m := range s.env.TelegramFake.MessagesInChat(targetID) {
 				beforeMsgs[targetID][m.ID] = true
 			}
 		}
@@ -133,14 +133,14 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		// Обновляем сообщение в fake telegram
-		s.env.Telegram.PutMessage(editedMsg)
+		s.env.TelegramFake.PutMessage(editedMsg)
 
 		s.env.Handler.OnEditedMessage(context.Background(), editedMsg)
 		s.env.DrainQueue()
 
 		// Симулируем OnMessageSendSucceeded для новых сообщений (версионирование)
 		for _, targetID := range s.env.TargetIDs {
-			for _, m := range s.env.Telegram.MessagesInChat(targetID) {
+			for _, m := range s.env.TelegramFake.MessagesInChat(targetID) {
 				if !beforeMsgs[targetID][m.ID] {
 					s.env.Handler.OnMessageSendSucceeded(m.ChatID, m.ID, m.ID)
 				}
@@ -175,7 +175,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате появляется новая копия с текстом "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			found := false
 			for _, m := range msgs {
 				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, text) {
@@ -192,7 +192,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^новая копия содержит ссылку на предыдущую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -213,7 +213,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^предыдущая копия обновляется со ссылкой на новую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -223,7 +223,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^существующая копия в целевых чатах обновляется на "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			if !s.env.Telegram.HasMessageWithText(targetID, text) {
+			if !s.env.TelegramFake.HasMessageWithText(targetID, text) {
 				return fmt.Errorf("no message with text %q in target chat %d", text, targetID)
 			}
 		}
@@ -232,7 +232,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии остаются в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("copies should remain in target chat %d", targetID)
 			}
@@ -242,7 +242,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии удаляются из всех целевых чатов$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) > 0 {
 				return fmt.Errorf("copies should be deleted from target chat %d, got %d", targetID, len(msgs))
 			}

@@ -49,7 +49,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				Text: &domain.FormattedText{Text: "previous message"},
 			},
 		}
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 		return nil
 	})
 
@@ -68,7 +68,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -78,7 +78,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате ссылка указывает на копию предыдущего сообщения$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -109,7 +109,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -119,7 +119,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение появляется без внешней ссылки$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -130,7 +130,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Then(`^в целевом чате сообщение содержит подпись источника$`, func() error {
 		// Подпись добавляется только к первому destination (WithSources=true)
 		firstTarget := s.env.TargetIDs[0]
-		msgs := s.env.Telegram.MessagesInChat(firstTarget)
+		msgs := s.env.TelegramFake.MessagesInChat(firstTarget)
 		if len(msgs) == 0 {
 			return fmt.Errorf("no messages in first target chat %d", firstTarget)
 		}
@@ -145,7 +145,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Then(`^в целевом чате сообщение содержит ссылку на оригинал$`, func() error {
 		// Ссылка добавляется только к первому destination (WithSources=true)
 		firstTarget := s.env.TargetIDs[0]
-		msgs := s.env.Telegram.MessagesInChat(firstTarget)
+		msgs := s.env.TelegramFake.MessagesInChat(firstTarget)
 		if len(msgs) == 0 {
 			return fmt.Errorf("no messages in first target chat %d", firstTarget)
 		}

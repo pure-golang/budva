@@ -38,7 +38,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
+		s.env.TelegramFake.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -48,7 +48,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение появляется во всех целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs := s.env.TelegramFake.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
