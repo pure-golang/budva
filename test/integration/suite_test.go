@@ -3,8 +3,8 @@ package integration
 import (
 	"context"
 	"testing"
-	"time"
 
+	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/handler"
 	"github.com/pure-golang/budva-claude/internal/repo/queue"
@@ -19,28 +19,21 @@ import (
 )
 
 type integrationSuite struct {
-	telegram  *support.FakeTelegram
-	handler   *handler.Handler
-	state     *state.Repo
-	queue     *queue.Repo
-	container *support.BadgerContainer
-	sourceID  domain.ChatID
-	targets   []domain.ChatID
+	telegram *support.FakeTelegram
+	handler  *handler.Handler
+	state    *state.Repo
+	queue    *queue.Repo
+	sourceID domain.ChatID
+	targets  []domain.ChatID
 }
 
 func setupSuite(tb testing.TB) *integrationSuite {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	container, err := support.StartBadgerContainer(ctx)
-	if err != nil {
-		tb.Fatalf("failed to start badger container: %v", err)
+	stateRepo := state.New(config.StorageConfig{DatabaseDirectory: tb.(*testing.T).TempDir()})
+	if err := stateRepo.Start(context.Background()); err != nil {
+		tb.Fatalf("failed to start state repo: %v", err)
 	}
-
-	kv := container.NewKVStore()
-	stateRepo := state.NewWithKV(kv)
 
 	fakeTG := support.NewFakeTelegram()
 	queueRepo := queue.New()
@@ -57,20 +50,19 @@ func setupSuite(tb testing.TB) *integrationSuite {
 	)
 
 	return &integrationSuite{
-		telegram:  fakeTG,
-		handler:   h,
-		state:     stateRepo,
-		queue:     queueRepo,
-		container: container,
-		sourceID:  -1001000,
-		targets:   []domain.ChatID{-1002000, -1003000},
+		telegram: fakeTG,
+		handler:  h,
+		state:    stateRepo,
+		queue:    queueRepo,
+		sourceID: -1001000,
+		targets:  []domain.ChatID{-1002000, -1003000},
 	}
 }
 
 func tearDownSuite(tb testing.TB, s *integrationSuite) {
 	tb.Helper()
-	if s.container != nil {
-		s.container.Stop(context.Background())
+	if s.state != nil {
+		s.state.Close()
 	}
 }
 

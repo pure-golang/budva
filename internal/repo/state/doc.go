@@ -9,10 +9,6 @@
 //	err := r.Set("key", "value")
 //	val, err := r.Get("key")
 //
-// Для тестов и внешнего KVStore:
-//
-//	r := state.NewWithKV(kv)
-//
 // Конфигурация:
 //
 //	STORAGE_PATH — путь к директории BadgerDB (default: .data/badger)
