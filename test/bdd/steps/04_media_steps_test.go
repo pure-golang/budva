@@ -9,7 +9,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-func registerMediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет медиа-альбом в исходный чат$`, func() error {
 		s.applyRuleSet()
 

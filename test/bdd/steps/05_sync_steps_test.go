@@ -3,17 +3,28 @@ package steps
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/cucumber/godog"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-func registerSyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" с опцией copy_once$`, func(mode string) error {
 		s.deliveryMode = mode
 		s.sendCopy = (mode == "копия")
 		s.copyOnce = true
+		// Версионирование подразумевает навигационные ссылки Prev/Next
+		s.src.Prev = &domain.Prev{
+			Title: domain.PrevTitle,
+			For:   s.env.TargetIDs,
+		}
+		s.src.Next = &domain.Next{
+			Title: domain.NextTitle,
+			For:   s.env.TargetIDs,
+		}
 		return nil
 	})
 
@@ -104,6 +115,15 @@ func registerSyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return fmt.Errorf("no previously sent message")
 		}
 
+		// Запоминаем сообщения до редактирования
+		beforeMsgs := make(map[domain.ChatID]map[domain.MessageID]bool)
+		for _, targetID := range s.env.TargetIDs {
+			beforeMsgs[targetID] = make(map[domain.MessageID]bool)
+			for _, m := range s.env.Telegram.MessagesInChat(targetID) {
+				beforeMsgs[targetID][m.ID] = true
+			}
+		}
+
 		editedMsg := &domain.Message{
 			ChatID: s.env.SourceID,
 			ID:     s.sentMsg.ID,
@@ -117,6 +137,21 @@ func registerSyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 		s.env.Handler.OnEditedMessage(context.Background(), editedMsg)
 		s.env.DrainQueue()
+
+		// Симулируем OnMessageSendSucceeded для новых сообщений (версионирование)
+		for _, targetID := range s.env.TargetIDs {
+			for _, m := range s.env.Telegram.MessagesInChat(targetID) {
+				if !beforeMsgs[targetID][m.ID] {
+					s.env.Handler.OnMessageSendSucceeded(m.ChatID, m.ID, m.ID)
+				}
+			}
+		}
+		s.env.DrainQueue()
+
+		// Ожидаем завершения runNextLinkWorkflow горутины
+		if s.copyOnce {
+			time.Sleep(2 * time.Second)
+		}
 
 		s.messageText = newText
 		return nil
@@ -140,19 +175,37 @@ func registerSyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате появляется новая копия с текстом "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			if !s.env.Telegram.HasMessageWithText(targetID, text) {
-				return fmt.Errorf("no message with text %q in target chat %d", text, targetID)
+			msgs := s.env.Telegram.MessagesInChat(targetID)
+			found := false
+			for _, m := range msgs {
+				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, text) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("no message containing text %q in target chat %d", text, targetID)
 			}
 		}
 		return nil
 	})
 
 	ctx.Then(`^новая копия содержит ссылку на предыдущую версию$`, func() error {
-		// Проверяем что в целевых чатах есть сообщения (навигация проверяется на уровне интеграции)
 		for _, targetID := range s.env.TargetIDs {
 			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
+			}
+			// Проверяем что хотя бы одно сообщение содержит ссылку
+			found := false
+			for _, m := range msgs {
+				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, "https://t.me") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("no message with link to previous version in target chat %d", targetID)
 			}
 		}
 		return nil

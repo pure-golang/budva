@@ -3,13 +3,14 @@ package steps
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cucumber/godog"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-func registerTransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^правило замены фрагментов "([^"]*)" → "([^"]*)" и "([^"]*)" → "([^"]*)"$`, func(from1, to1, from2, to2 string) error {
 		s.replaceFrom = []string{from1, from2}
 		s.replaceTo = []string{to1, to2}
@@ -81,6 +82,10 @@ func registerTransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
+			text := msgs[0].Content.Text.Text
+			if !strings.Contains(text, "https://t.me") {
+				return fmt.Errorf("expected link in message text, got %q", text)
+			}
 		}
 		return nil
 	})
@@ -123,22 +128,32 @@ func registerTransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^в целевом чате сообщение содержит подпись источника$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
+		// Подпись добавляется только к первому destination (WithSources=true)
+		firstTarget := s.env.TargetIDs[0]
+		msgs := s.env.Telegram.MessagesInChat(firstTarget)
+		if len(msgs) == 0 {
+			return fmt.Errorf("no messages in first target chat %d", firstTarget)
+		}
+		for _, msg := range msgs {
+			if msg.Content.Text != nil && strings.Contains(msg.Content.Text.Text, domain.SignTitle) {
+				return nil
 			}
 		}
-		return nil
+		return fmt.Errorf("expected sign title %q in first target chat, not found", domain.SignTitle)
 	})
 
 	ctx.Then(`^в целевом чате сообщение содержит ссылку на оригинал$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
+		// Ссылка добавляется только к первому destination (WithSources=true)
+		firstTarget := s.env.TargetIDs[0]
+		msgs := s.env.Telegram.MessagesInChat(firstTarget)
+		if len(msgs) == 0 {
+			return fmt.Errorf("no messages in first target chat %d", firstTarget)
+		}
+		for _, msg := range msgs {
+			if msg.Content.Text != nil && strings.Contains(msg.Content.Text.Text, "https://t.me") {
+				return nil
 			}
 		}
-		return nil
+		return fmt.Errorf("expected link to original in first target chat, not found")
 	})
 }

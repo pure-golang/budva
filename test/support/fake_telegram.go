@@ -48,7 +48,7 @@ func (f *FakeTelegram) GetMe(_ context.Context) (int64, error) {
 }
 
 // SendMessage сохраняет сообщение и возвращает temp ID.
-func (f *FakeTelegram) SendMessage(_ context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error) {
+func (f *FakeTelegram) SendMessage(_ context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error) { //nolint:gocritic // InputMessageContent by value for interface compatibility
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

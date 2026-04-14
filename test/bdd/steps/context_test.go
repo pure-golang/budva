@@ -103,10 +103,10 @@ func initScenario(ctx *godog.ScenarioContext) {
 		return gctx, nil
 	})
 
-	registerDeliverySteps(ctx, s)
-	registerFiltersSteps(ctx, s)
-	registerTransformSteps(ctx, s)
-	registerMediaSteps(ctx, s)
-	registerSyncSteps(ctx, s)
-	registerAutoSteps(ctx, s)
+	register01DeliverySteps(ctx, s)
+	register02FiltersSteps(ctx, s)
+	register03TransformSteps(ctx, s)
+	register04MediaSteps(ctx, s)
+	register05SyncSteps(ctx, s)
+	register06AutoSteps(ctx, s)
 }

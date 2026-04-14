@@ -4,7 +4,7 @@ import (
 	"github.com/cucumber/godog"
 )
 
-func registerAutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^в исходном чате появляется сообщение с callback-запросом$`, func() error {
 		return godog.ErrPending
 	})

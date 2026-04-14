@@ -9,7 +9,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-func registerDeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^правило пересылки в режиме "([^"]*)"$`, func(mode string) error {
 		s.deliveryMode = mode
 		s.sendCopy = (mode == "копия")

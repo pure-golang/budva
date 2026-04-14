@@ -3,13 +3,14 @@ package steps
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cucumber/godog"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-func registerFiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^фильтр исключения с паттерном "([^"]*)"$`, func(pattern string) error {
 		s.excludePattern = pattern
 		return nil
@@ -83,7 +84,17 @@ func registerFiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		for _, targetID := range s.env.TargetIDs {
 			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
+				return fmt.Errorf("no messages in target chat %d for expected text %q", targetID, expected)
+			}
+			found := false
+			for _, m := range msgs {
+				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, expected) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("no message containing text %q in target chat %d", expected, targetID)
 			}
 		}
 		return nil
