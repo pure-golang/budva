@@ -262,8 +262,12 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		for _, targetID := range s.env.TargetIDs {
 			msgs := s.env.Telegram.MessagesInChat(targetID)
 			for _, m := range msgs {
-				_ = s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID))
-				_ = s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID))
+				if err := s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID)); err != nil {
+					return err
+				}
+				if err := s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID)); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -274,7 +278,9 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		for _, targetID := range s.env.TargetIDs {
 			msgs := s.env.Telegram.MessagesInChat(targetID)
 			for _, m := range msgs {
-				_ = s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", m.ChatID, m.ID))
+				if err := s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", m.ChatID, m.ID)); err != nil {
+					return err
+				}
 			}
 		}
 		// When "удаляет" должен выполнить только 1 batch (без retry drain)

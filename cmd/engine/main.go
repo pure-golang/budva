@@ -19,7 +19,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/repo/ruleset"
 	"github.com/pure-golang/budva-claude/internal/repo/state"
 	"github.com/pure-golang/budva-claude/internal/repo/telegram"
-	repoterm "github.com/pure-golang/budva-claude/internal/repo/term"
+	"github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/album"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
 	"github.com/pure-golang/budva-claude/internal/service/dedup"
@@ -167,7 +167,7 @@ func run() error {
 	}()
 
 	// 10. Terminal transport
-	termRepo := repoterm.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
+	termRepo := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
 	termTransport := termtransport.New(authSvc, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {

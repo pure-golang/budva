@@ -16,7 +16,7 @@ import (
 
 type mockFacade struct {
 	getMessage      func(ctx context.Context, chatID, messageID int64) (*domain.Message, error)
-	getChatHistory func(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error)
+	getChatHistory  func(ctx context.Context, chatID, fromMessageID int64, offset, limit int32) ([]*domain.Message, error)
 	sendMessage     func(ctx context.Context, chatID int64, text string) error
 	sendAlbum       func(ctx context.Context, chatID int64, texts []string) error
 	forwardMessage  func(ctx context.Context, chatID, messageID int64) error

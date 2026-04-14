@@ -47,7 +47,9 @@ type scenarioCtx struct {
 
 func (s *scenarioCtx) reset() error {
 	if s.env != nil {
-		s.env.Close()
+		if err := s.env.Close(); err != nil {
+			return err
+		}
 	}
 	env, err := support.NewStack()
 	if err != nil {
@@ -110,7 +112,7 @@ func initScenario(ctx *godog.ScenarioContext) {
 
 	ctx.After(func(gctx context.Context, sc *godog.Scenario, err error) (context.Context, error) {
 		if s.env != nil {
-			s.env.Close()
+			return gctx, s.env.Close()
 		}
 		return gctx, nil
 	})

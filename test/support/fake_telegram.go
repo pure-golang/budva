@@ -84,7 +84,7 @@ func (f *FakeTelegram) SendMessageAlbum(_ context.Context, chatID domain.ChatID,
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	var ids []domain.MessageID
+	ids := make([]domain.MessageID, 0, len(contents))
 	for _, content := range contents {
 		f.nextMsgID++
 		msgID := f.nextMsgID
@@ -251,7 +251,7 @@ func (f *FakeTelegram) PutMessage(msg *domain.Message) {
 func (f *FakeTelegram) MessagesInChat(chatID domain.ChatID) []*domain.Message {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var result []*domain.Message
+	result := make([]*domain.Message, 0, len(f.messages[chatID]))
 	for _, msg := range f.messages[chatID] {
 		result = append(result, msg)
 	}

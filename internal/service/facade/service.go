@@ -50,7 +50,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID domain.ChatID, text st
 
 // SendMessageAlbum отправляет несколько сообщений как альбом.
 func (s *Service) SendMessageAlbum(ctx context.Context, chatID domain.ChatID, texts []string) error {
-	var contents []domain.InputMessageContent
+	contents := make([]domain.InputMessageContent, 0, len(texts))
 	for _, text := range texts {
 		contents = append(contents, domain.InputMessageContent{
 			Type: domain.ContentText,

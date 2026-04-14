@@ -2,8 +2,10 @@ package support
 
 import (
 	"context"
+	"errors"
 	"os"
 
+	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/handler"
 	"github.com/pure-golang/budva-claude/internal/repo/queue"
@@ -14,8 +16,6 @@ import (
 	"github.com/pure-golang/budva-claude/internal/service/limiter"
 	"github.com/pure-golang/budva-claude/internal/service/message"
 	"github.com/pure-golang/budva-claude/internal/service/transform"
-
-	"github.com/pure-golang/budva-claude/internal/config"
 )
 
 // Stack содержит собранный стек для BDD/integration тестов.
@@ -42,7 +42,7 @@ func NewStack() (*Stack, error) {
 		DatabaseDirectory: tmpDir,
 	})
 	if err := stateRepo.Start(context.Background()); err != nil {
-		os.RemoveAll(tmpDir)
+		os.RemoveAll(tmpDir) //nolint:errcheck // Best-effort cleanup при ошибке start
 		return nil, err
 	}
 
@@ -80,13 +80,15 @@ func NewStack() (*Stack, error) {
 }
 
 // Close освобождает ресурсы.
-func (e *Stack) Close() {
+func (e *Stack) Close() error {
+	var errs []error
 	if e.State != nil {
-		e.State.Close()
+		errs = append(errs, e.State.Close())
 	}
 	if e.tmpDir != "" {
-		os.RemoveAll(e.tmpDir)
+		errs = append(errs, os.RemoveAll(e.tmpDir))
 	}
+	return errors.Join(errs...)
 }
 
 // MakeRuleSet создаёт RuleSet с одним правилом source→targets.

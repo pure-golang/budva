@@ -13,8 +13,8 @@ type graphqlRequest struct {
 }
 
 type graphqlResponse struct {
-	Data   any              `json:"data,omitempty"`
-	Errors []graphqlError   `json:"errors,omitempty"`
+	Data   any            `json:"data,omitempty"`
+	Errors []graphqlError `json:"errors,omitempty"`
 }
 
 type graphqlError struct {

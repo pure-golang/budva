@@ -14,6 +14,8 @@ import (
 	amiddleware "github.com/pure-golang/adapters/httpserver/middleware"
 	ahttp "github.com/pure-golang/adapters/httpserver/std"
 	"github.com/pure-golang/platform/monitoring"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/controller"
@@ -26,8 +28,6 @@ import (
 	httptransport "github.com/pure-golang/budva-claude/internal/transport/http"
 	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
 	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 func main() {

@@ -71,7 +71,9 @@ func setupSuite(tb testing.TB) *integrationSuite {
 func tearDownSuite(tb testing.TB, s *integrationSuite) {
 	tb.Helper()
 	if s.state != nil {
-		s.state.Close()
+		if err := s.state.Close(); err != nil {
+			tb.Errorf("state close: %v", err)
+		}
 	}
 }
 

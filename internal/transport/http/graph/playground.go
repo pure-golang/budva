@@ -6,8 +6,8 @@ import "net/http"
 func PlaygroundHandler(endpoint string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		//nolint:gosec // Статический HTML, не пользовательский ввод
-		_, _ = w.Write([]byte(`<!DOCTYPE html>
+		//nolint:gosec,errcheck // Статический HTML; ошибка записи HTTP-ответа необрабатываема
+		w.Write([]byte(`<!DOCTYPE html>
 <html>
 <head>
   <title>GraphQL Playground</title>
