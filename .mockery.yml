@@ -15,6 +15,9 @@ packages:
   github.com/pure-golang/budva-claude/internal/controller:
     config:
       all: true
+  github.com/pure-golang/budva-claude/internal/service/facade:
+    config:
+      all: true
   github.com/pure-golang/budva-claude/internal/transport/http:
     config:
       all: true
