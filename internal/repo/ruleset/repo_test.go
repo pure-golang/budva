@@ -223,3 +223,128 @@ forwardRules:
 	assert.Equal(t, []int64{int64(-2001000), int64(-3001000)}, rule.To)
 	assert.True(t, rule.SendCopy)
 }
+
+func TestRepo_Load_InvalidRuleID_Colon(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, `
+sources:
+  1001000: {}
+destinations:
+  2001000: {}
+forwardRules:
+  "rule:bad":
+    from: 1001000
+    to: [2001000]
+    sendCopy: true
+`)
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	_, err := r.Load()
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid characters")
+}
+
+func TestRepo_Load_InvalidRuleID_Comma(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, `
+sources:
+  1001000: {}
+destinations:
+  2001000: {}
+forwardRules:
+  "rule,bad":
+    from: 1001000
+    to: [2001000]
+    sendCopy: true
+`)
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	_, err := r.Load()
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid characters")
+}
+
+func TestRepo_Load_NegativeFrom(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, `
+sources:
+  1001000: {}
+destinations:
+  2001000: {}
+forwardRules:
+  rule1:
+    from: -1001000
+    to: [2001000]
+    sendCopy: true
+`)
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	_, err := r.Load()
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "From must be positive")
+}
+
+func TestRepo_Load_NegativeTo(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, `
+sources:
+  1001000: {}
+destinations:
+  2001000: {}
+forwardRules:
+  rule1:
+    from: 1001000
+    to: [-2001000]
+    sendCopy: true
+`)
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	_, err := r.Load()
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "To[0] must be positive")
+}
+
+func TestRepo_Load_FromEqualsTo(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, `
+sources:
+  1001000: {}
+destinations:
+  1001000: {}
+forwardRules:
+  rule1:
+    from: 1001000
+    to: [1001000]
+    sendCopy: true
+`)
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	_, err := r.Load()
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must differ from From")
+}
