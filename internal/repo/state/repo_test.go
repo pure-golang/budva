@@ -18,7 +18,11 @@ func newTestRepo(t *testing.T) *Repo {
 	r := New(cfg, slog.Default())
 	err := r.Start(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = r.Close() })
+	t.Cleanup(func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close state repo: %v", err)
+		}
+	})
 	return r
 }
 

@@ -6,3 +6,12 @@ template: testify
 template-data:
   unroll-variadic: true
 packages:
+  github.com/pure-golang/budva-claude/internal/handler:
+    config:
+      all: true
+  github.com/pure-golang/budva-claude/internal/service/transform:
+    config:
+      all: true
+  github.com/pure-golang/budva-claude/internal/controller:
+    config:
+      all: true

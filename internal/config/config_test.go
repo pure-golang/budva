@@ -27,6 +27,8 @@ func TestTelegramConfig_RequiredFields(t *testing.T) {
 
 // CFG-002: StorageConfig имеет разумные значения по умолчанию.
 func TestStorageConfig_Defaults(t *testing.T) {
+	t.Parallel()
+
 	// Arrange / Act
 	var cfg StorageConfig
 	err := envconfig.Process("", &cfg)
@@ -38,6 +40,8 @@ func TestStorageConfig_Defaults(t *testing.T) {
 
 // CFG-003: RulesetConfig имеет путь к файлу по умолчанию.
 func TestRulesetConfig_Defaults(t *testing.T) {
+	t.Parallel()
+
 	// Arrange / Act
 	var cfg RulesetConfig
 	err := envconfig.Process("", &cfg)

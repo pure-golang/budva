@@ -4,7 +4,7 @@
 
 | Слой | Пакетов | Тестов | Статус |
 |---|---|---|---|
-| unit | 5 | 18 | ✅ green |
+| unit | 7 | 28 | ✅ green |
 | integration | 0 | 0 | — |
 | bdd | 1 | 56 | ✅ green (3 @pending) |
 | e2e | 0 | 0 | — |
@@ -28,8 +28,17 @@
 | REPO-009 | internal/repo/ruleset | TestRepo_Load | Загрузка YAML |
 | REPO-010 | internal/repo/ruleset | TestRepo_Load_empty_config | Пустой конфиг |
 | REPO-011 | internal/repo/ruleset | TestRepo_Load_file_not_found | Файл не найден |
-| SVC-001 | internal/service/filters | TestEvaluate_* (8 тестов) | Все режимы фильтрации |
-| SVC-002 | internal/service/dedup | TestTracker_* (3 теста) | Дедупликация доставки |
+| SVC-001 | internal/service/filters | TestEvaluate_no_filters | Без фильтров — OK |
+| SVC-002 | internal/service/filters | TestEvaluate_exclude_matches | Exclude совпадает — Check |
+| SVC-003 | internal/service/filters | TestEvaluate_exclude_no_match | Exclude не совпадает — OK |
+| SVC-004 | internal/service/filters | TestEvaluate_include_matches | Include совпадает — OK |
+| SVC-005 | internal/service/filters | TestEvaluate_include_no_match | Include не совпадает — Other |
+| SVC-006 | internal/service/filters | TestEvaluate_empty_text_with_include | Пустой текст + Include — Other |
+| SVC-007 | internal/service/filters | TestEvaluate_submatch | Submatch совпадает — OK |
+| SVC-008 | internal/service/filters | TestEvaluate_submatch_no_match | Submatch не совпадает — Other |
+| SVC-009 | internal/service/dedup | TestTracker_TryMark_first_time | Первая пометка |
+| SVC-010 | internal/service/dedup | TestTracker_TryMark_duplicate | Дублирующая пометка |
+| SVC-011 | internal/service/dedup | TestTracker_TryMark_unknown_chat | Неизвестный чат |
 | CTRL-001 | internal/controller | TestLive_always_200 | /live всегда 200 |
 | CTRL-002 | internal/controller | TestHealthcheck_all_healthy | Здоровый пинг |
 | CTRL-003 | internal/controller | TestHealthcheck_unhealthy | Нездоровый пинг |
@@ -57,6 +66,18 @@
 | 05_sync | 04_delete_sync.feature | 4 | ✅ |
 | 06_auto | 01_auto_answers.feature | 3 | ⏳ @pending |
 
+## Пакеты без unit-тестов (tech debt)
+
+| Пакет | Приоритет | Что покрывать |
+|---|---|---|
+| internal/handler | Высокий | OnNewMessage, OnEditedMessage, OnDeletedMessages — ядро бизнес-логики |
+| internal/service/transform | Высокий | Transform pipeline, replaceMyselfLinks, UTF-16 |
+| internal/service/message | Средний | GetFormattedText, BuildInputContent |
+| internal/service/album | Средний | AddMessage, PopMessages, конкурентность |
+| internal/service/auth | Средний | Subscribe, SetState, pub-sub |
+| internal/service/limiter | Низкий | Wait — time-based логика |
+| internal/repo/state/copies | Средний | SetCopiedMessageID, GetCopiedMessageIDs — string parsing |
+
 ## Code Coverage
 
-Пока не настроен — будет добавлен после заполнения реализаций стаб-сервисов.
+Пока не настроен — будет добавлен после написания тестов для handler и transform.

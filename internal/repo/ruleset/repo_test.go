@@ -41,6 +41,8 @@ forwardRules:
 `
 
 func TestRepo_Load(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ruleset.yml")
@@ -68,6 +70,8 @@ func TestRepo_Load(t *testing.T) {
 }
 
 func TestRepo_Load_empty_config(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ruleset.yml")
@@ -84,6 +88,8 @@ func TestRepo_Load_empty_config(t *testing.T) {
 }
 
 func TestRepo_Load_file_not_found(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	r := New(config.RulesetConfig{Path: "/nonexistent/ruleset.yml"}, slog.Default())
 
