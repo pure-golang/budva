@@ -1,18 +1,16 @@
 // Package grpc реализует gRPC-транспорт для фасада.
 //
-// Использование:
-//
-//	srv := grpc.New(cfg, facadeService, logger)
-//	srv.Run(ctx)
+// Текущая реализация — placeholder; gRPC-сервер будет добавлен
+// при реализации protobuf-определений и facade service.
 //
 // Конфигурация:
 //
-//	GRPC_HOST             — хост gRPC-сервера
-//	GRPC_PORT             — порт gRPC-сервера (required)
-//	GRPC_ENABLE_REFLECTION — включить gRPC reflection (default: true)
+//	GRPC_HOST              — хост gRPC-сервера (из adapters/grpc/std)
+//	GRPC_PORT              — порт gRPC-сервера (required, из adapters/grpc/std)
+//	GRPC_ENABLE_REFLECTION — включить gRPC reflection (default: true, из adapters/grpc/std)
 //
 // Ограничения:
 //
-//   - Реализует proto-сервис FacadeGRPC.
+//   - Реализует proto-сервис FacadeGRPC (определение в будущем).
 //   - Reflection включён по умолчанию для поддержки grpcurl.
 package grpc
