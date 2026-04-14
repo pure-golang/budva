@@ -39,7 +39,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			},
 		}
 		s.sentMsg = msg
-		s.env.TelegramFake.PutMessage(msg)
+		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -49,7 +49,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение появляется во всех целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -72,7 +72,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 					Text: &domain.FormattedText{Text: fmt.Sprintf("message %d", i)},
 				},
 			}
-			s.env.TelegramFake.PutMessage(msg)
+			s.env.Telegram.PutMessage(msg)
 			s.env.Handler.OnNewMessage(context.Background(), msg)
 		}
 		s.env.DrainQueue()
@@ -82,7 +82,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^оба сообщения доставлены в целевые чаты$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) < 2 {
 				return fmt.Errorf("expected at least 2 messages in target chat %d, got %d", targetID, len(msgs))
 			}
@@ -110,7 +110,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				MessageID: s.sentMsg.ID,
 			},
 		}
-		s.env.TelegramFake.PutMessage(replyMsg)
+		s.env.Telegram.PutMessage(replyMsg)
 
 		s.env.Handler.OnNewMessage(context.Background(), replyMsg)
 		s.env.DrainQueue()
@@ -120,7 +120,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате ответ связан с копией оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) < 2 {
 				return fmt.Errorf("expected at least 2 messages in target chat %d, got %d", targetID, len(msgs))
 			}
@@ -155,7 +155,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				Text: &domain.FormattedText{Text: "original channel content"},
 			},
 		}
-		s.env.TelegramFake.PutMessage(originMsg)
+		s.env.Telegram.PutMessage(originMsg)
 
 		// Пересланное сообщение в исходном чате
 		forwardedMsg := &domain.Message{
@@ -171,7 +171,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				OriginMessageID: originMsgID,
 			},
 		}
-		s.env.TelegramFake.PutMessage(forwardedMsg)
+		s.env.Telegram.PutMessage(forwardedMsg)
 		s.forwardedMsg = forwardedMsg
 
 		return nil
@@ -192,7 +192,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате используется контент оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}

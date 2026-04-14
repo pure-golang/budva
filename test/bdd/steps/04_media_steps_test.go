@@ -27,7 +27,7 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 					Text: &domain.FormattedText{Text: fmt.Sprintf("photo %d", i)},
 				},
 			}
-			s.env.TelegramFake.PutMessage(msg)
+			s.env.Telegram.PutMessage(msg)
 			s.env.Handler.OnNewMessage(context.Background(), msg)
 		}
 
@@ -38,7 +38,7 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^медиа-альбом появляется во всех целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}

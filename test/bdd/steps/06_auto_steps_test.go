@@ -25,7 +25,7 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			ReplyMarkup: &domain.ReplyMarkup{CallbackData: []byte("callback_data")},
 		}
 		s.sentMsg = msg
-		s.env.TelegramFake.PutMessage(msg)
+		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -37,7 +37,7 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		// FakeTelegram.GetCallbackQueryAnswer возвращает "" — auto-answer не добавляет текст.
 		// Проверяем что сообщение доставлено без ошибок (transform pipeline выполнился).
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.TelegramFake.MessagesInChat(targetID)
+			msgs := s.env.Telegram.MessagesInChat(targetID)
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}

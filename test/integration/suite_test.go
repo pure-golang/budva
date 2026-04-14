@@ -18,8 +18,17 @@ import (
 	"github.com/pure-golang/budva-claude/test/support"
 )
 
+// telegramGateway — частично применяемый интерфейс: test-only методы,
+// которые вызываются в интеграционных тестах напрямую (setup/teardown/assertions).
+type telegramGateway interface {
+	Reset()
+	PutMessage(msg *domain.Message)
+	MessagesInChat(chatID domain.ChatID) []*domain.Message
+	HasMessageWithText(chatID domain.ChatID, text string) bool
+}
+
 type integrationSuite struct {
-	telegram *support.FakeTelegram
+	telegram telegramGateway
 	handler  *handler.Handler
 	state    *state.Repo
 	queue    *queue.Repo
@@ -35,22 +44,22 @@ func setupSuite(tb testing.TB) *integrationSuite {
 		tb.Fatalf("failed to start state repo: %v", err)
 	}
 
-	fakeTG := support.NewFakeTelegram()
+	tg := support.NewFakeTelegram()
 	queueRepo := queue.New()
 	messageSvc := message.New()
-	transformSvc := transform.New(fakeTG, stateRepo)
+	transformSvc := transform.New(tg, stateRepo)
 	filtersSvc := filters.New()
 	albumSvc := album.New()
 	limiterSvc := limiter.New()
 
 	h := handler.New(
-		fakeTG, stateRepo, messageSvc, filtersSvc, transformSvc,
+		tg, stateRepo, messageSvc, filtersSvc, transformSvc,
 		albumSvc, queueRepo, limiterSvc,
 		func(dsts []domain.ChatID) handler.DedupTracker { return dedup.NewTracker(dsts) },
 	)
 
 	return &integrationSuite{
-		telegram: fakeTG,
+		telegram: tg,
 		handler:  h,
 		state:    stateRepo,
 		queue:    queueRepo,

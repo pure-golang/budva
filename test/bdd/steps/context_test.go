@@ -11,7 +11,7 @@ import (
 
 // scenarioCtx хранит состояние одного сценария.
 type scenarioCtx struct {
-	env *support.TestEnv
+	env *support.Stack
 
 	deliveryMode string
 	sourceType   string
@@ -49,7 +49,7 @@ func (s *scenarioCtx) reset() error {
 	if s.env != nil {
 		s.env.Close()
 	}
-	env, err := support.NewTestEnv()
+	env, err := support.NewStack()
 	if err != nil {
 		return err
 	}
