@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -9,28 +8,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	dtogql "github.com/pure-golang/budva-claude/internal/dto/graphql"
+	"github.com/pure-golang/budva-claude/internal/transport/http/graph/mocks"
 )
-
-type mockStatusProvider struct {
-	fn func(ctx context.Context) (*dtogql.StatusResponse, error)
-}
-
-func (m *mockStatusProvider) GetStatus(ctx context.Context) (*dtogql.StatusResponse, error) {
-	return m.fn(ctx)
-}
 
 func TestHandler_StatusQuery(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	provider := &mockStatusProvider{
-		fn: func(_ context.Context) (*dtogql.StatusResponse, error) {
-			return &dtogql.StatusResponse{TDLibVersion: "1.8.0", UserID: 12345}, nil
-		},
-	}
+	provider := mocks.NewStatusProvider(t)
+	provider.EXPECT().GetStatus(mock.Anything).
+		Return(&dtogql.StatusResponse{TDLibVersion: "1.8.0", UserID: 12345}, nil)
 	resolver := NewResolver(provider)
 	handler := resolver.Handler()
 
@@ -52,11 +43,9 @@ func TestHandler_StatusError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	provider := &mockStatusProvider{
-		fn: func(_ context.Context) (*dtogql.StatusResponse, error) {
-			return nil, errors.New("telegram unavailable")
-		},
-	}
+	provider := mocks.NewStatusProvider(t)
+	provider.EXPECT().GetStatus(mock.Anything).
+		Return(nil, errors.New("telegram unavailable"))
 	resolver := NewResolver(provider)
 	handler := resolver.Handler()
 
@@ -77,7 +66,7 @@ func TestHandler_InvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	resolver := NewResolver(&mockStatusProvider{})
+	resolver := NewResolver(mocks.NewStatusProvider(t))
 	handler := resolver.Handler()
 
 	body := strings.NewReader(`invalid json`)
@@ -95,7 +84,7 @@ func TestHandler_UnknownQuery(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	resolver := NewResolver(&mockStatusProvider{})
+	resolver := NewResolver(mocks.NewStatusProvider(t))
 	handler := resolver.Handler()
 
 	body := strings.NewReader(`{"query":"{ unknownField }"}`)
@@ -125,5 +114,5 @@ func TestPlaygroundHandler(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
 	assert.Contains(t, w.Body.String(), "/graphql")
-	assert.Contains(t, w.Body.String(), "GraphQL Playground")
+	assert.Contains(t, w.Body.String(), "GraphQL playground")
 }
