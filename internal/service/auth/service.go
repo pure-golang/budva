@@ -73,3 +73,8 @@ func (s *Service) InputChan() chan<- string {
 func (s *Service) ReadInput() string {
 	return <-s.inputChan
 }
+
+// ReadChan возвращает канал для чтения пользовательского ввода (для select).
+func (s *Service) ReadChan() <-chan string {
+	return s.inputChan
+}

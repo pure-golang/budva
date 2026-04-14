@@ -8,8 +8,14 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
+// authDriver — интерфейс для управления состоянием авторизации.
+type authDriver interface {
+	SetState(state domain.AuthorizationState, extra any)
+	ReadChan() <-chan string
+}
+
 // Repo реализует взаимодействие с Telegram через TDLib.
-// Текущая версия — заглушка; реальная реализация будет добавлена позже.
+// Текущая версия работает без TDLib; реальная TDLib-интеграция будет добавлена в Phase B.
 type Repo struct {
 	logger     *slog.Logger
 	cfg        config.TelegramConfig
@@ -27,11 +33,54 @@ func New(cfg config.TelegramConfig) *Repo {
 	}
 }
 
-// Start инициализирует TDLib-клиент.
+// Start инициализирует репозиторий (без TDLib).
 func (r *Repo) Start(_ context.Context) error {
-	r.logger.Info("Telegram repo started (stub)")
-	close(r.clientDone)
+	r.logger.Info("Telegram repo started")
 	return nil
+}
+
+// RunAuthFlow запускает state machine авторизации.
+// В Phase B этот метод будет заменён на реальный TDLib flow.
+func (r *Repo) RunAuthFlow(ctx context.Context, auth authDriver) {
+	// WaitPhone
+	auth.SetState(domain.AuthStateWaitPhone, nil)
+	phone := r.readInputOrCancel(ctx, auth)
+	if phone == "" {
+		return
+	}
+	r.logger.Info("Phone submitted", slog.String("phone", domain.MaskPhoneNumber(phone)))
+
+	// WaitCode
+	auth.SetState(domain.AuthStateWaitCode, nil)
+	code := r.readInputOrCancel(ctx, auth)
+	if code == "" {
+		return
+	}
+	r.logger.Info("Code submitted")
+
+	// WaitPassword (в реальном TDLib этот шаг опционален — зависит от 2FA)
+	auth.SetState(domain.AuthStateWaitPassword, &domain.WaitPasswordState{
+		PasswordHint: "2FA password",
+	})
+	password := r.readInputOrCancel(ctx, auth)
+	if password == "" {
+		return
+	}
+	r.logger.Info("Password submitted")
+
+	// Ready
+	auth.SetState(domain.AuthStateReady, nil)
+	close(r.clientDone)
+	r.logger.Info("Authorization complete")
+}
+
+func (r *Repo) readInputOrCancel(ctx context.Context, auth authDriver) string {
+	select {
+	case <-ctx.Done():
+		return ""
+	case input := <-auth.ReadChan():
+		return input
+	}
 }
 
 // Close завершает TDLib-сессию.
@@ -130,7 +179,10 @@ func (r *Repo) GetChatType(_ context.Context, _ domain.ChatID) (string, error) {
 }
 
 // GetOption возвращает значение опции TDLib.
-func (r *Repo) GetOption(_ context.Context, _ string) (string, error) {
+func (r *Repo) GetOption(_ context.Context, name string) (string, error) {
+	if name == "version" {
+		return "stub", nil
+	}
 	return "", nil
 }
 

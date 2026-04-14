@@ -175,6 +175,9 @@ func run() error {
 		}
 	}()
 
+	// 11. Auth flow
+	go telegramRepo.RunAuthFlow(ctx, authSvc)
+
 	logger.Info("Engine started, waiting for shutdown signal")
 	<-ctx.Done()
 	logger.Info("Shutting down engine")
