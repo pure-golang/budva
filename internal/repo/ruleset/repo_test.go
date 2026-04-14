@@ -46,7 +46,7 @@ func TestRepo_Load(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ruleset.yml")
-	err := os.WriteFile(path, []byte(testRuleset), 0o644)
+	err := os.WriteFile(path, []byte(testRuleset), 0o600)
 	require.NoError(t, err)
 
 	r := New(config.RulesetConfig{Path: path}, slog.Default())
@@ -75,7 +75,7 @@ func TestRepo_Load_empty_config(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ruleset.yml")
-	err := os.WriteFile(path, []byte("{}"), 0o644)
+	err := os.WriteFile(path, []byte("{}"), 0o600)
 	require.NoError(t, err)
 
 	r := New(config.RulesetConfig{Path: path}, slog.Default())

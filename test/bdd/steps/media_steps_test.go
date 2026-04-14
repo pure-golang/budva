@@ -6,7 +6,7 @@ import (
 	"github.com/cucumber/godog"
 )
 
-func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func registerMediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет медиа-альбом в исходный чат$`, func() error {
 		s.delivered = true
 		return nil

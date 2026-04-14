@@ -68,7 +68,10 @@ func (r *Repo) WatchContext(ctx context.Context, onChange func()) error {
 	r.watcher = w
 
 	if err := w.Add(r.cfg.Path); err != nil {
-		_ = w.Close()
+		closeErr := w.Close()
+		if closeErr != nil {
+			return fmt.Errorf("watch file %q: %w (close: %v)", r.cfg.Path, err, closeErr)
+		}
 		return fmt.Errorf("watch file %q: %w", r.cfg.Path, err)
 	}
 
@@ -179,7 +182,7 @@ func enrich(rs *domain.RuleSet) {
 		src.ChatID = id
 	}
 
-	var ordered []domain.ForwardRuleID
+	ordered := make([]domain.ForwardRuleID, 0, len(rs.ForwardRules))
 	for id, rule := range rs.ForwardRules {
 		rule.ID = id
 		srcID := rule.From
@@ -203,7 +206,7 @@ func check(rs *domain.RuleSet) error {
 }
 
 // negateChatIDs инвертирует ID в For-списках опций источника.
-func negateChatIDs(opts ...interface{}) {
+func negateChatIDs(opts ...any) {
 	for _, opt := range opts {
 		if opt == nil {
 			continue

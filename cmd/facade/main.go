@@ -56,7 +56,11 @@ func run() error {
 	if err := telegramRepo.Start(ctx); err != nil {
 		return fmt.Errorf("telegram repo: %w", err)
 	}
-	defer telegramRepo.Close()
+	defer func() {
+		if err := telegramRepo.Close(); err != nil {
+			logger.Warn("Failed to close telegram repo", slog.Any("error", err))
+		}
+	}()
 
 	// 5. Сервисы
 	_ = auth.New(slog.Default())
@@ -73,11 +77,15 @@ func run() error {
 
 	// 7. Terminal transport
 	termTransport := termtransport.New(slog.Default())
-	go termTransport.Run(ctx)
+	go func() {
+		if err := termTransport.Run(ctx); err != nil {
+			logger.Error("Terminal transport error", slog.Any("error", err))
+		}
+	}()
 
 	// 8. Запуск HTTP-сервера
 	go func() {
-		logger.Info("HTTP server starting", "port", cfg.HTTPServer.Port)
+		logger.Info("HTTP server starting", slog.Int("port", cfg.HTTPServer.Port))
 		httpServer.Run()
 	}()
 

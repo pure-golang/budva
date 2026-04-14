@@ -68,5 +68,5 @@ func TestRepo_StartContext_processes_tasks(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert — дождаться выполнения
-	require.Eventually(t, func() bool { return called.Load() }, 3*time.Second, 100*time.Millisecond)
+	require.Eventually(t, called.Load, 3*time.Second, 100*time.Millisecond)
 }

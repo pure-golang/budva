@@ -6,7 +6,7 @@ import (
 	"github.com/cucumber/godog"
 )
 
-func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func registerDeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^правило пересылки в режиме "([^"]*)"$`, func(mode string) error {
 		s.deliveryMode = mode
 		return nil

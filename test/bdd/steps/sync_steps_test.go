@@ -6,7 +6,7 @@ import (
 	"github.com/cucumber/godog"
 )
 
-func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func registerSyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" с опцией copy_once$`, func(mode string) error {
 		s.deliveryMode = mode
 		s.copyOnce = true

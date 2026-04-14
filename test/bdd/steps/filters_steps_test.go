@@ -7,7 +7,7 @@ import (
 	"github.com/cucumber/godog"
 )
 
-func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func registerFiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^фильтр исключения с паттерном "([^"]*)"$`, func(pattern string) error {
 		s.excludePattern = pattern
 		return nil

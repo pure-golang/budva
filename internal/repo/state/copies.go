@@ -75,7 +75,10 @@ func (r *Repo) GetNewMessageID(chatID domain.ChatID, tmpMessageID domain.Message
 	if err != nil || val == "" {
 		return 0
 	}
-	id, _ := strconv.ParseInt(val, 10, 64)
+	id, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return 0
+	}
 	return id
 }
 
@@ -98,7 +101,10 @@ func (r *Repo) GetTmpMessageID(chatID domain.ChatID, newMessageID domain.Message
 	if err != nil || val == "" {
 		return 0
 	}
-	id, _ := strconv.ParseInt(val, 10, 64)
+	id, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return 0
+	}
 	return id
 }
 
@@ -118,7 +124,10 @@ func (r *Repo) SetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.M
 // GetAnswerMessageID возвращает "srcChatID:srcMessageID" по dst-координатам.
 func (r *Repo) GetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.MessageID) string {
 	key := fmt.Sprintf("%s:%d:%d", answerMessageIDPrefix, dstChatID, tmpMessageID)
-	val, _ := r.Get(key)
+	val, err := r.Get(key)
+	if err != nil {
+		return ""
+	}
 	return val
 }
 

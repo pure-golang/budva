@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -110,7 +111,11 @@ func (s *Service) replaceMyselfLinks(ctx context.Context, text *domain.Formatted
 	}
 
 	// Проверяем тип чата — basic groups не поддерживают ссылки на сообщения
-	chatType, _ := s.telegram.GetChatType(ctx, srcChatID)
+	chatType, err := s.telegram.GetChatType(ctx, srcChatID)
+	if err != nil {
+		s.logger.Error("Failed to get chat type", slog.Any("error", err))
+		return text
+	}
 	if chatType == "basicGroup" {
 		return text
 	}
@@ -215,7 +220,7 @@ func (s *Service) addText(ctx context.Context, text *domain.FormattedText, markd
 	}
 
 	result := text.DeepCopy()
-	offset := int32(len(encodeUTF16(result.Text + "\n\n")))
+	offset := int32(len(encodeUTF16(result.Text + "\n\n"))) //nolint:gosec // UTF-16 offset всегда < 2^31
 	result.Text += "\n\n" + parsed.Text
 
 	for _, ent := range parsed.Entities {
@@ -236,12 +241,7 @@ func replaceFragment(text *domain.FormattedText, fragment *domain.ReplaceFragmen
 }
 
 func containsChatID(ids []domain.ChatID, target domain.ChatID) bool {
-	for _, id := range ids {
-		if id == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ids, target)
 }
 
 func extractSubstring(text string, offset, length int32) string {
@@ -255,7 +255,7 @@ func extractSubstring(text string, offset, length int32) string {
 func applyReplacement(text *domain.FormattedText, offset, length int32, newText string) *domain.FormattedText {
 	utf16 := encodeUTF16(text.Text)
 	newUTF16 := encodeUTF16(newText)
-	diff := int32(len(newUTF16)) - length
+	diff := int32(len(newUTF16)) - length //nolint:gosec // UTF-16 длина всегда < 2^31
 
 	// Заменяем в UTF-16 массиве
 	result := make([]uint16, 0, len(utf16)+int(diff))
@@ -270,7 +270,7 @@ func applyReplacement(text *domain.FormattedText, offset, length int32, newText 
 		if text.Entities[i].Offset > offset {
 			text.Entities[i].Offset += diff
 		} else if text.Entities[i].Offset == offset {
-			text.Entities[i].Length = int32(len(newUTF16))
+			text.Entities[i].Length = int32(len(newUTF16)) //nolint:gosec // UTF-16 длина всегда < 2^31
 		}
 	}
 
@@ -279,39 +279,22 @@ func applyReplacement(text *domain.FormattedText, offset, length int32, newText 
 
 func formatDstPrefix(dstChatID domain.ChatID) string {
 	// Формат copiedMessageID: "ruleID:dstChatID:tmpMsgID"
-	// Ищем по ":dstChatID:" в середине
-	return ":" + strings.TrimLeft(strings.Replace(formatInt(dstChatID), "-", "", 1), "0")
-}
-
-func formatInt(id int64) string {
-	return strings.Replace(strings.Replace(
-		strings.Replace(
-			strings.Replace(
-				strings.Replace(formatIntRaw(id), "-", "", 1),
-				" ", "", -1),
-			"\t", "", -1),
-		"\n", "", -1),
-	"\r", "", -1)
-}
-
-func formatIntRaw(id int64) string {
-	return strings.TrimSpace(strings.Replace(
-		strings.Replace(
-			strings.Replace(
-				strings.Replace(
-					func() string { return fmt.Sprintf("%d", id) }(),
-					"-", "", 1),
-				" ", "", -1),
-			"\t", "", -1),
-		"\n", "", -1))
+	s := fmt.Sprintf("%d", dstChatID)
+	s = strings.ReplaceAll(s, "-", "")
+	return ":" + s
 }
 
 func parseMessageID(s string) domain.MessageID {
-	id, _ := strconv.ParseInt(s, 10, 64)
+	id, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0
+	}
 	return id
 }
 
 // encodeUTF16 конвертирует строку в UTF-16 массив.
+//
+//nolint:gosec // Конвертация rune → uint16 безопасна для BMP и surrogate pairs
 func encodeUTF16(s string) []uint16 {
 	var result []uint16
 	for _, r := range s {

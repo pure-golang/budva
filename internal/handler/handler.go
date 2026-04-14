@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -132,7 +133,9 @@ func (h *Handler) OnNewMessage(ctx context.Context, msg *domain.Message) {
 	if h.messages.IsSystemMessage(msg) {
 		if src != nil && src.DeleteSystemMessages {
 			h.queue.Add(func() {
-				_ = h.telegram.DeleteMessages(ctx, srcChatID, []domain.MessageID{msg.ID}, true)
+				if err := h.telegram.DeleteMessages(ctx, srcChatID, []domain.MessageID{msg.ID}, true); err != nil {
+					h.logger.Error("Failed to delete system message", slog.Any("error", err))
+				}
 			})
 		}
 		return
@@ -204,8 +207,12 @@ func (h *Handler) OnDeletedMessages(ctx context.Context, chatID domain.ChatID, m
 // OnMessageSendSucceeded обрабатывает подтверждение отправки.
 func (h *Handler) OnMessageSendSucceeded(chatID domain.ChatID, oldMessageID, newMessageID domain.MessageID) {
 	h.queue.Add(func() {
-		_ = h.state.SetNewMessageID(chatID, oldMessageID, newMessageID)
-		_ = h.state.SetTmpMessageID(chatID, newMessageID, oldMessageID)
+		if err := h.state.SetNewMessageID(chatID, oldMessageID, newMessageID); err != nil {
+			h.logger.Error("Failed to set new message ID", slog.Any("error", err))
+		}
+		if err := h.state.SetTmpMessageID(chatID, newMessageID, oldMessageID); err != nil {
+			h.logger.Error("Failed to set tmp message ID", slog.Any("error", err))
+		}
 	})
 }
 
@@ -229,13 +236,17 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 	case domain.FiltersCheck:
 		if rule.Check != 0 {
 			h.queue.Add(func() {
-				_, _ = h.telegram.ForwardMessages(ctx, msg.ChatID, rule.Check, []domain.MessageID{msg.ID})
+				if _, err := h.telegram.ForwardMessages(ctx, msg.ChatID, rule.Check, []domain.MessageID{msg.ID}); err != nil {
+					h.logger.Error("Failed to forward to check chat", slog.Any("error", err))
+				}
 			})
 		}
 	case domain.FiltersOther:
 		if rule.Other != 0 {
 			h.queue.Add(func() {
-				_, _ = h.telegram.ForwardMessages(ctx, msg.ChatID, rule.Other, []domain.MessageID{msg.ID})
+				if _, err := h.telegram.ForwardMessages(ctx, msg.ChatID, rule.Other, []domain.MessageID{msg.ID}); err != nil {
+					h.logger.Error("Failed to forward to other chat", slog.Any("error", err))
+				}
 			})
 		}
 	}
@@ -243,11 +254,13 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 
 func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domain.ForwardRule, msg *domain.Message, text *domain.FormattedText, src *domain.Source, dst *domain.Destination, dstChatID domain.ChatID, prevMessageID domain.MessageID) {
 	if !rule.SendCopy {
-		_, _ = h.telegram.ForwardMessages(ctx, msg.ChatID, dstChatID, []domain.MessageID{msg.ID})
+		if _, err := h.telegram.ForwardMessages(ctx, msg.ChatID, dstChatID, []domain.MessageID{msg.ID}); err != nil {
+			h.logger.Error("Failed to forward message", slog.Any("error", err))
+		}
 		return
 	}
 
-	transformed, _ := h.transform.Transform(ctx, domain.TransformParams{
+	transformed, err := h.transform.Transform(ctx, domain.TransformParams{
 		Text:          text.DeepCopy(),
 		Source:        src,
 		Destination:   dst,
@@ -258,6 +271,10 @@ func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domai
 		WithSources:   true,
 		ReplyMarkup:   h.messages.GetReplyMarkupData(msg),
 	})
+	if err != nil {
+		h.logger.Error("Failed to transform message", slog.Any("error", err))
+		return
+	}
 
 	content := h.messages.BuildInputContent(msg, transformed)
 	tmpMsgID, err := h.telegram.SendMessage(ctx, dstChatID, content)
@@ -267,7 +284,9 @@ func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domai
 	}
 
 	toChatMsgID := fmt.Sprintf("%s:%d:%d", ruleID, dstChatID, tmpMsgID)
-	_ = h.state.SetCopiedMessageID(msg.ChatID, msg.ID, toChatMsgID)
+	if err := h.state.SetCopiedMessageID(msg.ChatID, msg.ID, toChatMsgID); err != nil {
+		h.logger.Error("Failed to set copied message ID", slog.Any("error", err))
+	}
 
 	// Next link workflow
 	if prevMessageID != 0 && rule.CopyOnce {
@@ -295,12 +314,14 @@ func (h *Handler) runNextLinkWorkflow(ctx context.Context, src *domain.Source, d
 			return
 		}
 		updated := h.transform.AddNextLink(ctx, text, src, dstChatID, newID)
-		_ = h.telegram.EditMessageText(ctx, dstChatID, prevMessageID, updated)
+		if err := h.telegram.EditMessageText(ctx, dstChatID, prevMessageID, updated); err != nil {
+			h.logger.Error("Failed to edit message with next link", slog.Any("error", err))
+		}
 		return
 	}
 }
 
-func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *domain.RuleSet, ruleID string, firstMsg *domain.Message, text *domain.FormattedText) {
+func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *domain.RuleSet, ruleID string, firstMsg *domain.Message, _ *domain.FormattedText) {
 	h.queue.Add(func() {
 		// Ожидаем пока все сообщения альбома придут (3 секунды после последнего)
 		for {
@@ -326,12 +347,9 @@ func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *do
 		}
 
 		for _, dstChatID := range rule.To {
-			if rule.SendCopy {
-				// TODO: build contents from all album messages
-				// Для минимальной реализации — форвардим альбом целиком
-				_, _ = h.telegram.ForwardMessages(ctx, firstMsg.ChatID, dstChatID, messageIDs)
-			} else {
-				_, _ = h.telegram.ForwardMessages(ctx, firstMsg.ChatID, dstChatID, messageIDs)
+			// TODO: для SendCopy собирать InputMessageContent из каждого сообщения альбома
+			if _, err := h.telegram.ForwardMessages(ctx, firstMsg.ChatID, dstChatID, messageIDs); err != nil {
+				h.logger.Error("Failed to forward media album", slog.Any("error", err))
 			}
 		}
 	})
@@ -375,7 +393,7 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 			h.forwardMessage(ctx, ruleID, rule, msg, text, src, dst, dstChatID, newMsgID)
 		} else {
 			// Обновляем существующую копию
-			transformed, _ := h.transform.Transform(ctx, domain.TransformParams{
+			transformed, err := h.transform.Transform(ctx, domain.TransformParams{
 				Text:         text.DeepCopy(),
 				Source:       src,
 				Destination:  dst,
@@ -384,10 +402,18 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 				SrcMessageID: msg.ID,
 				WithSources:  true,
 			})
+			if err != nil {
+				h.logger.Error("Failed to transform edited message", slog.Any("error", err))
+				continue
+			}
 			if msg.Content.Type == domain.ContentText {
-				_ = h.telegram.EditMessageText(ctx, dstChatID, newMsgID, transformed)
+				if err := h.telegram.EditMessageText(ctx, dstChatID, newMsgID, transformed); err != nil {
+					h.logger.Error("Failed to edit message text", slog.Any("error", err))
+				}
 			} else {
-				_ = h.telegram.EditMessageCaption(ctx, dstChatID, newMsgID, transformed)
+				if err := h.telegram.EditMessageCaption(ctx, dstChatID, newMsgID, transformed); err != nil {
+					h.logger.Error("Failed to edit message caption", slog.Any("error", err))
+				}
 			}
 		}
 	}
@@ -416,19 +442,31 @@ func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID
 
 			newMsgID := h.state.GetNewMessageID(dstChatID, tmpMsgID)
 			if newMsgID != 0 {
-				_ = h.telegram.DeleteMessages(ctx, dstChatID, []domain.MessageID{newMsgID}, true)
-				_ = h.state.DeleteNewMessageID(dstChatID, tmpMsgID)
-				_ = h.state.DeleteTmpMessageID(dstChatID, newMsgID)
+				if err := h.telegram.DeleteMessages(ctx, dstChatID, []domain.MessageID{newMsgID}, true); err != nil {
+					h.logger.Error("Failed to delete copied message", slog.Any("error", err))
+				}
+				if err := h.state.DeleteNewMessageID(dstChatID, tmpMsgID); err != nil {
+					h.logger.Error("Failed to delete new message ID", slog.Any("error", err))
+				}
+				if err := h.state.DeleteTmpMessageID(dstChatID, newMsgID); err != nil {
+					h.logger.Error("Failed to delete tmp message ID", slog.Any("error", err))
+				}
 			}
-			_ = h.state.DeleteAnswerMessageID(dstChatID, tmpMsgID)
+			if err := h.state.DeleteAnswerMessageID(dstChatID, tmpMsgID); err != nil {
+				h.logger.Error("Failed to delete answer message ID", slog.Any("error", err))
+			}
 		}
 
-		_ = h.state.DeleteCopiedMessageIDs(chatID, msgID)
+		if err := h.state.DeleteCopiedMessageIDs(chatID, msgID); err != nil {
+			h.logger.Error("Failed to delete copied message IDs", slog.Any("error", err))
+		}
 	}
 }
 
 func parseID(s string) int64 {
-	var id int64
-	fmt.Sscanf(s, "%d", &id)
+	id, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0
+	}
 	return id
 }

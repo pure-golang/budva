@@ -6,7 +6,7 @@ import (
 	"github.com/cucumber/godog"
 )
 
-func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+func registerTransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.Given(`^правило замены фрагментов "([^"]*)" → "([^"]*)" и "([^"]*)" → "([^"]*)"$`, func(_, _, _, _ string) error {
 		return nil
 	})

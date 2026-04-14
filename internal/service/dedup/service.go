@@ -35,7 +35,5 @@ func (t *Tracker) TryMark(chatID domain.ChatID) bool {
 
 // NewTrackerFactory возвращает фабрику для создания Tracker.
 func NewTrackerFactory() func(destinations []domain.ChatID) *Tracker {
-	return func(destinations []domain.ChatID) *Tracker {
-		return NewTracker(destinations)
-	}
+	return NewTracker
 }

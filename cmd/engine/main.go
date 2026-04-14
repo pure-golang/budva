@@ -61,7 +61,11 @@ func run() error {
 	if err := stateRepo.Start(ctx); err != nil {
 		return fmt.Errorf("state repo: %w", err)
 	}
-	defer stateRepo.Close()
+	defer func() {
+		if err := stateRepo.Close(); err != nil {
+			logger.Warn("Failed to close state repo", slog.Any("error", err))
+		}
+	}()
 
 	rulesetRepo := ruleset.New(cfg.Ruleset, slog.Default())
 
@@ -69,13 +73,21 @@ func run() error {
 	if err := telegramRepo.Start(ctx); err != nil {
 		return fmt.Errorf("telegram repo: %w", err)
 	}
-	defer telegramRepo.Close()
+	defer func() {
+		if err := telegramRepo.Close(); err != nil {
+			logger.Warn("Failed to close telegram repo", slog.Any("error", err))
+		}
+	}()
 
 	queueRepo := queue.New(slog.Default())
 	if err := queueRepo.StartContext(ctx); err != nil {
 		return fmt.Errorf("queue repo: %w", err)
 	}
-	defer queueRepo.Close()
+	defer func() {
+		if err := queueRepo.Close(); err != nil {
+			logger.Warn("Failed to close queue repo", slog.Any("error", err))
+		}
+	}()
 
 	// 5. Сервисы
 	_ = auth.New(slog.Default())
@@ -111,15 +123,19 @@ func run() error {
 	if err := rulesetRepo.WatchContext(ctx, func() {
 		newRS, loadErr := rulesetRepo.Load()
 		if loadErr != nil {
-			logger.Error("Failed to reload ruleset", "error", loadErr)
+			logger.Error("Failed to reload ruleset", slog.Any("error", loadErr))
 			return
 		}
 		h.SetRuleSet(newRS)
 		logger.Info("Ruleset reloaded")
 	}); err != nil {
-		logger.Warn("Failed to watch ruleset", "error", err)
+		logger.Warn("Failed to watch ruleset", slog.Any("error", err))
 	}
-	defer rulesetRepo.Close()
+	defer func() {
+		if err := rulesetRepo.Close(); err != nil {
+			logger.Warn("Failed to close ruleset repo", slog.Any("error", err))
+		}
+	}()
 
 	// 9. Update dispatcher
 	go func() {
@@ -148,7 +164,11 @@ func run() error {
 
 	// 10. Terminal transport
 	termTransport := termtransport.New(slog.Default())
-	go termTransport.Run(ctx)
+	go func() {
+		if err := termTransport.Run(ctx); err != nil {
+			logger.Error("Terminal transport error", slog.Any("error", err))
+		}
+	}()
 
 	logger.Info("Engine started, waiting for shutdown signal")
 	<-ctx.Done()
