@@ -92,7 +92,7 @@ func (r *Repo) WatchContext(ctx context.Context, onChange func()) error {
 				if !ok {
 					return
 				}
-				r.logger.Error("Watcher error", slog.Any("error", err))
+				r.logger.Error("Watcher error", slog.Any("err", err))
 			}
 		}
 	}()

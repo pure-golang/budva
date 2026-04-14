@@ -44,7 +44,7 @@ func run() error {
 	closeMonitoring := monitoring.InitDefault(cfg.Monitoring)
 	defer func() {
 		if err := closeMonitoring(); err != nil {
-			slog.Default().Warn("Failed to close monitoring", slog.Any("error", err))
+			slog.Default().Warn("Failed to close monitoring", slog.Any("err", err))
 		}
 	}()
 
@@ -58,7 +58,7 @@ func run() error {
 	}
 	defer func() {
 		if err := telegramRepo.Close(); err != nil {
-			logger.Warn("Failed to close telegram repo", slog.Any("error", err))
+			logger.Warn("Failed to close telegram repo", slog.Any("err", err))
 		}
 	}()
 
@@ -79,7 +79,7 @@ func run() error {
 	termTransport := termtransport.New()
 	go func() {
 		if err := termTransport.Run(ctx); err != nil {
-			logger.Error("Terminal transport error", slog.Any("error", err))
+			logger.Error("Terminal transport error", slog.Any("err", err))
 		}
 	}()
 
@@ -94,7 +94,7 @@ func run() error {
 	logger.Info("Shutting down facade")
 
 	if err := httpServer.Shutdown(); err != nil {
-		logger.Error("HTTP server shutdown error", "error", err)
+		logger.Error("HTTP server shutdown error", slog.Any("err", err))
 	}
 
 	return nil

@@ -133,7 +133,7 @@ func (h *Handler) OnNewMessage(ctx context.Context, msg *domain.Message) {
 		if src != nil && src.DeleteSystemMessages {
 			h.queue.Add(func() {
 				if err := h.telegram.DeleteMessages(ctx, srcChatID, []domain.MessageID{msg.ID}, true); err != nil {
-					h.logger.Error("Failed to delete system message", slog.Any("error", err))
+					h.logger.Error("Failed to delete system message", slog.Any("err", err))
 				}
 			})
 		}
@@ -207,10 +207,10 @@ func (h *Handler) OnDeletedMessages(ctx context.Context, chatID domain.ChatID, m
 func (h *Handler) OnMessageSendSucceeded(chatID domain.ChatID, oldMessageID, newMessageID domain.MessageID) {
 	h.queue.Add(func() {
 		if err := h.state.SetNewMessageID(chatID, oldMessageID, newMessageID); err != nil {
-			h.logger.Error("Failed to set new message ID", slog.Any("error", err))
+			h.logger.Error("Failed to set new message ID", slog.Any("err", err))
 		}
 		if err := h.state.SetTmpMessageID(chatID, newMessageID, oldMessageID); err != nil {
-			h.logger.Error("Failed to set tmp message ID", slog.Any("error", err))
+			h.logger.Error("Failed to set tmp message ID", slog.Any("err", err))
 		}
 	})
 }
@@ -236,7 +236,7 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 		if rule.Check != 0 {
 			h.queue.Add(func() {
 				if _, err := h.telegram.ForwardMessages(ctx, msg.ChatID, rule.Check, []domain.MessageID{msg.ID}); err != nil {
-					h.logger.Error("Failed to forward to check chat", slog.Any("error", err))
+					h.logger.Error("Failed to forward to check chat", slog.Any("err", err))
 				}
 			})
 		}
@@ -244,7 +244,7 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 		if rule.Other != 0 {
 			h.queue.Add(func() {
 				if _, err := h.telegram.ForwardMessages(ctx, msg.ChatID, rule.Other, []domain.MessageID{msg.ID}); err != nil {
-					h.logger.Error("Failed to forward to other chat", slog.Any("error", err))
+					h.logger.Error("Failed to forward to other chat", slog.Any("err", err))
 				}
 			})
 		}
@@ -254,7 +254,7 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domain.ForwardRule, msg *domain.Message, text *domain.FormattedText, src *domain.Source, dst *domain.Destination, dstChatID domain.ChatID, prevMessageID domain.MessageID) {
 	if !rule.SendCopy {
 		if _, err := h.telegram.ForwardMessages(ctx, msg.ChatID, dstChatID, []domain.MessageID{msg.ID}); err != nil {
-			h.logger.Error("Failed to forward message", slog.Any("error", err))
+			h.logger.Error("Failed to forward message", slog.Any("err", err))
 		}
 		return
 	}
@@ -271,20 +271,20 @@ func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domai
 		ReplyMarkup:   h.messages.GetReplyMarkupData(msg),
 	})
 	if err != nil {
-		h.logger.Error("Failed to transform message", slog.Any("error", err))
+		h.logger.Error("Failed to transform message", slog.Any("err", err))
 		return
 	}
 
 	content := h.messages.BuildInputContent(msg, transformed)
 	tmpMsgID, err := h.telegram.SendMessage(ctx, dstChatID, content)
 	if err != nil {
-		h.logger.Error("Failed to send message", slog.Any("error", err), slog.Int64("dst_chat_id", dstChatID))
+		h.logger.Error("Failed to send message", slog.Any("err", err), slog.Int64("dst_chat_id", dstChatID))
 		return
 	}
 
 	toChatMsgID := fmt.Sprintf("%s:%d:%d", ruleID, dstChatID, tmpMsgID)
 	if err := h.state.SetCopiedMessageID(msg.ChatID, msg.ID, toChatMsgID); err != nil {
-		h.logger.Error("Failed to set copied message ID", slog.Any("error", err))
+		h.logger.Error("Failed to set copied message ID", slog.Any("err", err))
 	}
 
 	// Next link workflow
@@ -314,7 +314,7 @@ func (h *Handler) runNextLinkWorkflow(ctx context.Context, src *domain.Source, d
 		}
 		updated := h.transform.AddNextLink(ctx, text, src, dstChatID, newID)
 		if err := h.telegram.EditMessageText(ctx, dstChatID, prevMessageID, updated); err != nil {
-			h.logger.Error("Failed to edit message with next link", slog.Any("error", err))
+			h.logger.Error("Failed to edit message with next link", slog.Any("err", err))
 		}
 		return
 	}
@@ -348,7 +348,7 @@ func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *do
 		for _, dstChatID := range rule.To {
 			// TODO: для SendCopy собирать InputMessageContent из каждого сообщения альбома
 			if _, err := h.telegram.ForwardMessages(ctx, firstMsg.ChatID, dstChatID, messageIDs); err != nil {
-				h.logger.Error("Failed to forward media album", slog.Any("error", err))
+				h.logger.Error("Failed to forward media album", slog.Any("err", err))
 			}
 		}
 	})
@@ -402,16 +402,16 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 				WithSources:  true,
 			})
 			if err != nil {
-				h.logger.Error("Failed to transform edited message", slog.Any("error", err))
+				h.logger.Error("Failed to transform edited message", slog.Any("err", err))
 				continue
 			}
 			if msg.Content.Type == domain.ContentText {
 				if err := h.telegram.EditMessageText(ctx, dstChatID, newMsgID, transformed); err != nil {
-					h.logger.Error("Failed to edit message text", slog.Any("error", err))
+					h.logger.Error("Failed to edit message text", slog.Any("err", err))
 				}
 			} else {
 				if err := h.telegram.EditMessageCaption(ctx, dstChatID, newMsgID, transformed); err != nil {
-					h.logger.Error("Failed to edit message caption", slog.Any("error", err))
+					h.logger.Error("Failed to edit message caption", slog.Any("err", err))
 				}
 			}
 		}
@@ -442,22 +442,22 @@ func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID
 			newMsgID := h.state.GetNewMessageID(dstChatID, tmpMsgID)
 			if newMsgID != 0 {
 				if err := h.telegram.DeleteMessages(ctx, dstChatID, []domain.MessageID{newMsgID}, true); err != nil {
-					h.logger.Error("Failed to delete copied message", slog.Any("error", err))
+					h.logger.Error("Failed to delete copied message", slog.Any("err", err))
 				}
 				if err := h.state.DeleteNewMessageID(dstChatID, tmpMsgID); err != nil {
-					h.logger.Error("Failed to delete new message ID", slog.Any("error", err))
+					h.logger.Error("Failed to delete new message ID", slog.Any("err", err))
 				}
 				if err := h.state.DeleteTmpMessageID(dstChatID, newMsgID); err != nil {
-					h.logger.Error("Failed to delete tmp message ID", slog.Any("error", err))
+					h.logger.Error("Failed to delete tmp message ID", slog.Any("err", err))
 				}
 			}
 			if err := h.state.DeleteAnswerMessageID(dstChatID, tmpMsgID); err != nil {
-				h.logger.Error("Failed to delete answer message ID", slog.Any("error", err))
+				h.logger.Error("Failed to delete answer message ID", slog.Any("err", err))
 			}
 		}
 
 		if err := h.state.DeleteCopiedMessageIDs(chatID, msgID); err != nil {
-			h.logger.Error("Failed to delete copied message IDs", slog.Any("error", err))
+			h.logger.Error("Failed to delete copied message IDs", slog.Any("err", err))
 		}
 	}
 }

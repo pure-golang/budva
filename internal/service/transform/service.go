@@ -49,7 +49,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 	if p.Source.Translate != nil && containsChatID(p.Source.Translate.For, p.DstChatID) {
 		translated, err := s.telegram.TranslateText(ctx, text, p.Source.Translate.Lang)
 		if err != nil {
-			s.logger.Error("Translation failed", slog.Any("error", err))
+			s.logger.Error("Translation failed", slog.Any("err", err))
 		} else {
 			text = translated
 		}
@@ -113,7 +113,7 @@ func (s *Service) replaceMyselfLinks(ctx context.Context, text *domain.Formatted
 	// Проверяем тип чата — basic groups не поддерживают ссылки на сообщения
 	chatType, err := s.telegram.GetChatType(ctx, srcChatID)
 	if err != nil {
-		s.logger.Error("Failed to get chat type", slog.Any("error", err))
+		s.logger.Error("Failed to get chat type", slog.Any("err", err))
 		return text
 	}
 	if chatType == "basicGroup" {

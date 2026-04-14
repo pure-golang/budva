@@ -49,7 +49,7 @@ func run() error {
 	closeMonitoring := monitoring.InitDefault(cfg.Monitoring)
 	defer func() {
 		if err := closeMonitoring(); err != nil {
-			slog.Default().Warn("Failed to close monitoring", slog.Any("error", err))
+			slog.Default().Warn("Failed to close monitoring", slog.Any("err", err))
 		}
 	}()
 
@@ -63,7 +63,7 @@ func run() error {
 	}
 	defer func() {
 		if err := stateRepo.Close(); err != nil {
-			logger.Warn("Failed to close state repo", slog.Any("error", err))
+			logger.Warn("Failed to close state repo", slog.Any("err", err))
 		}
 	}()
 
@@ -75,7 +75,7 @@ func run() error {
 	}
 	defer func() {
 		if err := telegramRepo.Close(); err != nil {
-			logger.Warn("Failed to close telegram repo", slog.Any("error", err))
+			logger.Warn("Failed to close telegram repo", slog.Any("err", err))
 		}
 	}()
 
@@ -85,7 +85,7 @@ func run() error {
 	}
 	defer func() {
 		if err := queueRepo.Close(); err != nil {
-			logger.Warn("Failed to close queue repo", slog.Any("error", err))
+			logger.Warn("Failed to close queue repo", slog.Any("err", err))
 		}
 	}()
 
@@ -113,7 +113,7 @@ func run() error {
 	// 7. Ruleset
 	rs, err := rulesetRepo.Load()
 	if err != nil {
-		logger.Warn("Failed to load ruleset", "error", err)
+		logger.Warn("Failed to load ruleset", slog.Any("err", err))
 	} else {
 		h.SetRuleSet(rs)
 	}
@@ -122,17 +122,17 @@ func run() error {
 	if err := rulesetRepo.WatchContext(ctx, func() {
 		newRS, loadErr := rulesetRepo.Load()
 		if loadErr != nil {
-			logger.Error("Failed to reload ruleset", slog.Any("error", loadErr))
+			logger.Error("Failed to reload ruleset", slog.Any("err", loadErr))
 			return
 		}
 		h.SetRuleSet(newRS)
 		logger.Info("Ruleset reloaded")
 	}); err != nil {
-		logger.Warn("Failed to watch ruleset", slog.Any("error", err))
+		logger.Warn("Failed to watch ruleset", slog.Any("err", err))
 	}
 	defer func() {
 		if err := rulesetRepo.Close(); err != nil {
-			logger.Warn("Failed to close ruleset repo", slog.Any("error", err))
+			logger.Warn("Failed to close ruleset repo", slog.Any("err", err))
 		}
 	}()
 
@@ -165,7 +165,7 @@ func run() error {
 	termTransport := termtransport.New()
 	go func() {
 		if err := termTransport.Run(ctx); err != nil {
-			logger.Error("Terminal transport error", slog.Any("error", err))
+			logger.Error("Terminal transport error", slog.Any("err", err))
 		}
 	}()
 
