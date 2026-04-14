@@ -26,8 +26,8 @@ func New() *Service {
 	}
 }
 
-// Wait блокирует до истечения минимального интервала с предыдущей пересылки в чат.
-func (s *Service) Wait(ctx context.Context, chatID domain.ChatID) {
+// WaitForForward блокирует до истечения минимального интервала с предыдущей пересылки в чат.
+func (s *Service) WaitForForward(ctx context.Context, chatID domain.ChatID) {
 	s.mu.Lock()
 	diff := time.Since(s.lastForwarded[chatID])
 	if diff < interval {

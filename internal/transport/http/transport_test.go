@@ -13,12 +13,14 @@ import (
 
 type mockAuth struct {
 	state     domain.AuthorizationState
+	extra     any
 	inputChan chan string
 }
 
 func (m *mockAuth) Subscribe(_ func(domain.AuthorizationState, any)) {}
 func (m *mockAuth) InputChan() chan<- string                         { return m.inputChan }
 func (m *mockAuth) State() domain.AuthorizationState                 { return m.state }
+func (m *mockAuth) Extra() any                                       { return m.extra }
 
 func newTestTransport(state domain.AuthorizationState) (*Transport, *mockAuth) {
 	auth := &mockAuth{
@@ -219,6 +221,30 @@ func TestResponseContentType(t *testing.T) {
 	// Assert
 	ct := w.Header().Get("Content-Type")
 	assert.Equal(t, "application/json", ct)
+}
+
+func TestGetState_PasswordHint(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &mockAuth{
+		state:     domain.AuthStateWaitPassword,
+		extra:     &domain.WaitPasswordState{PasswordHint: "pet name"},
+		inputChan: make(chan string, 1),
+	}
+	tr := New(auth, nil)
+	mux := http.NewServeMux()
+	tr.EnrichRoutes(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/telegram/state", nil)
+	w := httptest.NewRecorder()
+
+	// Act
+	mux.ServeHTTP(w, req)
+
+	// Assert
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"state_type":"waitPassword"`)
+	assert.Contains(t, w.Body.String(), `"password_hint":"pet name"`)
 }
 
 func TestPostPhone_NoBody(t *testing.T) {

@@ -15,6 +15,7 @@ type authService interface {
 	Subscribe(listener func(state domain.AuthorizationState, extra any))
 	InputChan() chan<- string
 	State() domain.AuthorizationState
+	Extra() any
 }
 
 // Transport реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
@@ -61,6 +62,12 @@ type statusResponse struct {
 func (t *Transport) handleGetState(w http.ResponseWriter, r *http.Request) {
 	state := t.auth.State()
 	resp := stateResponse{StateType: state.String()}
+
+	if state == domain.AuthStateWaitPassword {
+		if ws, ok := t.auth.Extra().(*domain.WaitPasswordState); ok && ws != nil {
+			resp.PasswordHint = ws.PasswordHint
+		}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {

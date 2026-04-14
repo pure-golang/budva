@@ -24,6 +24,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/service/auth"
 	"github.com/pure-golang/budva-claude/internal/service/dedup"
 	"github.com/pure-golang/budva-claude/internal/service/filters"
+	"github.com/pure-golang/budva-claude/internal/service/limiter"
 	"github.com/pure-golang/budva-claude/internal/service/message"
 	"github.com/pure-golang/budva-claude/internal/service/transform"
 	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
@@ -97,6 +98,8 @@ func run() error {
 	filtersSvc := filters.New()
 	albumSvc := album.New()
 
+	limiterSvc := limiter.New()
+
 	// 6. Handler
 	h := handler.New(
 		telegramRepo,
@@ -106,6 +109,7 @@ func run() error {
 		transformSvc,
 		albumSvc,
 		queueRepo,
+		limiterSvc,
 		func(dsts []domain.ChatID) handler.DedupTracker {
 			return dedup.NewTracker(dsts)
 		},

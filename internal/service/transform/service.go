@@ -62,24 +62,29 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 		}
 	}
 
-	// 2. Замена ссылок на свои сообщения
+	// 2. Auto-answer (callback query injection)
+	if p.Source.AutoAnswer && len(p.ReplyMarkup) > 0 {
+		text = s.addAutoAnswer(ctx, text, p.SrcChatID, p.SrcMessageID, p.ReplyMarkup)
+	}
+
+	// 3. Замена ссылок на свои сообщения
 	if p.Destination != nil && p.Destination.ReplaceMyselfLinks != nil && p.Destination.ReplaceMyselfLinks.Run {
 		text = s.replaceMyselfLinks(ctx, text, p.SrcChatID, p.DstChatID, p.Destination)
 	}
 
-	// 3. Замена фрагментов
+	// 4. Замена фрагментов
 	if p.Destination != nil {
 		for _, fragment := range p.Destination.ReplaceFragments {
 			text = replaceFragment(text, fragment)
 		}
 	}
 
-	// 4. Подпись источника
+	// 5. Подпись источника
 	if p.WithSources && p.Source.Sign != nil && containsChatID(p.Source.Sign.For, p.DstChatID) {
 		text = s.addText(ctx, text, "**"+p.Source.Sign.Title+"**")
 	}
 
-	// 5. Ссылка на источник
+	// 6. Ссылка на источник
 	if p.WithSources && p.Source.Link != nil && containsChatID(p.Source.Link.For, p.DstChatID) {
 		link, err := s.telegram.GetMessageLink(ctx, p.SrcChatID, p.SrcMessageID)
 		if err == nil && link != "" {
@@ -87,7 +92,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 		}
 	}
 
-	// 6. Ссылка на предыдущую версию
+	// 7. Ссылка на предыдущую версию
 	if p.PrevMessageID != 0 && p.Source.Prev != nil && containsChatID(p.Source.Prev.For, p.DstChatID) {
 		link, err := s.telegram.GetMessageLink(ctx, p.DstChatID, p.PrevMessageID)
 		if err == nil && link != "" {
@@ -112,6 +117,19 @@ func (s *Service) AddNextLink(ctx context.Context, text *domain.FormattedText, s
 		return text
 	}
 	return s.addText(ctx, text, "["+src.Next.Title+"]("+link+")")
+}
+
+// addAutoAnswer добавляет текст ответа на callback-кнопку к сообщению.
+func (s *Service) addAutoAnswer(ctx context.Context, text *domain.FormattedText, srcChatID domain.ChatID, srcMessageID domain.MessageID, replyMarkup []byte) *domain.FormattedText {
+	answer, err := s.telegram.GetCallbackQueryAnswer(ctx, srcChatID, srcMessageID, replyMarkup)
+	if err != nil {
+		s.logger.Error("Failed to get callback query answer", slog.Any("err", err))
+		return text
+	}
+	if answer == "" {
+		return text
+	}
+	return s.addText(ctx, text, answer)
 }
 
 // replaceMyselfLinks заменяет ссылки на сообщения в исходном чате ссылками на копии.

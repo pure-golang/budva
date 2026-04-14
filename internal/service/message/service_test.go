@@ -145,24 +145,21 @@ func TestGetReplyMarkupData(t *testing.T) {
 	}
 }
 
-func TestBuildInputContent(t *testing.T) {
+func TestBuildInputContent_Photo(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
 	svc := New()
 	msg := &domain.Message{
 		Content: domain.MessageContent{
-			Type:               domain.ContentPhoto,
-			FileID:             "file123",
-			ThumbnailFileID:    "thumb456",
-			Width:              800,
-			Height:             600,
-			FileName:           "photo.jpg",
-			MimeType:           "image/jpeg",
-			DisableLinkPreview: true,
+			Type:            domain.ContentPhoto,
+			FileID:          "file123",
+			ThumbnailFileID: "thumb456",
+			Width:           800,
+			Height:          600,
 		},
 	}
-	text := &domain.FormattedText{Text: "new caption"}
+	text := &domain.FormattedText{Text: "caption"}
 
 	// Act
 	got := svc.BuildInputContent(msg, text)
@@ -174,7 +171,73 @@ func TestBuildInputContent(t *testing.T) {
 	assert.Equal(t, "thumb456", got.ThumbnailFileID)
 	assert.Equal(t, int32(800), got.Width)
 	assert.Equal(t, int32(600), got.Height)
-	assert.Equal(t, "photo.jpg", got.FileName)
-	assert.Equal(t, "image/jpeg", got.MimeType)
+	assert.Empty(t, got.FileName)
+	assert.Empty(t, got.MimeType)
+}
+
+func TestBuildInputContent_Text_InvertsLinkPreview(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	svc := New()
+	msg := &domain.Message{
+		Content: domain.MessageContent{
+			Type:               domain.ContentText,
+			DisableLinkPreview: false,
+		},
+	}
+	text := &domain.FormattedText{Text: "hello"}
+
+	// Act
+	got := svc.BuildInputContent(msg, text)
+
+	// Assert
 	assert.True(t, got.DisableLinkPreview)
+}
+
+func TestBuildInputContent_Document(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	svc := New()
+	msg := &domain.Message{
+		Content: domain.MessageContent{
+			Type:     domain.ContentDocument,
+			FileID:   "doc123",
+			FileName: "report.pdf",
+			MimeType: "application/pdf",
+		},
+	}
+	text := &domain.FormattedText{Text: "doc"}
+
+	// Act
+	got := svc.BuildInputContent(msg, text)
+
+	// Assert
+	assert.Equal(t, "doc123", got.FileID)
+	assert.Equal(t, "report.pdf", got.FileName)
+	assert.Equal(t, "application/pdf", got.MimeType)
+	assert.Zero(t, got.Width)
+}
+
+func TestBuildInputContent_VoiceNote(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	svc := New()
+	msg := &domain.Message{
+		Content: domain.MessageContent{
+			Type:     domain.ContentVoiceNote,
+			Duration: 30,
+			FileID:   "voice123",
+		},
+	}
+	text := &domain.FormattedText{Text: "voice"}
+
+	// Act
+	got := svc.BuildInputContent(msg, text)
+
+	// Assert
+	assert.Equal(t, int32(30), got.Duration)
+	assert.Empty(t, got.FileID)
 }

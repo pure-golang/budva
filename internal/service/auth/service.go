@@ -15,6 +15,7 @@ type Service struct {
 	logger    *slog.Logger
 	mu        sync.RWMutex
 	state     domain.AuthorizationState
+	extra     any
 	listeners []StateListener
 	inputChan chan string
 }
@@ -34,10 +35,18 @@ func (s *Service) Subscribe(listener StateListener) {
 	s.listeners = append(s.listeners, listener)
 }
 
+// Extra возвращает дополнительные данные текущего состояния.
+func (s *Service) Extra() any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.extra
+}
+
 // SetState устанавливает новое состояние и оповещает подписчиков.
 func (s *Service) SetState(state domain.AuthorizationState, extra any) {
 	s.mu.Lock()
 	s.state = state
+	s.extra = extra
 	listeners := make([]StateListener, len(s.listeners))
 	copy(listeners, s.listeners)
 	s.mu.Unlock()

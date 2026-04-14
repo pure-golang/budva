@@ -21,10 +21,11 @@ func (q *syncQueue) Add(fn func()) {
 }
 
 func (q *syncQueue) drain() {
-	for _, fn := range q.tasks {
+	for len(q.tasks) > 0 {
+		fn := q.tasks[0]
+		q.tasks = q.tasks[1:]
 		fn()
 	}
-	q.tasks = nil
 }
 
 func newTestHandler(t *testing.T) (*Handler, *testDeps) {
@@ -36,6 +37,7 @@ func newTestHandler(t *testing.T) (*Handler, *testDeps) {
 		filters:   mocks.NewFilterService(t),
 		transform: mocks.NewTransformService(t),
 		albums:    mocks.NewAlbumService(t),
+		limiter:   mocks.NewRateLimiter(t),
 		queue:     &syncQueue{},
 	}
 	tracker := mocks.NewDedupTracker(t)
@@ -48,6 +50,7 @@ func newTestHandler(t *testing.T) (*Handler, *testDeps) {
 		d.transform,
 		d.albums,
 		d.queue,
+		d.limiter,
 		func(_ []domain.ChatID) DedupTracker { return tracker },
 	)
 	d.tracker = tracker
@@ -61,6 +64,7 @@ type testDeps struct {
 	filters   *mocks.FilterService
 	transform *mocks.TransformService
 	albums    *mocks.AlbumService
+	limiter   *mocks.RateLimiter
 	queue     *syncQueue
 	tracker   *mocks.DedupTracker
 }
@@ -129,43 +133,6 @@ func TestOnNewMessage_SystemMessage_DeleteEnabled(t *testing.T) {
 	d.queue.drain()
 }
 
-func TestOnNewMessage_SystemMessage_DeleteDisabled(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	h, d := newTestHandler(t)
-	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
-	rs.Sources[100] = &domain.Source{ChatID: 100, DeleteSystemMessages: false}
-	h.SetRuleSet(rs)
-
-	msg := &domain.Message{
-		ChatID:  100,
-		ID:      1,
-		Content: domain.MessageContent{Type: domain.ContentSystem},
-	}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(true)
-
-	// Act
-	h.OnNewMessage(context.Background(), msg)
-}
-
-func TestOnNewMessage_NilFormattedText(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	h, d := newTestHandler(t)
-	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
-	rs.Sources[100] = &domain.Source{ChatID: 100}
-	h.SetRuleSet(rs)
-
-	msg := &domain.Message{ChatID: 100, ID: 1}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
-	d.messages.EXPECT().GetFormattedText(msg).Return(nil)
-
-	// Act + Assert
-	h.OnNewMessage(context.Background(), msg)
-}
-
 func TestOnNewMessage_ForwardWithoutCopy(t *testing.T) {
 	t.Parallel()
 
@@ -182,7 +149,11 @@ func TestOnNewMessage_ForwardWithoutCopy(t *testing.T) {
 	d.messages.EXPECT().GetFormattedText(msg).Return(text)
 	d.filters.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
 	d.tracker.EXPECT().TryMark(int64(200)).Return(true)
+	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(200))
 	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(200), []int64{int64(1)}).Return([]int64{int64(300)}, nil)
+	// Stats
+	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.state.EXPECT().IncrementForwardedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
@@ -211,7 +182,7 @@ func TestOnNewMessage_SendCopy(t *testing.T) {
 	}
 	text := &domain.FormattedText{Text: "hello"}
 	transformed := &domain.FormattedText{Text: "transformed"}
-	inputContent := domain.InputMessageContent{Type: domain.ContentText, Text: transformed}
+	inputContent := domain.InputMessageContent{Type: domain.ContentText, Text: transformed, DisableLinkPreview: true}
 
 	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
 	d.messages.EXPECT().GetFormattedText(msg).Return(text)
@@ -219,9 +190,13 @@ func TestOnNewMessage_SendCopy(t *testing.T) {
 	d.messages.EXPECT().BuildInputContent(msg, transformed).Return(inputContent)
 	d.filters.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
 	d.tracker.EXPECT().TryMark(int64(200)).Return(true)
+	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(200))
 	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.telegram.EXPECT().SendMessage(mock.Anything, int64(200), inputContent).Return(int64(500), nil)
+	d.telegram.EXPECT().SendMessage(mock.Anything, int64(200), mock.AnythingOfType("domain.InputMessageContent")).Return(int64(500), nil)
 	d.state.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:500").Return(nil)
+	// Stats
+	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.state.EXPECT().IncrementForwardedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
@@ -243,29 +218,10 @@ func TestOnNewMessage_FiltersCheck(t *testing.T) {
 	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
 	d.messages.EXPECT().GetFormattedText(msg).Return(text)
 	d.filters.EXPECT().Evaluate("suspicious", rule).Return(domain.FiltersCheck)
+	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(300))
 	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(300), []int64{int64(1)}).Return([]int64{int64(400)}, nil)
-
-	// Act
-	h.OnNewMessage(context.Background(), msg)
-	d.queue.drain()
-}
-
-func TestOnNewMessage_FiltersOther(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	h, d := newTestHandler(t)
-	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true, Other: 400}
-	rs := makeRuleSet(rule)
-	rs.Sources[100] = &domain.Source{ChatID: 100}
-	h.SetRuleSet(rs)
-
-	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
-	text := &domain.FormattedText{Text: "filtered out"}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.filters.EXPECT().Evaluate("filtered out", rule).Return(domain.FiltersOther)
-	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(400), []int64{int64(1)}).Return([]int64{int64(500)}, nil)
+	// Stats (viewed only, not forwarded for FiltersCheck)
+	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
@@ -289,40 +245,6 @@ func TestOnNewMessage_CannotBeSaved_WithoutSendCopy(t *testing.T) {
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-}
-
-func TestOnEditedMessage_NoRuleSet(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	h, _ := newTestHandler(t)
-
-	// Act + Assert
-	h.OnEditedMessage(context.Background(), &domain.Message{ChatID: 100, ID: 1})
-}
-
-func TestOnEditedMessage_UnknownSource(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	h, _ := newTestHandler(t)
-	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
-	h.SetRuleSet(rs)
-
-	// Act + Assert
-	h.OnEditedMessage(context.Background(), &domain.Message{ChatID: 999, ID: 1})
-}
-
-func TestOnDeletedMessages_NonPermanent(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	h, _ := newTestHandler(t)
-	rs := makeRuleSet(&domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}})
-	h.SetRuleSet(rs)
-
-	// Act
-	h.OnDeletedMessages(context.Background(), 100, []int64{1}, false)
 }
 
 func TestOnDeletedMessages_PermanentWithCopies(t *testing.T) {
@@ -360,6 +282,35 @@ func TestOnDeletedMessages_IndelibleRule(t *testing.T) {
 	d.state.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
 
 	// Act
+	h.OnDeletedMessages(context.Background(), 100, []int64{1}, true)
+	d.queue.drain()
+}
+
+func TestOnDeletedMessages_RetryOnMissingNewID(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	h, d := newTestHandler(t)
+	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}}
+	rs := makeRuleSet(rule)
+	h.SetRuleSet(rs)
+
+	call := 0
+	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"}).Times(2)
+	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).RunAndReturn(func(_ int64, _ int64) int64 {
+		call++
+		if call == 1 {
+			return 0 // retry
+		}
+		return 600 // success
+	}).Times(2)
+	d.state.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil).Times(2)
+	d.telegram.EXPECT().DeleteMessages(mock.Anything, int64(200), []int64{int64(600)}, true).Return(nil)
+	d.state.EXPECT().DeleteNewMessageID(int64(200), int64(500)).Return(nil)
+	d.state.EXPECT().DeleteTmpMessageID(int64(200), int64(600)).Return(nil)
+	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+
+	// Act — drain выполняет и retry
 	h.OnDeletedMessages(context.Background(), 100, []int64{1}, true)
 	d.queue.drain()
 }

@@ -140,7 +140,31 @@ func validate(rs *domain.RuleSet) error {
 			}
 		}
 	}
+
+	// Проверка UTF-16 длин фрагментов замены
+	for id, dst := range rs.Destinations {
+		for i, frag := range dst.ReplaceFragments {
+			fromLen := utf16Len(frag.From)
+			toLen := utf16Len(frag.To)
+			if fromLen != toLen {
+				return fmt.Errorf("destination %d: ReplaceFragments[%d] From/To UTF-16 lengths differ (%d vs %d)", id, i, fromLen, toLen)
+			}
+		}
+	}
+
 	return nil
+}
+
+func utf16Len(s string) int {
+	n := 0
+	for _, r := range s {
+		if r >= 0x10000 {
+			n += 2 // surrogate pair
+		} else {
+			n++
+		}
+	}
+	return n
 }
 
 func transform(rs *domain.RuleSet) {
