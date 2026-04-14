@@ -1,5 +1,10 @@
 // Package http реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
 //
+// Использование:
+//
+//	tr := http.New(authSvc)
+//	tr.EnrichRoutes(mux)
+//
 // Эндпоинты:
 //
 //	GET  /api/auth/telegram/state    — текущее состояние авторизации

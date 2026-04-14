@@ -1,5 +1,10 @@
 // Package grpc реализует gRPC-транспорт для фасада.
 //
+// Использование:
+//
+//	tr := grpc.New(facadeSvc)
+//	pb.RegisterFacadeGRPCServer(server, tr)
+//
 // Реализует proto-сервис FacadeGRPC с методами:
 //
 //   - GetMessages, GetChatHistory, GetMessage

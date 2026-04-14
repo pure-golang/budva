@@ -3,3 +3,11 @@ includes:
   common:
     taskfile: ../level85/Taskfile.yml
     flatten: true
+    excludes:
+      - mock
+
+tasks:
+  mock:
+    desc: "Generate mocks (via mockery v3)"
+    cmds:
+      - go run github.com/vektra/mockery/v3@latest

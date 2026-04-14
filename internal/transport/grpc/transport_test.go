@@ -83,6 +83,8 @@ func (m *mockFacade) GetMessageLinkInfo(ctx context.Context, link string) (*doma
 
 func TestGetMessages_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	facade := &mockFacade{
 		getMessage: func(_ context.Context, chatID, messageID int64) (*domain.Message, error) {
 			return &domain.Message{
@@ -94,11 +96,13 @@ func TestGetMessages_Success(t *testing.T) {
 	}
 	tr := New(facade)
 
+	// Act
 	resp, err := tr.GetMessages(context.Background(), &pb.GetMessagesRequest{
 		ChatId:     100,
 		MessageIds: []int64{1, 2},
 	})
 
+	// Assert
 	require.NoError(t, err)
 	assert.Len(t, resp.GetMessages(), 2)
 	assert.Equal(t, "hello", resp.GetMessages()[0].GetText())
@@ -106,6 +110,8 @@ func TestGetMessages_Success(t *testing.T) {
 
 func TestGetMessages_PartialFailure(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	call := 0
 	facade := &mockFacade{
 		getMessage: func(_ context.Context, _, _ int64) (*domain.Message, error) {
@@ -122,17 +128,21 @@ func TestGetMessages_PartialFailure(t *testing.T) {
 	}
 	tr := New(facade)
 
+	// Act
 	resp, err := tr.GetMessages(context.Background(), &pb.GetMessagesRequest{
 		ChatId:     100,
 		MessageIds: []int64{1, 2},
 	})
 
+	// Assert
 	require.NoError(t, err)
 	assert.Len(t, resp.GetMessages(), 1)
 }
 
 func TestSendMessage_Success(t *testing.T) {
 	t.Parallel()
+
+	// Arrange
 	var gotChatID int64
 	var gotText string
 	facade := &mockFacade{
@@ -144,10 +154,12 @@ func TestSendMessage_Success(t *testing.T) {
 	}
 	tr := New(facade)
 
+	// Act
 	resp, err := tr.SendMessage(context.Background(), &pb.SendMessageRequest{
 		Message: &pb.NewMessage{ChatId: 100, Text: "hello"},
 	})
 
+	// Assert
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Equal(t, int64(100), gotChatID)

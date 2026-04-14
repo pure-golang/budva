@@ -4,13 +4,11 @@
 
 | Метрика | Значение |
 |---|---|
-| Go-файлов | 58 (без тестов) + 15 тестовых |
-| Строк Go-кода | ~4 400 |
-| Unit-тестов | 28 (7 пакетов) |
+| Go-файлов | 63 (без тестов, моков, protobuf) + 22 тестовых |
+| Unit-тестов | ~120 (15 пакетов) |
 | BDD-сценариев | 19 (18 active + 1 @pending) |
-| `task lint` | 0 issues |
 | `go build ./...` | OK |
-| `go test ./...` | OK |
+| `go test ./...` | OK (все 15 пакетов) |
 
 ## Что перенесено
 
@@ -40,8 +38,8 @@
 |---|---|---|---|---|
 | Telegram API | `repo/telegram/` | `internal/repo/telegram/` | 20+ методов-стабов, полный интерфейс | Реальная интеграция с go-tdlib |
 | Terminal transport | `transport/term/` | `internal/transport/term/` | Структура + Run(ctx) | Auth flow, CLI команды |
-| HTTP transport | `transport/web/` | `internal/transport/http/` | Только doc.go | REST auth, GraphQL, playground |
-| gRPC transport | `transport/grpc/` | `internal/transport/grpc/` | Только doc.go | Proto, сервер, facade mapping |
+| HTTP transport | `transport/web/` | `internal/transport/http/` | REST auth endpoints (4 маршрута), 11 тестов | GraphQL, playground |
+| gRPC transport | `transport/grpc/` | `internal/transport/grpc/` | Proto, FacadeGRPC (10 RPC), 18 тестов | GetChatHistory (unimplemented) |
 | Терминальный I/O | `repo/term/` | `internal/repo/term/` | ReadLine, ReadPassword, Print | — |
 
 ### Заглушки-сервисы (конструктор + logger, без бизнес-логики)
@@ -49,7 +47,6 @@
 | Пакет | Причина |
 |---|---|
 | `internal/service/engine/` | Диспетчеризация вынесена в cmd/engine |
-| `internal/service/facade/` | Ждёт реализации gRPC/GraphQL транспортов |
 | `internal/service/forwarder/` | Логика пересылки вынесена в handler |
 | `internal/service/loader/` | Загрузка ruleset вынесена в cmd/engine |
 
@@ -78,28 +75,18 @@
 
 ## Дальнейший план работ
 
-### Приоритет 1: Unit-тесты для ядра бизнес-логики
+### ~~Приоритет 1: Unit-тесты для ядра бизнес-логики~~ ✓
 
-Пакеты с нетривиальной логикой, но без unit-тестов:
+Реализовано: mockery v2 конфиг, моки для handler/transform/controller, unit-тесты для handler (16), transform (16), message (13), auth (8), album (10).
 
-| Пакет | Что тестировать | Нужны моки |
-|---|---|---|
-| `internal/handler/` | OnNewMessage, OnEditedMessage, OnDeletedMessages — 7 интерфейсов | Да, через mockery |
-| `internal/service/transform/` | Transform pipeline, replaceMyselfLinks, UTF-16 — 2 интерфейса | Да, через mockery |
-| `internal/service/message/` | GetFormattedText, BuildInputContent | Нет (чистые функции) |
-| `internal/service/album/` | AddMessage, PopMessages, конкурентность | Нет |
-| `internal/service/auth/` | Subscribe, SetState, pub-sub | Нет |
-| `internal/repo/state/copies.go` | SetCopiedMessageID, GetCopiedMessageIDs — string parsing | Нет (BadgerDB в TempDir) |
+### ~~Приоритет 2: Transport-слой~~ ✓
 
-### Приоритет 2: Transport-слой (работает через интерфейсы, не зависит от TDLib)
+Реализовано:
+- `internal/transport/http/` — REST auth endpoints (4 маршрута, 11 тестов)
+- `internal/transport/grpc/` — Proto + FacadeGRPC (10 RPC, 18 тестов)
+- `internal/service/facade/` — расширен из заглушки до полной реализации с telegramGateway
 
-| Задача | Описание |
-|---|---|
-| `internal/transport/term/` | Auth flow (phone/code/password через auth.InputChan), CLI команды (help, exit), подписка на auth state |
-| `internal/transport/http/` | REST auth эндпоинты (/api/auth/telegram/*), GraphQL handler + playground, middleware chain |
-| `internal/transport/grpc/` | Proto-определения, кодогенерация, FacadeGRPC сервер (GetMessages, SendMessage, ForwardMessage и т.д.) |
-
-Все транспорты работают через частично применяемые интерфейсы (auth service, facade service, telegram repo). Под интерфейсами могут быть как стабы, так и реальный TDLib — транспорты не знают разницы.
+Остаётся: GraphQL handler + playground (HTTP), GetChatHistory (gRPC).
 
 ### Приоритет 3: Observability
 

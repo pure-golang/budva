@@ -61,7 +61,11 @@ func TestGetFormattedText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Act
 			got := svc.GetFormattedText(tt.msg)
+
+			// Assert
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -96,6 +100,8 @@ func TestIsSystemMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Act + Assert
 			assert.Equal(t, tt.want, svc.IsSystemMessage(tt.msg))
 		})
 	}
@@ -132,6 +138,8 @@ func TestGetReplyMarkupData(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Act + Assert
 			assert.Equal(t, tt.want, svc.GetReplyMarkupData(tt.msg))
 		})
 	}
@@ -139,8 +147,9 @@ func TestGetReplyMarkupData(t *testing.T) {
 
 func TestBuildInputContent(t *testing.T) {
 	t.Parallel()
-	svc := New()
 
+	// Arrange
+	svc := New()
 	msg := &domain.Message{
 		Content: domain.MessageContent{
 			Type:               domain.ContentPhoto,
@@ -155,8 +164,10 @@ func TestBuildInputContent(t *testing.T) {
 	}
 	text := &domain.FormattedText{Text: "new caption"}
 
+	// Act
 	got := svc.BuildInputContent(msg, text)
 
+	// Assert
 	assert.Equal(t, domain.ContentPhoto, got.Type)
 	assert.Equal(t, text, got.Text)
 	assert.Equal(t, "file123", got.FileID)
