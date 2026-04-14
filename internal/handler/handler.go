@@ -368,18 +368,12 @@ func (h *Handler) resolveReplyTo(msg *domain.Message, dstChatID domain.ChatID) d
 		return 0
 	}
 	copies := h.state.GetCopiedMessageIDs(msg.ReplyTo.ChatID, msg.ReplyTo.MessageID)
-	dstPrefix := fmt.Sprintf(":%d:", dstChatID)
 	for _, copy := range copies {
-		idx := strings.Index(copy, dstPrefix)
-		if idx < 0 {
+		ref, ok := parseCopyRef(copy)
+		if !ok || ref.dstChatID != dstChatID {
 			continue
 		}
-		parts := strings.Split(copy, ":")
-		if len(parts) < 3 {
-			continue
-		}
-		tmpID := parseID(parts[len(parts)-1])
-		newID := h.state.GetNewMessageID(dstChatID, tmpID)
+		newID := h.state.GetNewMessageID(dstChatID, ref.tmpMsgID)
 		if newID != 0 {
 			return newID
 		}
@@ -474,37 +468,34 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 	needRetry := false
 
 	for _, copy := range copies {
-		parts := strings.Split(copy, ":")
-		if len(parts) < 3 {
+		ref, ok := parseCopyRef(copy)
+		if !ok {
 			continue
 		}
-		ruleID := parts[0]
-		dstChatID := parseID(parts[1])
-		tmpMsgID := parseID(parts[2])
 
-		newMsgID := h.state.GetNewMessageID(dstChatID, tmpMsgID)
+		newMsgID := h.state.GetNewMessageID(ref.dstChatID, ref.tmpMsgID)
 		if newMsgID == 0 {
 			needRetry = true
 			continue
 		}
 
-		rule := rs.ForwardRules[ruleID]
+		rule := rs.ForwardRules[ref.ruleID]
 		if rule == nil {
 			continue
 		}
 
-		dst := rs.Destinations[dstChatID]
+		dst := rs.Destinations[ref.dstChatID]
 
 		if rule.CopyOnce {
 			// Версионирование: отправляем новую копию
-			h.forwardMessage(ctx, ruleID, rule, msg, text, src, dst, dstChatID, newMsgID, true)
+			h.forwardMessage(ctx, ref.ruleID, rule, msg, text, src, dst, ref.dstChatID, newMsgID, true)
 		} else {
 			// Обновляем существующую копию
 			transformed, err := h.transform.Transform(ctx, domain.TransformParams{
 				Text:         text.DeepCopy(),
 				Source:       src,
 				Destination:  dst,
-				DstChatID:    dstChatID,
+				DstChatID:    ref.dstChatID,
 				SrcChatID:    msg.ChatID,
 				SrcMessageID: msg.ID,
 				WithSources:  true,
@@ -515,11 +506,11 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 				continue
 			}
 			if msg.Content.Type == domain.ContentText {
-				if err := h.telegram.EditMessageText(ctx, dstChatID, newMsgID, transformed); err != nil {
+				if err := h.telegram.EditMessageText(ctx, ref.dstChatID, newMsgID, transformed); err != nil {
 					h.logger.Error("Failed to edit message text", slog.Any("err", err))
 				}
 			} else {
-				if err := h.telegram.EditMessageCaption(ctx, dstChatID, newMsgID, transformed); err != nil {
+				if err := h.telegram.EditMessageCaption(ctx, ref.dstChatID, newMsgID, transformed); err != nil {
 					h.logger.Error("Failed to edit message caption", slog.Any("err", err))
 				}
 			}
@@ -527,11 +518,11 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 			// Reply markup sync
 			replyData := h.messages.GetReplyMarkupData(msg)
 			if len(replyData) > 0 {
-				if err := h.state.SetAnswerMessageID(dstChatID, tmpMsgID, msg.ChatID, msg.ID); err != nil {
+				if err := h.state.SetAnswerMessageID(ref.dstChatID, ref.tmpMsgID, msg.ChatID, msg.ID); err != nil {
 					h.logger.Error("Failed to set answer message ID", slog.Any("err", err))
 				}
 			} else {
-				if err := h.state.DeleteAnswerMessageID(dstChatID, tmpMsgID); err != nil {
+				if err := h.state.DeleteAnswerMessageID(ref.dstChatID, ref.tmpMsgID); err != nil {
 					h.logger.Error("Failed to delete answer message ID", slog.Any("err", err))
 				}
 			}
@@ -562,35 +553,32 @@ func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID
 		}
 
 		for _, copy := range copies {
-			parts := strings.Split(copy, ":")
-			if len(parts) < 3 {
+			ref, ok := parseCopyRef(copy)
+			if !ok {
 				continue
 			}
-			ruleID := parts[0]
-			dstChatID := parseID(parts[1])
-			tmpMsgID := parseID(parts[2])
 
-			rule := rs.ForwardRules[ruleID]
+			rule := rs.ForwardRules[ref.ruleID]
 			if rule != nil && rule.Indelible {
 				continue
 			}
 
-			newMsgID := h.state.GetNewMessageID(dstChatID, tmpMsgID)
+			newMsgID := h.state.GetNewMessageID(ref.dstChatID, ref.tmpMsgID)
 			if newMsgID == 0 {
 				needRetry = true
 				continue
 			}
 
-			if err := h.telegram.DeleteMessages(ctx, dstChatID, []domain.MessageID{newMsgID}, true); err != nil {
+			if err := h.telegram.DeleteMessages(ctx, ref.dstChatID, []domain.MessageID{newMsgID}, true); err != nil {
 				h.logger.Error("Failed to delete copied message", slog.Any("err", err))
 			}
-			if err := h.state.DeleteNewMessageID(dstChatID, tmpMsgID); err != nil {
+			if err := h.state.DeleteNewMessageID(ref.dstChatID, ref.tmpMsgID); err != nil {
 				h.logger.Error("Failed to delete new message ID", slog.Any("err", err))
 			}
-			if err := h.state.DeleteTmpMessageID(dstChatID, newMsgID); err != nil {
+			if err := h.state.DeleteTmpMessageID(ref.dstChatID, newMsgID); err != nil {
 				h.logger.Error("Failed to delete tmp message ID", slog.Any("err", err))
 			}
-			if err := h.state.DeleteAnswerMessageID(dstChatID, tmpMsgID); err != nil {
+			if err := h.state.DeleteAnswerMessageID(ref.dstChatID, ref.tmpMsgID); err != nil {
 				h.logger.Error("Failed to delete answer message ID", slog.Any("err", err))
 			}
 		}
@@ -601,6 +589,28 @@ func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID
 	}
 
 	return needRetry
+}
+
+// copyRef содержит разобранную ссылку на копию сообщения формата "ruleID:dstChatID:tmpMsgID".
+type copyRef struct {
+	ruleID    string
+	dstChatID int64
+	tmpMsgID  int64
+}
+
+// parseCopyRef разбирает строку формата "ruleID:dstChatID:tmpMsgID".
+func parseCopyRef(s string) (copyRef, bool) {
+	parts := strings.Split(s, ":")
+	if len(parts) < 3 {
+		return copyRef{}, false
+	}
+	dstChatID := parseID(parts[1])
+	tmpMsgID := parseID(parts[2])
+	return copyRef{
+		ruleID:    parts[0],
+		dstChatID: dstChatID,
+		tmpMsgID:  tmpMsgID,
+	}, true
 }
 
 func parseID(s string) int64 {

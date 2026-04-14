@@ -2,9 +2,10 @@
 //
 // Использование:
 //
-//	svc := auth.New(logger)
+//	svc := auth.New()
 //	svc.Subscribe(func(state domain.AuthorizationState, extra any) { ... })
 //	svc.SetState(domain.AuthStateReady, nil)
+//	extra := svc.Extra()
 //	input := svc.ReadInput()
 //
 // Пакет не читает переменные окружения напрямую.

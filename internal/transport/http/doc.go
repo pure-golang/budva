@@ -7,7 +7,7 @@
 //
 // Эндпоинты:
 //
-//	GET  /api/auth/telegram/state    — текущее состояние авторизации
+//	GET  /api/auth/telegram/state    — текущее состояние авторизации (включает password_hint в состоянии waitPassword)
 //	POST /api/auth/telegram/phone    — отправка номера телефона
 //	POST /api/auth/telegram/code     — отправка кода подтверждения
 //	POST /api/auth/telegram/password — отправка пароля 2FA

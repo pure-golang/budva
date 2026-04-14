@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	h := handler.New(telegram, state, messages, filters, transform, albums, queue, newTracker, logger)
+//	h := handler.New(telegram, state, messages, filters, transform, albums, queue, limiter, newTracker)
 //	h.SetRuleSet(rs)
 //	h.OnNewMessage(ctx, msg)
 //	h.OnEditedMessage(ctx, msg)

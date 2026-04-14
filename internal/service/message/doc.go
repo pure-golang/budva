@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	svc := message.New(logger)
+//	svc := message.New()
 //	text := svc.GetFormattedText(msg)
 //	isSystem := svc.IsSystemMessage(msg)
 //	data := svc.GetReplyMarkupData(msg)

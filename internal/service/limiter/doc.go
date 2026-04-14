@@ -2,8 +2,8 @@
 //
 // Использование:
 //
-//	svc := limiter.New(logger)
-//	svc.Wait(ctx, chatID) // блокирует до истечения интервала
+//	svc := limiter.New()
+//	svc.WaitForForward(ctx, chatID) // блокирует до истечения интервала
 //
 // Пакет не читает переменные окружения напрямую.
 //
