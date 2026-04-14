@@ -17,69 +17,73 @@ func TestForwardPipeline(t *testing.T) {
 	}
 
 	s := setupSuite(t)
-	t.Cleanup(func() { tearDownSuite(t, s) })
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Errorf("stack close: %v", err)
+		}
+	})
 
 	t.Run("copy_with_transform", func(t *testing.T) {
-		resetState(t, s)
+		s.Telegram.Reset()
 		// Arrange
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		rs := s.makeRuleSet(true)
-		rs.Sources[s.sourceID].Sign = &domain.Sign{Title: "TestSign", For: s.targets}
-		s.handler.SetRuleSet(rs)
+		rs.Sources[s.SourceID].Sign = &domain.Sign{Title: "TestSign", For: s.TargetIDs}
+		s.Handler.SetRuleSet(rs)
 
 		msg := &domain.Message{
-			ChatID: s.sourceID, ID: 1, CanBeSaved: true,
+			ChatID: s.SourceID, ID: 1, CanBeSaved: true,
 			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "hello"}},
 		}
-		s.telegram.PutMessage(msg)
+		s.Telegram.PutMessage(msg)
 
 		// Act
-		s.handler.OnNewMessage(ctx, msg)
-		s.queue.ProcessAll()
+		s.Handler.OnNewMessage(ctx, msg)
+		s.Queue.ProcessAll()
 
 		// Assert
-		msgs := s.telegram.MessagesInChat(s.targets[0])
+		msgs := s.Telegram.MessagesInChat(s.TargetIDs[0])
 		require.NotEmpty(t, msgs)
 		assert.Contains(t, msgs[0].Content.Text.Text, "TestSign")
 	})
 
 	t.Run("edit_sync", func(t *testing.T) {
-		resetState(t, s)
+		s.Telegram.Reset()
 		// Arrange
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		rs := s.makeRuleSet(true)
-		s.handler.SetRuleSet(rs)
+		s.Handler.SetRuleSet(rs)
 
 		msg := &domain.Message{
-			ChatID: s.sourceID, ID: 2, CanBeSaved: true,
+			ChatID: s.SourceID, ID: 2, CanBeSaved: true,
 			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "original"}},
 		}
-		s.telegram.PutMessage(msg)
-		s.handler.OnNewMessage(ctx, msg)
-		s.queue.ProcessAll()
+		s.Telegram.PutMessage(msg)
+		s.Handler.OnNewMessage(ctx, msg)
+		s.Queue.ProcessAll()
 
-		for _, target := range s.targets {
-			for _, m := range s.telegram.MessagesInChat(target) {
-				s.handler.OnMessageSendSucceeded(target, m.ID, m.ID)
+		for _, target := range s.TargetIDs {
+			for _, m := range s.Telegram.MessagesInChat(target) {
+				s.Handler.OnMessageSendSucceeded(target, m.ID, m.ID)
 			}
 		}
 
 		// Act
 		editMsg := &domain.Message{
-			ChatID: s.sourceID, ID: 2, CanBeSaved: true,
+			ChatID: s.SourceID, ID: 2, CanBeSaved: true,
 			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "updated"}},
 		}
-		s.telegram.PutMessage(editMsg)
-		s.handler.OnEditedMessage(ctx, editMsg)
-		s.queue.ProcessAll()
+		s.Telegram.PutMessage(editMsg)
+		s.Handler.OnEditedMessage(ctx, editMsg)
+		s.Queue.ProcessAll()
 
 		// Assert
-		for _, target := range s.targets {
-			msgs := s.telegram.MessagesInChat(target)
+		for _, target := range s.TargetIDs {
+			msgs := s.Telegram.MessagesInChat(target)
 			require.NotEmpty(t, msgs)
 			found := false
 			for _, m := range msgs {
@@ -92,63 +96,63 @@ func TestForwardPipeline(t *testing.T) {
 	})
 
 	t.Run("delete_sync", func(t *testing.T) {
-		resetState(t, s)
+		s.Telegram.Reset()
 		// Arrange
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		rs := s.makeRuleSet(true)
-		s.handler.SetRuleSet(rs)
+		s.Handler.SetRuleSet(rs)
 
 		msg := &domain.Message{
-			ChatID: s.sourceID, ID: 3, CanBeSaved: true,
+			ChatID: s.SourceID, ID: 3, CanBeSaved: true,
 			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "to delete"}},
 		}
-		s.telegram.PutMessage(msg)
-		s.handler.OnNewMessage(ctx, msg)
-		s.queue.ProcessAll()
+		s.Telegram.PutMessage(msg)
+		s.Handler.OnNewMessage(ctx, msg)
+		s.Queue.ProcessAll()
 
-		for _, target := range s.targets {
-			for _, m := range s.telegram.MessagesInChat(target) {
-				s.handler.OnMessageSendSucceeded(target, m.ID, m.ID)
+		for _, target := range s.TargetIDs {
+			for _, m := range s.Telegram.MessagesInChat(target) {
+				s.Handler.OnMessageSendSucceeded(target, m.ID, m.ID)
 			}
 		}
-		s.queue.ProcessAll()
+		s.Queue.ProcessAll()
 
 		// Act
-		s.handler.OnDeletedMessages(ctx, s.sourceID, []domain.MessageID{3}, true)
-		s.queue.ProcessAll()
+		s.Handler.OnDeletedMessages(ctx, s.SourceID, []domain.MessageID{3}, true)
+		s.Queue.ProcessAll()
 
 		// Assert
-		for _, target := range s.targets {
-			msgs := s.telegram.MessagesInChat(target)
+		for _, target := range s.TargetIDs {
+			msgs := s.Telegram.MessagesInChat(target)
 			assert.Empty(t, msgs, "target %d should have no messages after delete", target)
 		}
 	})
 
 	t.Run("filter_exclude", func(t *testing.T) {
-		resetState(t, s)
+		s.Telegram.Reset()
 		// Arrange
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		rs := s.makeRuleSet(true)
 		rs.ForwardRules["test_rule"].Exclude = "SPAM"
-		s.handler.SetRuleSet(rs)
+		s.Handler.SetRuleSet(rs)
 
 		msg := &domain.Message{
-			ChatID: s.sourceID, ID: 4, CanBeSaved: true,
+			ChatID: s.SourceID, ID: 4, CanBeSaved: true,
 			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "contains SPAM word"}},
 		}
-		s.telegram.PutMessage(msg)
+		s.Telegram.PutMessage(msg)
 
 		// Act
-		s.handler.OnNewMessage(ctx, msg)
-		s.queue.ProcessAll()
+		s.Handler.OnNewMessage(ctx, msg)
+		s.Queue.ProcessAll()
 
 		// Assert
-		for _, target := range s.targets {
-			msgs := s.telegram.MessagesInChat(target)
+		for _, target := range s.TargetIDs {
+			msgs := s.Telegram.MessagesInChat(target)
 			assert.Empty(t, msgs, "target %d should have no messages (excluded)", target)
 		}
 	})

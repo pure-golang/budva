@@ -148,9 +148,34 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		}
 		s.env.DrainQueue()
 
-		// Ожидаем завершения runNextLinkWorkflow горутины
+		// Ожидаем завершения runNextLinkWorkflow горутины (поллит state каждые 1s)
 		if s.copyOnce {
-			time.Sleep(2 * time.Second)
+			deadline := time.After(5 * time.Second)
+			for {
+				select {
+				case <-deadline:
+					return fmt.Errorf("runNextLinkWorkflow did not complete within 5s")
+				case <-time.After(200 * time.Millisecond):
+					// Проверяем что предыдущая копия обновилась (содержит ссылку)
+					updated := false
+					for _, targetID := range s.env.TargetIDs {
+						msgs := s.env.Telegram.MessagesInChat(targetID)
+						for _, m := range msgs {
+							if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, "https://t.me") {
+								updated = true
+								break
+							}
+						}
+						if updated {
+							break
+						}
+					}
+					if updated {
+						goto done
+					}
+				}
+			}
+		done:
 		}
 
 		s.messageText = newText

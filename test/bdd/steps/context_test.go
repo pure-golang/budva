@@ -49,9 +49,8 @@ type scenarioCtx struct {
 
 func (s *scenarioCtx) reset() error {
 	if s.env != nil {
-		if err := s.env.Close(); err != nil {
-			return err
-		}
+		_ = s.env.Close() // Best-effort cleanup; не блокируем создание нового стека
+		s.env = nil
 	}
 	env, err := support.NewStack()
 	if err != nil {
