@@ -13,6 +13,8 @@
 //	TELEGRAM_PHONE         — номер телефона для авторизации (required)
 //	TELEGRAM_DATABASE_DIR  — путь к директории TDLib (default: .data/tdlib)
 //	TELEGRAM_FILES_DIR     — путь к файлам TDLib (default: .data/tdlib-files)
+//	TELEGRAM_SYSTEM_LANG   — код языка системы (default: en)
+//	TELEGRAM_DEVICE_MODEL  — модель устройства (default: Server)
 //	TELEGRAM_USE_TEST_DC   — использовать тестовый DC (default: false)
 //	TELEGRAM_LOG_VERBOSITY — уровень логирования TDLib (default: 0)
 //
