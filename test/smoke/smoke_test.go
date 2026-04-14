@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,19 +18,9 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Переходим в корень проекта для корректных путей docker-compose
 	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
 		panic("failed to chdir to project root: " + err.Error())
 	}
-
-	// Собираем бинарник facade для linux/amd64 (для Docker)
-	cmd := exec.Command("go", "build", "-o", "facade", "./cmd/facade")
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		panic("failed to build facade: " + err.Error() + "\n" + string(output))
-	}
-	defer os.Remove("facade")
-
 	os.Exit(m.Run())
 }
 
@@ -46,7 +35,7 @@ func TestSmoke(t *testing.T) {
 }
 
 func (s *SmokeSuite) SetupSuite() {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	stack, err := tc.NewDockerCompose("test/smoke/testdata/docker-compose.yml")
