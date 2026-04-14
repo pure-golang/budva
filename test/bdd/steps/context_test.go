@@ -44,7 +44,7 @@ func initScenario(ctx *godog.ScenarioContext) {
 	})
 
 	register01DeliverySteps(ctx, s)
-	register02FilterSteps(ctx, s)
+	register02FiltersSteps(ctx, s)
 	register03TransformSteps(ctx, s)
 	register04MediaSteps(ctx, s)
 	register05SyncSteps(ctx, s)
