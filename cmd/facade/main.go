@@ -66,7 +66,7 @@ func run() error {
 
 	// 5. Сервисы
 	authSvc := auth.New()
-	_ = facade.New()
+	_ = facade.New(telegramRepo)
 
 	// 6. HTTP transport
 	mux := http.NewServeMux()

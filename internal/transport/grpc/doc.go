@@ -1,7 +1,11 @@
 // Package grpc реализует gRPC-транспорт для фасада.
 //
-// Текущая реализация — placeholder; gRPC-сервер будет добавлен
-// при реализации protobuf-определений и facade service.
+// Реализует proto-сервис FacadeGRPC с методами:
+//
+//   - GetMessages, GetChatHistory, GetMessage
+//   - SendMessage, SendMessageAlbum, ForwardMessage
+//   - UpdateMessage, DeleteMessages
+//   - GetMessageLink, GetMessageLinkInfo
 //
 // Конфигурация:
 //
@@ -11,6 +15,6 @@
 //
 // Ограничения:
 //
-//   - Реализует proto-сервис FacadeGRPC (определение в будущем).
+//   - GetChatHistory не реализован (Unimplemented).
 //   - Reflection включён по умолчанию для поддержки grpcurl.
 package grpc
