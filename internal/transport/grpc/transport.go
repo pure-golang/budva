@@ -7,6 +7,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	alogger "github.com/pure-golang/adapters/logger"
+
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
 )
@@ -25,14 +27,12 @@ type facadeService interface {
 // Transport реализует gRPC-сервер FacadeGRPC.
 type Transport struct {
 	pb.UnimplementedFacadeGRPCServer
-	logger *slog.Logger
 	facade facadeService
 }
 
 // New создаёт новый экземпляр gRPC-транспорта.
 func New(facade facadeService) *Transport {
 	return &Transport{
-		logger: slog.Default().With("module", "transport.grpc"),
 		facade: facade,
 	}
 }
@@ -43,7 +43,7 @@ func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest)
 	for _, id := range req.GetMessageIds() {
 		msg, err := t.facade.GetMessage(ctx, req.GetChatId(), id)
 		if err != nil {
-			t.logger.Error("Failed to get message", slog.Any("err", err), slog.Int64("message_id", id))
+			alogger.FromContext(ctx).Error("Failed to get message", slog.Any("err", err), slog.Int64("message_id", id))
 			continue
 		}
 		messages = append(messages, domainToProto(msg))

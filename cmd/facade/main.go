@@ -44,13 +44,13 @@ func run() error {
 
 	// 3. Monitoring
 	closeMonitoring := monitoring.InitDefault(cfg.Monitoring)
+	logger := slog.Default().With("module", "main")
 	defer func() {
 		if err := closeMonitoring(); err != nil {
-			slog.Default().Warn("Failed to close monitoring", slog.Any("err", err))
+			logger.Error("Failed to close monitoring", slog.Any("err", err))
 		}
 	}()
 
-	logger := slog.Default().With("module", "main")
 	logger.Info("Starting facade")
 
 	// 4. Repository-адаптеры

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	alogger "github.com/pure-golang/adapters/logger"
+
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
@@ -16,15 +18,13 @@ type authService interface {
 
 // Transport реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
 type Transport struct {
-	logger *slog.Logger
-	auth   authService
+	auth authService
 }
 
 // New создаёт новый экземпляр HTTP-транспорта.
 func New(auth authService) *Transport {
 	return &Transport{
-		logger: slog.Default().With("module", "transport.http"),
-		auth:   auth,
+		auth: auth,
 	}
 }
 
@@ -51,13 +51,13 @@ type statusResponse struct {
 	Status string `json:"status"`
 }
 
-func (t *Transport) handleGetState(w http.ResponseWriter, _ *http.Request) {
+func (t *Transport) handleGetState(w http.ResponseWriter, r *http.Request) {
 	state := t.auth.State()
 	resp := stateResponse{StateType: state.String()}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		t.logger.Error("Failed to encode state response", slog.Any("err", err))
+		alogger.FromContext(r.Context()).Error("Failed to encode state response", slog.Any("err", err))
 	}
 }
 
@@ -77,7 +77,7 @@ func (t *Transport) handlePostPhone(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(statusResponse{Status: "accepted"}); err != nil {
-		t.logger.Error("Failed to encode response", slog.Any("err", err))
+		alogger.FromContext(r.Context()).Error("Failed to encode response", slog.Any("err", err))
 	}
 }
 
@@ -97,7 +97,7 @@ func (t *Transport) handlePostCode(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(statusResponse{Status: "accepted"}); err != nil {
-		t.logger.Error("Failed to encode response", slog.Any("err", err))
+		alogger.FromContext(r.Context()).Error("Failed to encode response", slog.Any("err", err))
 	}
 }
 
@@ -117,6 +117,6 @@ func (t *Transport) handlePostPassword(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(statusResponse{Status: "accepted"}); err != nil {
-		t.logger.Error("Failed to encode response", slog.Any("err", err))
+		alogger.FromContext(r.Context()).Error("Failed to encode response", slog.Any("err", err))
 	}
 }
