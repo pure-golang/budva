@@ -3,6 +3,7 @@ module github.com/pure-golang/budva-claude
 go 1.25.9
 
 require (
+	github.com/99designs/gqlgen v0.17.89
 	github.com/cucumber/godog v0.15.1
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/fsnotify/fsnotify v1.9.0
