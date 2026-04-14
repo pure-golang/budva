@@ -46,7 +46,11 @@ func run() error {
 
 	// 3. Monitoring (logger, tracing, metrics)
 	closeMonitoring := monitoring.InitDefault(cfg.Monitoring)
-	defer closeMonitoring()
+	defer func() {
+		if err := closeMonitoring(); err != nil {
+			slog.Default().Warn("Failed to close monitoring", "error", err)
+		}
+	}()
 
 	logger := slog.Default().With("module", "main")
 	logger.Info("Starting engine")
