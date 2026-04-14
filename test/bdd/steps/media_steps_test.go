@@ -1,20 +1,47 @@
 package steps
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cucumber/godog"
+
+	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 func registerMediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет медиа-альбом в исходный чат$`, func() error {
-		s.delivered = true
+		s.applyRuleSet()
+
+		albumID := int64(12345)
+
+		// Создаём 3 сообщения в альбоме
+		for i := int64(1); i <= 3; i++ {
+			msg := &domain.Message{
+				ChatID:       s.env.SourceID,
+				ID:           100 + i,
+				CanBeSaved:   true,
+				MediaAlbumID: albumID,
+				Content: domain.MessageContent{
+					Type: domain.ContentPhoto,
+					Text: &domain.FormattedText{Text: fmt.Sprintf("photo %d", i)},
+				},
+			}
+			s.env.Telegram.PutMessage(msg)
+			s.env.Handler.OnNewMessage(context.Background(), msg)
+		}
+
+		s.env.DrainQueue()
+
 		return nil
 	})
 
 	ctx.Then(`^медиа-альбом появляется во всех целевых чатах$`, func() error {
-		if !s.delivered {
-			return fmt.Errorf("media album was not delivered")
+		for _, targetID := range s.env.TargetIDs {
+			msgs := s.env.Telegram.MessagesInChat(targetID)
+			if len(msgs) == 0 {
+				return fmt.Errorf("no messages in target chat %d", targetID)
+			}
 		}
 		return nil
 	})

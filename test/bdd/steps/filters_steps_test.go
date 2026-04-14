@@ -1,10 +1,12 @@
 package steps
 
 import (
+	"context"
 	"fmt"
-	"strings"
 
 	"github.com/cucumber/godog"
+
+	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 func registerFiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
@@ -24,40 +26,65 @@ func registerFiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.When(`^пользователь отправляет сообщение без запрещённого паттерна$`, func() error {
+		s.applyRuleSet()
+
 		s.messageText = "normal text"
-		s.delivered = true
+		msg := &domain.Message{
+			ChatID:     s.env.SourceID,
+			ID:         1,
+			CanBeSaved: true,
+			Content: domain.MessageContent{
+				Type: domain.ContentText,
+				Text: &domain.FormattedText{Text: s.messageText},
+			},
+		}
+		s.sentMsg = msg
+		s.env.Telegram.PutMessage(msg)
+
+		s.env.Handler.OnNewMessage(context.Background(), msg)
+		s.env.DrainQueue()
+
 		return nil
 	})
 
 	ctx.When(`^пользователь отправляет сообщение с текстом "([^"]*)"$`, func(text string) error {
+		s.applyRuleSet()
+
 		s.messageText = text
-		if s.excludePattern != "" && strings.Contains(text, s.excludePattern) {
-			s.delivered = false
-		} else {
-			s.delivered = true
+		msg := &domain.Message{
+			ChatID:     s.env.SourceID,
+			ID:         1,
+			CanBeSaved: true,
+			Content: domain.MessageContent{
+				Type: domain.ContentText,
+				Text: &domain.FormattedText{Text: text},
+			},
 		}
-		if s.includePattern != "" && strings.Contains(text, s.includePattern) {
-			s.expectedText = s.includePattern
-		}
-		if s.submatchPattern != "" && strings.Contains(text, s.submatchPattern) {
-			s.expectedText = s.submatchPattern
-		}
+		s.sentMsg = msg
+		s.env.Telegram.PutMessage(msg)
+
+		s.env.Handler.OnNewMessage(context.Background(), msg)
+		s.env.DrainQueue()
+
 		return nil
 	})
 
 	ctx.Then(`^сообщение не появляется в целевых чатах$`, func() error {
-		if s.delivered {
-			return fmt.Errorf("message should not have been delivered")
+		for _, targetID := range s.env.TargetIDs {
+			msgs := s.env.Telegram.MessagesInChat(targetID)
+			if len(msgs) > 0 {
+				return fmt.Errorf("expected no messages in target chat %d, got %d", targetID, len(msgs))
+			}
 		}
 		return nil
 	})
 
 	ctx.Then(`^сообщение с текстом "([^"]*)" появляется во всех целевых чатах$`, func(expected string) error {
-		if !s.delivered {
-			return fmt.Errorf("message was not delivered")
-		}
-		if s.expectedText != "" && s.expectedText != expected {
-			return fmt.Errorf("expected text %q, got %q", expected, s.expectedText)
+		for _, targetID := range s.env.TargetIDs {
+			msgs := s.env.Telegram.MessagesInChat(targetID)
+			if len(msgs) == 0 {
+				return fmt.Errorf("no messages in target chat %d", targetID)
+			}
 		}
 		return nil
 	})

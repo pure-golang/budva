@@ -62,6 +62,22 @@ func (r *Repo) run(ctx context.Context) {
 	}
 }
 
+// ProcessAll синхронно выполняет все задачи в очереди (для тестов).
+func (r *Repo) ProcessAll() {
+	for {
+		r.mu.Lock()
+		front := r.queue.Front()
+		if front == nil {
+			r.mu.Unlock()
+			return
+		}
+		fn := front.Value.(func())
+		r.queue.Remove(front)
+		r.mu.Unlock()
+		r.executeTask(fn)
+	}
+}
+
 func (r *Repo) processQueue() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
