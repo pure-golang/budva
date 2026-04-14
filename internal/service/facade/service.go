@@ -2,6 +2,8 @@ package facade
 
 import (
 	"context"
+	"path/filepath"
+	"runtime/debug"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	dtogql "github.com/pure-golang/budva-claude/internal/dto/graphql"
@@ -49,13 +51,19 @@ func (s *Service) SendMessage(ctx context.Context, chatID domain.ChatID, text st
 }
 
 // SendMessageAlbum отправляет несколько сообщений как альбом.
-func (s *Service) SendMessageAlbum(ctx context.Context, chatID domain.ChatID, texts []string) error {
-	contents := make([]domain.InputMessageContent, 0, len(texts))
-	for _, text := range texts {
-		contents = append(contents, domain.InputMessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: text},
-		})
+func (s *Service) SendMessageAlbum(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem) error {
+	contents := make([]domain.InputMessageContent, 0, len(items))
+	for _, item := range items {
+		content := domain.InputMessageContent{
+			Text: &domain.FormattedText{Text: item.Text},
+		}
+		if item.FilePath != "" {
+			content.Type = domain.ContentTypeByFileExt(filepath.Ext(item.FilePath))
+			content.FilePath = item.FilePath
+		} else {
+			content.Type = domain.ContentText
+		}
+		contents = append(contents, content)
 	}
 	_, err := s.telegram.SendMessageAlbum(ctx, chatID, contents)
 	return err
@@ -93,6 +101,14 @@ func (s *Service) GetMessageLinkInfo(ctx context.Context, link string) (*domain.
 	return s.telegram.GetMessageLinkInfo(ctx, link)
 }
 
+func releaseVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" {
+		return "unknown"
+	}
+	return info.Main.Version
+}
+
 // GetStatus возвращает текущий статус сервиса.
 func (s *Service) GetStatus(ctx context.Context) (*dtogql.StatusResponse, error) {
 	version, err := s.telegram.GetOption(ctx, "version")
@@ -104,7 +120,8 @@ func (s *Service) GetStatus(ctx context.Context) (*dtogql.StatusResponse, error)
 		return nil, err
 	}
 	return &dtogql.StatusResponse{
-		TDLibVersion: version,
-		UserID:       userID,
+		ReleaseVersion: releaseVersion(),
+		TDLibVersion:   version,
+		UserID:         userID,
 	}, nil
 }

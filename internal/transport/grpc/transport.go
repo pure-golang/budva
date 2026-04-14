@@ -16,7 +16,7 @@ type facadeService interface {
 	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
 	GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error)
 	SendMessage(ctx context.Context, chatID domain.ChatID, text string) error
-	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, texts []string) error
+	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem) error
 	ForwardMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) error
 	UpdateMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text string) error
 	DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) error
@@ -83,11 +83,14 @@ func (t *Transport) SendMessageAlbum(ctx context.Context, req *pb.SendMessageAlb
 		return nil, status.Error(codes.InvalidArgument, "at least one message is required")
 	}
 	chatID := msgs[0].GetChatId()
-	var texts []string
+	items := make([]domain.AlbumItem, 0, len(msgs))
 	for _, m := range msgs {
-		texts = append(texts, m.GetText())
+		items = append(items, domain.AlbumItem{
+			Text:     m.GetText(),
+			FilePath: m.GetFilePath(),
+		})
 	}
-	if err := t.facade.SendMessageAlbum(ctx, chatID, texts); err != nil {
+	if err := t.facade.SendMessageAlbum(ctx, chatID, items); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil

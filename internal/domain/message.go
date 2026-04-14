@@ -121,6 +121,28 @@ const (
 	ContentUnknown
 )
 
+// AlbumItem описывает один элемент альбома для отправки через фасад.
+type AlbumItem struct {
+	// Text — текст или подпись.
+	Text string
+	// FilePath — локальный путь к файлу (пустая строка для текстовых сообщений).
+	FilePath string
+}
+
+// ContentTypeByFileExt определяет тип контента по расширению файла.
+func ContentTypeByFileExt(ext string) MessageContentType {
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+		return ContentPhoto
+	case ".mp4", ".mov", ".avi", ".mkv", ".webm":
+		return ContentVideo
+	case ".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac", ".wma", ".opus":
+		return ContentAudio
+	default:
+		return ContentDocument
+	}
+}
+
 // IsMediaType возвращает true для медиа-типов контента.
 func (t MessageContentType) IsMediaType() bool {
 	switch t {
@@ -177,6 +199,8 @@ type InputMessageContent struct {
 	FileName string
 	// MimeType — MIME-тип.
 	MimeType string
+	// FilePath — локальный путь к файлу для загрузки.
+	FilePath string
 	// DisableLinkPreview — отключить предпросмотр ссылок.
 	DisableLinkPreview bool
 	// ReplyToMessageID — ID сообщения, на которое отвечаем.
