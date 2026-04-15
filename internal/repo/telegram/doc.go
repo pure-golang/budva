@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	r := telegram.New(cfg, logger)
+//	r := telegram.New(cfg)
 //	if err := r.Start(ctx); err != nil { ... }
 //	defer r.Close()
 //

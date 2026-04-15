@@ -11,7 +11,7 @@ type badgerLogger struct {
 }
 
 func newBadgerLogger(logger *slog.Logger) *badgerLogger {
-	return &badgerLogger{logger: logger.With("module", "badger")}
+	return &badgerLogger{logger: logger.WithGroup("badger")}
 }
 
 func (l *badgerLogger) Errorf(format string, args ...any) {

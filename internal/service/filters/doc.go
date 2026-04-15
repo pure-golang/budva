@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	svc := filters.New(logger)
+//	svc := filters.New()
 //	mode := svc.Evaluate(text, rule)
 //
 // Пакет не читает переменные окружения напрямую.

@@ -20,6 +20,5 @@
 //
 // Ограничения:
 //
-//   - GetChatHistory не реализован (Unimplemented).
 //   - Reflection включён по умолчанию для поддержки grpcurl.
 package grpc

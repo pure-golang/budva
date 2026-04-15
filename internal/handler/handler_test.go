@@ -475,8 +475,10 @@ func TestOnEditedMessage_CopyOnce_Versioning(t *testing.T) {
 	d.telegram.EXPECT().SendMessage(mock.Anything, int64(200), mock.AnythingOfType("domain.InputMessageContent")).Return(int64(700), nil)
 	d.state.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:700").Return(nil)
 
-	// Act
-	h.OnEditedMessage(context.Background(), msg)
+	// Act — cancelled context останавливает goroutine runNextLinkWorkflow
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	h.OnEditedMessage(ctx, msg)
 	d.queue.drain()
 }
 

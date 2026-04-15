@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	svc := album.New(logger)
+//	svc := album.New()
 //	isFirst := svc.AddMessage(key, messageID)
 //	ids := svc.PopMessages(key)
 //
