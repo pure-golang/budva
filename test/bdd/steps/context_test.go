@@ -3,6 +3,7 @@ package steps
 import (
 	"context"
 	"regexp"
+	"time"
 
 	"github.com/cucumber/godog"
 
@@ -10,9 +11,28 @@ import (
 	"github.com/pure-golang/budva-claude/test/support"
 )
 
+const fixturesPath = ".config/stand.json"
+
+// sharedStack создаётся один раз для всех сценариев (TDLib не пересоздаётся).
+var sharedStack *support.LiveStack
+
+func getOrCreateStack() (*support.LiveStack, error) {
+	if sharedStack != nil {
+		return sharedStack, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	stack, err := support.NewLiveStack(ctx, fixturesPath)
+	if err != nil {
+		return nil, err
+	}
+	sharedStack = stack
+	return stack, nil
+}
+
 // scenarioCtx хранит состояние одного сценария.
 type scenarioCtx struct {
-	env *support.Stack
+	env *support.LiveStack
 
 	deliveryMode string
 	sourceType   string
@@ -48,14 +68,15 @@ type scenarioCtx struct {
 }
 
 func (s *scenarioCtx) reset() error {
-	if s.env != nil {
-		s.env.Close() //nolint:errcheck // Best-effort cleanup; не блокируем создание нового стека
-		s.env = nil
-	}
-	env, err := support.NewStack()
+	env, err := getOrCreateStack()
 	if err != nil {
 		return err
 	}
+
+	if err := env.ResetState(); err != nil {
+		return err
+	}
+
 	s.env = env
 	s.deliveryMode = ""
 	s.sourceType = ""
@@ -123,10 +144,28 @@ func initScenario(ctx *godog.ScenarioContext) {
 	})
 
 	ctx.After(func(gctx context.Context, sc *godog.Scenario, err error) (context.Context, error) {
-		if s.env != nil {
-			return gctx, s.env.Close()
-		}
 		return gctx, nil
+	})
+
+	// Общие Given-шаги для выбора чатов по имени фикстуры
+	ctx.Given(`^исходный чат типа "([^"]*)"$`, func(srcType string) error {
+		s.sourceType = srcType
+		fix, err := s.env.ChatByName(srcType)
+		if err != nil {
+			return err
+		}
+		s.env.SourceID = fix.ChatID
+		s.src.ChatID = fix.ChatID
+		return nil
+	})
+
+	ctx.Given(`^целевой чат типа "([^"]*)"$`, func(dstType string) error {
+		fix, err := s.env.ChatByName(dstType)
+		if err != nil {
+			return err
+		}
+		s.env.TargetIDs = []domain.ChatID{fix.ChatID}
+		return nil
 	})
 
 	register01DeliverySteps(ctx, s)

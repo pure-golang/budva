@@ -3,6 +3,7 @@ package steps
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cucumber/godog"
 
@@ -14,30 +15,33 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.sendCopy = true
 		s.applyRuleSet()
 
-		msg := &domain.Message{
-			ChatID:     s.env.SourceID,
-			ID:         1,
-			CanBeSaved: true,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: "message with button"},
-			},
-			ReplyMarkup: &domain.ReplyMarkup{CallbackData: []byte("callback_data")},
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: "message with button"},
+		})
+		if err != nil {
+			return err
 		}
+		// Добавляем ReplyMarkup вручную (TDLib не позволяет отправить inline keyboard от обычного пользователя)
+		msg.ReplyMarkup = &domain.ReplyMarkup{CallbackData: []byte("callback_data")}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
+		// Ждём обработки callback
+		time.Sleep(500 * time.Millisecond)
 
 		return nil
 	})
 
 	ctx.Then(`^бот автоматически отвечает на запрос$`, func() error {
-		// FakeTelegram.GetCallbackQueryAnswer возвращает "" — auto-answer не добавляет текст.
-		// Проверяем что сообщение доставлено без ошибок (transform pipeline выполнился).
+		// GetCallbackQueryAnswer выполняется на реальном TDLib.
+		// Проверяем что сообщение доставлено (transform pipeline выполнился).
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}

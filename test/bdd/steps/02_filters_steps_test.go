@@ -30,17 +30,14 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = "normal text"
-		msg := &domain.Message{
-			ChatID:     s.env.SourceID,
-			ID:         1,
-			CanBeSaved: true,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: s.messageText},
-			},
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: s.messageText},
+		})
+		if err != nil {
+			return err
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -52,17 +49,14 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = text
-		msg := &domain.Message{
-			ChatID:     s.env.SourceID,
-			ID:         1,
-			CanBeSaved: true,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: text},
-			},
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: text},
+		})
+		if err != nil {
+			return err
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -72,7 +66,10 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение не появляется в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) > 0 {
 				return fmt.Errorf("expected no messages in target chat %d, got %d", targetID, len(msgs))
 			}
@@ -82,7 +79,10 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение с текстом "([^"]*)" появляется во всех целевых чатах$`, func(expected string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d for expected text %q", targetID, expected)
 			}
@@ -103,12 +103,19 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	// --- Check/Other dedup ---
 
 	ctx.Given(`^назначен check-чат для отклонённых сообщений$`, func() error {
-		s.checkChatID = -1004000
+		if len(s.env.Fixtures.Chats) > 2 {
+			s.checkChatID = s.env.Fixtures.Chats[2].ChatID
+		} else {
+			s.checkChatID = -1004000
+		}
 		return nil
 	})
 
 	ctx.Then(`^сообщение появляется в check-чате ровно один раз$`, func() error {
-		msgs := s.env.Telegram.MessagesInChat(s.checkChatID)
+		msgs, err := s.env.MessagesInChat(context.Background(), s.checkChatID)
+		if err != nil {
+			return err
+		}
 		if len(msgs) != 1 {
 			return fmt.Errorf("expected exactly 1 message in check chat %d, got %d", s.checkChatID, len(msgs))
 		}

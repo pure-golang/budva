@@ -41,34 +41,26 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Given(`^в исходном чате есть ранее скопированное сообщение$`, func() error {
-		msg := &domain.Message{
-			ChatID: s.env.SourceID,
-			ID:     500,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: "previous message"},
-			},
-		}
-		s.env.Telegram.PutMessage(msg)
-		return nil
+		_, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: "previous message"},
+		})
+		return err
 	})
 
 	ctx.When(`^пользователь отправляет сообщение со ссылкой на предыдущее сообщение$`, func() error {
 		s.applyRuleSet()
 
-		msg := &domain.Message{
-			ChatID:     s.env.SourceID,
-			ID:         2,
-			CanBeSaved: true,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{
-					Text: fmt.Sprintf("see https://t.me/c/%d/500", s.env.SourceID),
-				},
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{
+				Text: fmt.Sprintf("see https://t.me/c/%d/500", s.env.SourceID),
 			},
+		})
+		if err != nil {
+			return err
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -78,7 +70,10 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате ссылка указывает на копию предыдущего сообщения$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -97,19 +92,16 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет сообщение со ссылкой на внешнее сообщение$`, func() error {
 		s.applyRuleSet()
 
-		msg := &domain.Message{
-			ChatID:     s.env.SourceID,
-			ID:         3,
-			CanBeSaved: true,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{
-					Text: "see https://t.me/c/9999999/42",
-				},
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{
+				Text: "see https://t.me/c/9999999/42",
 			},
+		})
+		if err != nil {
+			return err
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -119,7 +111,10 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение появляется без внешней ссылки$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -128,9 +123,11 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^в целевом чате сообщение содержит подпись источника$`, func() error {
-		// Подпись добавляется только к первому destination (WithSources=true)
 		firstTarget := s.env.TargetIDs[0]
-		msgs := s.env.Telegram.MessagesInChat(firstTarget)
+		msgs, err := s.env.MessagesInChat(context.Background(), firstTarget)
+		if err != nil {
+			return err
+		}
 		if len(msgs) == 0 {
 			return fmt.Errorf("no messages in first target chat %d", firstTarget)
 		}
@@ -143,9 +140,11 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^в целевом чате сообщение содержит ссылку на оригинал$`, func() error {
-		// Ссылка добавляется только к первому destination (WithSources=true)
 		firstTarget := s.env.TargetIDs[0]
-		msgs := s.env.Telegram.MessagesInChat(firstTarget)
+		msgs, err := s.env.MessagesInChat(context.Background(), firstTarget)
+		if err != nil {
+			return err
+		}
 		if len(msgs) == 0 {
 			return fmt.Errorf("no messages in first target chat %d", firstTarget)
 		}

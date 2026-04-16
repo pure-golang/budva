@@ -2,11 +2,19 @@ package steps
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/colors"
 )
+
+func TestMain(m *testing.M) {
+	if err := os.Chdir(filepath.Join("..", "..", "..")); err != nil {
+		panic("failed to chdir to project root: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
 
 func TestBDD(t *testing.T) {
 	if testing.Short() {
@@ -17,7 +25,7 @@ func TestBDD(t *testing.T) {
 		Name: "bdd",
 		Options: &godog.Options{
 			Format:   "pretty",
-			Paths:    []string{"../features"},
+			Paths:    []string{"test/bdd/features"},
 			Output:   colors.Colored(os.Stdout),
 			TestingT: t,
 			Strict:   true,

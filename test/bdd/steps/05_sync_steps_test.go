@@ -16,7 +16,6 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.deliveryMode = mode
 		s.sendCopy = (mode == "копия")
 		s.copyOnce = true
-		// Версионирование подразумевает навигационные ссылки Prev/Next
 		s.src.Prev = &domain.Prev{
 			Title: domain.PrevTitle,
 			For:   s.env.TargetIDs,
@@ -53,17 +52,14 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = text
-		msg := &domain.Message{
-			ChatID:     s.env.SourceID,
-			ID:         1,
-			CanBeSaved: true,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: text},
-			},
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: text},
+		})
+		if err != nil {
+			return err
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -75,17 +71,14 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = "test message"
-		msg := &domain.Message{
-			ChatID:     s.env.SourceID,
-			ID:         1,
-			CanBeSaved: true,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: s.messageText},
-			},
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
+			Type: domain.ContentText,
+			Text: &domain.FormattedText{Text: s.messageText},
+		})
+		if err != nil {
+			return err
 		}
 		s.sentMsg = msg
-		s.env.Telegram.PutMessage(msg)
 
 		s.env.Handler.OnNewMessage(context.Background(), msg)
 		s.env.DrainQueue()
@@ -94,14 +87,14 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Given(`^сообщение было скопировано в целевые чаты$`, func() error {
-		// Сообщение уже было обработано handler в предыдущем Given-шаге,
-		// проверяем что копии появились и симулируем OnMessageSendSucceeded
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("message was not copied to target chat %d", targetID)
 			}
-			// Симулируем подтверждение отправки: temp ID → permanent ID
 			for _, m := range msgs {
 				s.env.Handler.OnMessageSendSucceeded(m.ChatID, m.ID, m.ID)
 			}
@@ -119,7 +112,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		beforeMsgs := make(map[domain.ChatID]map[domain.MessageID]bool)
 		for _, targetID := range s.env.TargetIDs {
 			beforeMsgs[targetID] = make(map[domain.MessageID]bool)
-			for _, m := range s.env.Telegram.MessagesInChat(targetID) {
+			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
+			for _, m := range msgs {
 				beforeMsgs[targetID][m.ID] = true
 			}
 		}
@@ -132,15 +126,14 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				Text: &domain.FormattedText{Text: newText},
 			},
 		}
-		// Обновляем сообщение в fake telegram
-		s.env.Telegram.PutMessage(editedMsg)
 
 		s.env.Handler.OnEditedMessage(context.Background(), editedMsg)
 		s.env.DrainQueue()
 
 		// Симулируем OnMessageSendSucceeded для новых сообщений (версионирование)
 		for _, targetID := range s.env.TargetIDs {
-			for _, m := range s.env.Telegram.MessagesInChat(targetID) {
+			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
+			for _, m := range msgs {
 				if !beforeMsgs[targetID][m.ID] {
 					s.env.Handler.OnMessageSendSucceeded(m.ChatID, m.ID, m.ID)
 				}
@@ -148,7 +141,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		}
 		s.env.DrainQueue()
 
-		// Ожидаем завершения runNextLinkWorkflow горутины (поллит state каждые 1s)
+		// Ожидаем завершения runNextLinkWorkflow горутины
 		if s.copyOnce {
 			deadline := time.After(5 * time.Second)
 			for {
@@ -156,10 +149,9 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				case <-deadline:
 					return fmt.Errorf("runNextLinkWorkflow did not complete within 5s")
 				case <-time.After(200 * time.Millisecond):
-					// Проверяем что предыдущая копия обновилась (содержит ссылку)
 					updated := false
 					for _, targetID := range s.env.TargetIDs {
-						msgs := s.env.Telegram.MessagesInChat(targetID)
+						msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
 						for _, m := range msgs {
 							if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, "https://t.me") {
 								updated = true
@@ -204,7 +196,10 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате появляется новая копия с текстом "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			found := false
 			for _, m := range msgs {
 				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, text) {
@@ -221,11 +216,13 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^новая копия содержит ссылку на предыдущую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
-			// Проверяем что хотя бы одно сообщение содержит ссылку
 			found := false
 			for _, m := range msgs {
 				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, "https://t.me") {
@@ -242,7 +239,10 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^предыдущая копия обновляется со ссылкой на новую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
@@ -252,7 +252,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^существующая копия в целевых чатах обновляется на "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			if !s.env.Telegram.HasMessageWithText(targetID, text) {
+			found, err := s.env.HasMessageWithText(context.Background(), targetID, text)
+			if err != nil {
+				return err
+			}
+			if !found {
 				return fmt.Errorf("no message with text %q in target chat %d", text, targetID)
 			}
 		}
@@ -261,7 +265,10 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии остаются в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) == 0 {
 				return fmt.Errorf("copies should remain in target chat %d", targetID)
 			}
@@ -271,7 +278,10 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии удаляются из всех целевых чатов$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) > 0 {
 				return fmt.Errorf("copies should be deleted from target chat %d, got %d", targetID, len(msgs))
 			}
@@ -282,10 +292,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	// --- Retry eventual consistency ---
 
 	ctx.When(`^permanent ID записывается в хранилище$`, func() error {
-		// Записываем permanent IDs напрямую в state (минуя queue)
-		// чтобы retry-задача нашла их при следующем ProcessAll.
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
 			for _, m := range msgs {
 				if err := s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID)); err != nil {
 					return err
@@ -299,28 +307,26 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Given(`^permanent ID ещё не записан в хранилище$`, func() error {
-		// Удаляем newMsgId маппинг, чтобы GetNewMessageID вернул 0
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
 			for _, m := range msgs {
 				if err := s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", m.ChatID, m.ID)); err != nil {
 					return err
 				}
 			}
 		}
-		// When "удаляет" должен выполнить только 1 batch (без retry drain)
 		s.skipRetryDrain = true
 		return nil
 	})
 
 	ctx.Then(`^после повторной попытки копии удаляются из целевых чатов$`, func() error {
-		// permanent IDs записаны в предыдущем When step.
-		// Retry-задачи уже обработаны ProcessAll.
-		// Проверяем что копии удалены.
 		s.env.DrainQueue()
 
 		for _, targetID := range s.env.TargetIDs {
-			msgs := s.env.Telegram.MessagesInChat(targetID)
+			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			if err != nil {
+				return err
+			}
 			if len(msgs) > 0 {
 				return fmt.Errorf("copies should be deleted from target chat %d after retry, got %d", targetID, len(msgs))
 			}
