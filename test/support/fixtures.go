@@ -64,15 +64,3 @@ func SaveFixtures(path string, f *Fixtures) error {
 	}
 	return os.WriteFile(path, data, 0o600)
 }
-
-// ApplyToFakeTelegram регистрирует типы чатов и supergroupID из фикстур в FakeTelegram.
-func (f *Fixtures) ApplyToFakeTelegram(ft *FakeTelegram) {
-	ft.mu.Lock()
-	defer ft.mu.Unlock()
-	for _, chat := range f.Chats {
-		ft.chatTypes[chat.ChatID] = chat.ChatType
-		if chat.SupergroupID != 0 {
-			ft.supergroupIDs[chat.ChatID] = chat.SupergroupID
-		}
-	}
-}

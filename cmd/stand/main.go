@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	aenv "github.com/pure-golang/adapters/env"
 	"github.com/pure-golang/platform/monitoring"
@@ -37,10 +39,16 @@ type chatSpec struct {
 // Все типы чатов из BDD Examples.
 // Теги по образцу легаси: SRC PUB CHL, SRC PRV GRP и т.д.
 var specs = []chatSpec{
-	{name: "публичный канал", title: "SRC PUB CHL", usernamePrefix: "SrcPubChl", isChannel: true, isPublic: true},
-	{name: "приватный канал", title: "SRC PRV CHL", usernamePrefix: "SrcPrvChl", isChannel: true},
-	{name: "публичная группа", title: "SRC PUB GRP", usernamePrefix: "SrcPubGrp", isPublic: true},
-	{name: "приватная группа", title: "SRC PRV GRP", usernamePrefix: "SrcPrvGrp", isBasic: true},
+	// Источники
+	{name: "исходный публичный канал", title: "SRC PUB CHL", usernamePrefix: "SrcPubChl", isChannel: true, isPublic: true},
+	{name: "исходный приватный канал", title: "SRC PRV CHL", isChannel: true},
+	{name: "исходная публичная группа", title: "SRC PUB GRP", usernamePrefix: "SrcPubGrp", isPublic: true},
+	{name: "исходная приватная группа", title: "SRC PRV GRP", isBasic: true},
+	// Назначения
+	{name: "целевой публичный канал", title: "DST PUB CHL", usernamePrefix: "DstPubChl", isChannel: true, isPublic: true},
+	{name: "целевой приватный канал", title: "DST PRV CHL", isChannel: true},
+	{name: "целевая публичная группа", title: "DST PUB GRP", usernamePrefix: "DstPubGrp", isPublic: true},
+	{name: "целевая приватная группа", title: "DST PRV GRP", isBasic: true},
 }
 
 func main() {
@@ -117,18 +125,42 @@ func run(up bool) error {
 }
 
 func standUp(ctx context.Context, logger *slog.Logger, repo *telegram.Repo) error {
+	// Загружаем существующие фикстуры (если есть) для дозаполнения
+	var fixtures *support.Fixtures
 	if _, err := os.Stat(fixturesPath); err == nil {
-		return fmt.Errorf("fixtures already exist at %s, run --down first", fixturesPath)
+		fixtures, err = support.LoadFixtures(fixturesPath)
+		if err != nil {
+			return fmt.Errorf("load fixtures: %w", err)
+		}
+	} else {
+		fixtures = &support.Fixtures{}
 	}
 
-	fixtures := &support.Fixtures{}
+	existing := make(map[string]bool, len(fixtures.Chats))
+	for _, c := range fixtures.Chats {
+		existing[c.Name] = true
+	}
+
+	var createErr error
+	created := 0
 
 	for _, spec := range specs {
+		if existing[spec.name] {
+			logger.Info("Chat already exists, skipping", slog.String("name", spec.name))
+			continue
+		}
+
+		if created > 0 {
+			time.Sleep(time.Duration(3+rand.IntN(6)) * time.Second) //nolint:gosec // Не криптографический контекст, рандом для jitter между API-вызовами
+		}
+
 		fix, err := createChat(ctx, repo, spec)
 		if err != nil {
-			return fmt.Errorf("create chat %q: %w", spec.name, err)
+			createErr = fmt.Errorf("create chat %q: %w", spec.name, err)
+			break
 		}
 		fixtures.Chats = append(fixtures.Chats, fix)
+		created++
 
 		logger.Info("Chat created",
 			slog.String("name", fix.Name),
@@ -145,8 +177,13 @@ func standUp(ctx context.Context, logger *slog.Logger, repo *telegram.Repo) erro
 		return fmt.Errorf("save fixtures: %w", err)
 	}
 
-	logger.Info("Fixtures saved", slog.String("path", fixturesPath))
-	return nil
+	if created > 0 || createErr != nil {
+		logger.Info("Fixtures saved", slog.String("path", fixturesPath), slog.Int("total", len(fixtures.Chats)), slog.Int("new", created))
+	} else {
+		logger.Info("All chats already exist", slog.Int("total", len(fixtures.Chats)))
+	}
+
+	return createErr
 }
 
 func createChat(ctx context.Context, repo *telegram.Repo, spec chatSpec) (support.ChatFixture, error) {
@@ -192,19 +229,34 @@ func standDown(ctx context.Context, logger *slog.Logger, repo *telegram.Repo) er
 		return fmt.Errorf("load fixtures: %w", err)
 	}
 
-	for _, chat := range fixtures.Chats {
+	var remaining []support.ChatFixture
+
+	for i, chat := range fixtures.Chats {
+		if i > 0 {
+			time.Sleep(time.Duration(3+rand.IntN(6)) * time.Second) //nolint:gosec // Не криптографический контекст, рандом для jitter между API-вызовами
+		}
+
 		if err := repo.DeleteChat(ctx, chat.ChatID); err != nil {
 			logger.Warn("Failed to delete chat",
 				slog.String("name", chat.Name),
 				slog.Int64("chat_id", chat.ChatID),
 				slog.Any("err", err),
 			)
+			remaining = append(remaining, chat)
 			continue
 		}
 		logger.Info("Chat deleted",
 			slog.String("name", chat.Name),
 			slog.Int64("chat_id", chat.ChatID),
 		)
+	}
+
+	if len(remaining) > 0 {
+		fixtures.Chats = remaining
+		if err := support.SaveFixtures(fixturesPath, fixtures); err != nil {
+			return fmt.Errorf("save remaining fixtures: %w", err)
+		}
+		return fmt.Errorf("%d chats not deleted, run --down again later", len(remaining))
 	}
 
 	if err := os.Remove(fixturesPath); err != nil && !os.IsNotExist(err) {

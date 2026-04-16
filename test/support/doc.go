@@ -2,12 +2,12 @@
 //
 // Основные компоненты:
 //
-//   - FakeTelegram — in-memory реализация telegram gateway для тестов.
-//   - Stack — собранный стек handler + services + fake telegram + real BadgerDB.
+//   - LiveStack — собранный стек handler + services + реальный TDLib + real BadgerDB.
 //   - Fixtures / ChatFixture — загрузка и маппинг тестовых чатов из .config/stand.json.
 //
 // Ограничения:
 //
-//   - Stack создаёт временную директорию и BadgerDB; вызов Close() обязателен для освобождения ресурсов.
+//   - LiveStack требует: TDLib собран, .env с credentials, cmd/stand --up выполнен.
+//   - LiveStack создаёт временную директорию и BadgerDB; вызов Close() обязателен для освобождения ресурсов.
 //   - Fixtures загружаются из JSON; ChatByName работает после LoadFixtures или SaveFixtures.
 package support
