@@ -1,6 +1,6 @@
 # Phase B: план интеграции TDLib
 
-Последняя актуализация: 2026-04-16 (v3).
+Последняя актуализация: 2026-04-16 (v4).
 
 ## Предусловия
 
@@ -32,89 +32,113 @@ Transport (терминал / HTTP):
 
 При подключении TDLib меняется только внутренняя реализация `Repo`. Интерфейсы `clientAdapter`, `telegramRepo` (consumer-side в auth.Service) и `authService` (consumer-side в транспортах) — без изменений.
 
+## Принятые решения
+
+| Вопрос | Решение | Обоснование |
+|---|---|---|
+| Версия go-tdlib | **v0.7.6** | Консистентность с budva43 |
+| Коммит TDLib | **`22d49d5`** | Из Makefile тега v0.7.6 |
+| Test DC | **Не используем** | Сломан с середины 2025 (tdlib/td#3370, #3564) |
+| Telegram-аккаунт | **Реальный, через `.env`** | Как в budva43 |
+| DevContainer | **Нет** | Сборка TDLib локально один раз (~30 мин) |
+| Docker base | **Bookworm** (Debian) | Остаёмся на glibc |
+| Разработка | **Нативно на macOS** | TDLib в `/usr/local`, `go build` без Docker |
+| Build tags | **Нет** | Заглушки заменяются in-place |
+| FakeTelegram | **Удаляется** после Phase B | Строительные леса Phase A |
+| Unit-тесты | **Mockery** | Частично применяемые интерфейсы |
+| BDD-тесты | **Живой TDLib** | Реальные чаты из `cmd/stand --up` |
+
 ## Зависимости
 
 ```
 github.com/zelenin/go-tdlib v0.7.6
 ```
 
-TDLib коммит, совместимый с go-tdlib v0.7.6: `22d49d5b87a4d5fc60a194dab02dd1d71529687f` (short: `22d49d5`).
+TDLib коммит: `22d49d5b87a4d5fc60a194dab02dd1d71529687f` (из Makefile go-tdlib v0.7.6).
 
-## Docker-образы
+Совместимость с Go 1.25: go-tdlib v0.7.6 не содержит директивы `go` в go.mod — совместим с любой версией.
 
-| Образ | Назначение | Проверен |
-|---|---|---|
-| `ghcr.io/zelenin/tdlib-docker:22d49d5-alpine` | Pre-built TDLib C++ (headers + libs) для go-tdlib v0.7.6 | ✅ `docker manifest inspect` OK |
-| `dockerhub.timeweb.cloud/library/golang:1.25.9-alpine` | Go builder (musl, CGO) | ✅ `docker manifest inspect` OK |
-| `dockerhub.timeweb.cloud/library/alpine:3.21` | Runtime | ✅ |
+## Локальная сборка TDLib (macOS Intel)
 
-Все образы Alpine (musl libc). Сборка и runtime на одной платформе — без конфликтов glibc/musl. Docker-контейнер запускается на любом хосте (macOS, Linux).
+Инструкции сгенерированы на https://tdlib.github.io/td/build.html (Go + macOS + Intel + Install to /usr/local).
+
+```bash
+$ xcode-select --install
+$ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+$ brew install gperf cmake openssl
+$ git clone https://github.com/tdlib/td.git
+$ cd td
+$ git checkout 22d49d5
+$ rm -rf build
+$ mkdir build
+$ cd build
+$ cmake -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl/ -DCMAKE_INSTALL_PREFIX:PATH=/usr/local ..
+$ cmake --build . --target install
+```
+
+После установки `go build ./...` работает нативно — TDLib headers и libs в `/usr/local`.
+
+Для других платформ: https://tdlib.github.io/td/build.html — выбрать язык Go, ОС, архитектуру, галку «Install to /usr/local».
+
+Если TDLib установлен в нестандартный путь:
+
+```bash
+CGO_CFLAGS=-I/path/to/tdlib/include \
+CGO_LDFLAGS="-Wl,-rpath,/path/to/tdlib/lib -L/path/to/tdlib/lib -ltdjson" \
+go build ...
+```
 
 ## Задачи
 
-### T1. Dockerfile → Alpine + TDLib
+### T1. Dockerfile с TDLib (Bookworm)
 
-Текущий `Dockerfile` использует `golang:1.25.9-bookworm` + `debian:bookworm-slim` и собирает без CGO. Нужно переписать на Alpine с TDLib.
-
-**Текущий Dockerfile:**
-
-```dockerfile
-FROM dockerhub.timeweb.cloud/library/golang:1.25.9-bookworm AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/facade ./cmd/facade
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/engine ./cmd/engine
-
-FROM dockerhub.timeweb.cloud/library/debian:bookworm-slim
-RUN adduser --disabled-password --gecos '' appuser
-USER appuser
-COPY --from=builder /bin/facade /facade
-COPY --from=builder /bin/engine /engine
-COPY --from=builder /app/ruleset.yml /ruleset.yml
-COPY --from=builder /app/.env.example /.env
-EXPOSE 7070
-ENTRYPOINT ["/facade"]
-```
+Текущий `Dockerfile` собирает без CGO. Нужно добавить stage сборки TDLib.
 
 **Целевой Dockerfile:**
 
 ```dockerfile
-# Stage 0: Pre-built TDLib для go-tdlib v0.7.6
-FROM ghcr.io/zelenin/tdlib-docker:22d49d5-alpine AS tdlib
+# Stage 0: Сборка TDLib C++
+FROM dockerhub.timeweb.cloud/library/debian:bookworm AS tdlib-builder
 
-# Stage 1: Go builder с TDLib
-FROM dockerhub.timeweb.cloud/library/golang:1.25.9-alpine AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake g++ gperf libssl-dev zlib1g-dev php-cli git make ca-certificates
 
-RUN apk add --no-cache \
-    bash \
-    build-base \
-    ca-certificates \
-    git \
-    linux-headers \
-    openssl-dev \
-    zlib-dev
+RUN git clone https://github.com/tdlib/td.git /td && \
+    cd /td && git checkout 22d49d5
 
-# TDLib headers и библиотеки
-COPY --from=tdlib /usr/local/include/td /usr/local/include/td/
-COPY --from=tdlib /usr/local/lib/libtd* /usr/local/lib/
+RUN cd /td && mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
+    cmake --build . --target prepare_cross_compiling && \
+    cd .. && php SplitSource.php && cd build && \
+    cmake --build . --target install
+
+# Stage 1: Go builder
+FROM dockerhub.timeweb.cloud/library/golang:1.25.9-bookworm AS builder
+
+COPY --from=tdlib-builder /usr/local/include/td /usr/local/include/td/
+COPY --from=tdlib-builder /usr/local/lib/libtd* /usr/local/lib/
+RUN ldconfig
 
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-# CGO_ENABLED=1 — TDLib линкуется через cgo
 RUN CGO_ENABLED=1 go build -a -trimpath -ldflags "-s -w" -o /bin/facade ./cmd/facade
 RUN CGO_ENABLED=1 go build -a -trimpath -ldflags "-s -w" -o /bin/engine ./cmd/engine
 RUN CGO_ENABLED=1 go build -a -trimpath -ldflags "-s -w" -o /bin/stand ./cmd/stand
 
 # Stage 2: Runtime
-FROM dockerhub.timeweb.cloud/library/alpine:3.21
+FROM dockerhub.timeweb.cloud/library/debian:bookworm-slim
 
-RUN apk add --no-cache ca-certificates libstdc++
-RUN adduser -D appuser
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libstdc++6 libssl3 zlib1g && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=tdlib-builder /usr/local/lib/libtd* /usr/local/lib/
+RUN ldconfig
+
+RUN adduser --disabled-password --gecos '' appuser
 USER appuser
 
 COPY --from=builder /bin/facade /facade
@@ -127,24 +151,7 @@ EXPOSE 7070
 ENTRYPOINT ["/facade"]
 ```
 
-**Ключевые отличия от текущего:**
-
-| Аспект | Было (Bookworm) | Стало (Alpine) |
-|---|---|---|
-| Base image | `golang:1.25.9-bookworm` | `golang:1.25.9-alpine` |
-| Runtime | `debian:bookworm-slim` | `alpine:3.21` |
-| CGO | `CGO_ENABLED=0` | `CGO_ENABLED=1` |
-| TDLib | нет | `ghcr.io/zelenin/tdlib-docker:22d49d5-alpine` |
-| libc | glibc | musl |
-| Runtime deps | нет | `ca-certificates libstdc++` |
-| Build deps | нет | `build-base openssl-dev zlib-dev linux-headers` |
-| `adduser` | `--disabled-password --gecos ''` | `-D` (Alpine syntax) |
-| `GOOS/GOARCH` | явно заданы | не нужны (нативная сборка внутри контейнера) |
-| stand binary | нет | собирается и копируется |
-
-**Запуск на macOS/Linux:** Docker Desktop для macOS запускает контейнер в Linux VM — Alpine работает одинаково на обоих хостах.
-
-**Источник:** `zelenin/go-tdlib/example/Dockerfile`
+Stage `tdlib-builder` кешируется Docker layer cache — пересобирается только при смене коммита TDLib (~30 мин первый раз, потом мгновенно).
 
 ### T2. go-tdlib зависимость
 
@@ -152,11 +159,9 @@ ENTRYPOINT ["/facade"]
 go get github.com/zelenin/go-tdlib@v0.7.6
 ```
 
-Добавить в `go.mod`. Сборка и тестирование — только внутри Docker (TDLib headers/libs нужны для CGO). Локальная сборка на хосте не предусмотрена.
+Добавить в `go.mod`. Заглушки в `client_adapter.go` заменяются на реальные вызовы go-tdlib in-place.
 
-Заглушки в `client_adapter.go` заменяются на реальные вызовы go-tdlib in-place. Build tags не нужны — разделения stub/real нет.
-
-### T3. TDLib parameters в Config
+### T3. Config: параметры TDLib + реальный аккаунт
 
 Добавить в `TelegramConfig` недостающие поля:
 
@@ -171,17 +176,23 @@ go get github.com/zelenin/go-tdlib@v0.7.6
 | `LogDirectory` | string | `TELEGRAM_LOG_DIR` | ".data/tdlib-logs" | Директория логов TDLib |
 | `LogMaxFileSize` | int64 | `TELEGRAM_LOG_MAX_SIZE` | 10 | Макс размер лог-файла (MB) |
 
-Обновить `.env.example` с новыми переменными (закомментированными).
+Убрать `UseTestDC` из конфига (Test DC не работает).
 
-**Источник:** `budva43/repo/telegram/repo.go:63-80`
+Обновить `.env.example`:
+
+```env
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+TELEGRAM_PHONE=
+```
+
+Реальный аккаунт прописывается в `.env` (в `.gitignore`). Телефон отправляется автоматически при авторизации, код и пароль — через терминал. Аналогично budva43.
+
+**Источник:** `budva43/.config/.private/.env`, `budva43/repo/telegram/repo.go:63-80`
 
 ### T4. repo/telegram — TDLib клиент
 
 Заменить fake-реализацию на реальную TDLib-интеграцию. Все изменения внутри `Repo` — интерфейс `clientAdapter` не меняется.
-
-**Build tags:** реализация разделяется на два файла:
-- `client_adapter_stub.go` (`//go:build !tdlib`) — текущие заглушки
-- `client_adapter_tdlib.go` (`//go:build tdlib`) — реальные вызовы
 
 #### T4.1. Структура Repo
 
@@ -220,8 +231,6 @@ func (r *Repo) Start(ctx context.Context) error {
 
 #### T4.3. runAuthLoop() — единый цикл авторизации с retry
 
-В legacy каждая итерация retry создаёт свежий authorizer и свежую горутину-listener (`budva43/repo/telegram/repo.go:82-113`). Наша архитектура повторяет эту семантику:
-
 ```go
 func (r *Repo) runAuthLoop(ctx context.Context) {
     for {
@@ -231,25 +240,18 @@ func (r *Repo) runAuthLoop(ctx context.Context) {
         default:
         }
 
-        // Свежий authorizer на каждую попытку (как в legacy)
         authorizer := client.ClientAuthorizer(r.createTdlibParameters())
 
         r.mu.Lock()
         r.authorizer = authorizer
         r.mu.Unlock()
 
-        // Горутина: слушает authorizer.State, маппит в domain events.
-        // Завершится когда authorizer.State закроется (при failure или success).
         go r.listenAuthStates(ctx, authorizer.State)
 
-        // client.NewClient блокируется до завершения авторизации.
-        // При неверном коде/пароле TDLib переэмитит состояние →
-        // listenAuthStates отправит его в authStates →
-        // auth.Service.run() уведомит транспорт → пользователь повторит ввод.
         tdlibClient, err := client.NewClient(authorizer)
         if err != nil {
             r.logger.Error("Failed to create TDLib client", slog.Any("err", err))
-            continue // новая попытка с новым authorizer
+            continue
         }
 
         r.client = tdlibClient
@@ -259,11 +261,9 @@ func (r *Repo) runAuthLoop(ctx context.Context) {
 }
 ```
 
-**Ключевое отличие от старого плана:** authorizer создаётся заново на каждую попытку, а не переиспользуется. При failure старый authorizer.State закрывается → `listenAuthStates` завершается → `auth.Service.run()` фильтрует AuthStateClosed (continue) → новая итерация эмитит свежий WaitPhone.
+Authorizer создаётся заново на каждую попытку. При failure старый authorizer.State закрывается → `listenAuthStates` завершается → `auth.Service.run()` фильтрует AuthStateClosed (continue) → новая итерация эмитит свежий WaitPhone.
 
 #### T4.4. listenAuthStates() — маппинг TDLib → domain
-
-Принимает конкретный канал `authorizer.State`, а не поле `r.authorizer`. Это позволяет нескольким горутинам при retry не конфликтовать:
 
 ```go
 func (r *Repo) listenAuthStates(ctx context.Context, states <-chan client.AuthorizationState) {
@@ -273,7 +273,7 @@ func (r *Repo) listenAuthStates(ctx context.Context, states <-chan client.Author
             return
         case state, ok := <-states:
             if !ok {
-                return // authorizer закрыт (failure или shutdown)
+                return
             }
             if _, isClosing := state.(*client.AuthorizationStateClosing); isClosing {
                 continue
@@ -285,8 +285,6 @@ func (r *Repo) listenAuthStates(ctx context.Context, states <-chan client.Author
 ```
 
 #### T4.5. Submit* — делегирование в authorizer (с синхронизацией)
-
-`r.authorizer` может быть заменён при retry, поэтому чтение под RLock:
 
 ```go
 func (r *Repo) SubmitPhone(_ context.Context, phone string) error {
@@ -317,9 +315,7 @@ func (r *Repo) SubmitPassword(_ context.Context, password string) error {
 }
 ```
 
-TDLib сам эмитит следующее состояние в `authorizer.State` → `listenAuthStates` маппит его → `authStates` канал → `auth.Service.run()` обрабатывает.
-
-#### T4.6. Close() с sleep workaround
+#### T4.6. Close()
 
 ```go
 func (r *Repo) Close() error {
@@ -328,10 +324,11 @@ func (r *Repo) Close() error {
     }
     _, err := r.client.Close()
     r.client = nil
-    time.Sleep(1 * time.Second) // TDLib signal.abort workaround
     return err
 }
 ```
+
+Примечание: внутри `client.NewClient()` go-tdlib делает `time.Sleep(1 * time.Second)` после `AuthorizationStateReady` («dirty hack for db flush after authorization» — `authorization.go:49`). Это внутри библиотеки, не в нашем коде.
 
 **Источник:** `budva43/repo/telegram/repo.go:116-136`
 
@@ -370,8 +367,6 @@ func mapTDLibState(state client.AuthorizationState) domain.AuthStateEvent {
 
 #### T6.1. ParseTextEntities
 
-Текущая заглушка возвращает пустой `FormattedText`. Заменить на:
-
 ```go
 func (r *Repo) ParseTextEntities(_ context.Context, text string) (*domain.FormattedText, error) {
     result, err := client.ParseTextEntities(&client.ParseTextEntitiesRequest{
@@ -382,7 +377,7 @@ func (r *Repo) ParseTextEntities(_ context.Context, text string) (*domain.Format
 }
 ```
 
-**Это статический вызов** — не требует `r.client`. Работает даже до авторизации.
+Статический вызов — не требует `r.client`. Работает до авторизации.
 
 **Источник:** `budva43/repo/telegram/client_adapter.go:173-183`
 
@@ -394,24 +389,20 @@ func (r *Repo) GetMarkdownText(_ context.Context, text *domain.FormattedText) (*
 }
 ```
 
-Используется в `facade_grpc` для конвертации `FormattedText → Markdown` при отдаче через gRPC.
-
 **Источник:** `budva43/repo/telegram/client_adapter.go:185-198`
 
 ### T7. Update listener
 
-В budva43 обновления приходят через `client.Listener.Updates`. Нужно:
+После `client.NewClient()` в `runAuthLoop()`:
 
-1. После `createClient()` получить listener: `r.client.GetListener()`
+1. Получить listener: `r.client.GetListener()`
 2. Читать `listener.Updates` в горутине
-3. Конвертировать `client.Update*` → `domain.Update` и отправлять в `r.updates` канал
-
-Маппинг:
+3. Конвертировать `client.Update*` → `domain.Update` → `r.updates`
 
 | TDLib Update | domain.UpdateType | Поля |
 |---|---|---|
-| `UpdateNewMessage` | `UpdateNewMessage` | Message (с конвертацией) |
-| `UpdateMessageEdited` | `UpdateMessageEdited` | Message (с ConvertMessage) |
+| `UpdateNewMessage` | `UpdateNewMessage` | Message |
+| `UpdateMessageEdited` | `UpdateMessageEdited` | Message |
 | `UpdateDeleteMessages` | `UpdateDeleteMessages` | ChatID, MessageIDs, IsPermanent |
 | `UpdateMessageSendSucceeded` | `UpdateMessageSendSucceeded` | Message, OldMessageID |
 
@@ -419,14 +410,13 @@ func (r *Repo) GetMarkdownText(_ context.Context, text *domain.FormattedText) (*
 
 ### T8. Тонкий маппинг domain ↔ go-tdlib types
 
-go-tdlib — источник правды. Domain types уже спроектированы по образу TDLib, поэтому маппинг — механический, без отдельного «адаптерного слоя». Конвертация живёт в `repo/telegram/` рядом с методами.
+go-tdlib — источник правды. Маппинг механический, inline в каждом методе `repo/telegram/`.
 
-Основные точки маппинга:
 - `client.Message` → `domain.Message` (ChatID, ID, Content, ForwardInfo, ReplyTo)
 - `domain.InputMessageContent` → `client.InputMessageContent` (Text, Photo, Video и т.д.)
 - `client.FormattedText` ↔ `domain.FormattedText` (Text, Entities)
 
-### T9. GetOption / GetMe — реальные вызовы
+### T9. GetOption / GetMe
 
 ```go
 func (r *Repo) GetOption(_ context.Context, name string) (string, error) {
@@ -444,8 +434,6 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 
 ### T10. Реализация остальных методов clientAdapter
 
-Заменить заглушки на реальные TDLib-вызовы:
-
 | Метод | TDLib API | Примечание |
 |---|---|---|
 | `SendMessage` | `r.client.SendMessage()` | |
@@ -461,47 +449,34 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 | `GetChatHistory` | `r.client.GetChatHistory()` | |
 | `TranslateText` | `r.client.TranslateText()` | |
 | `GetCallbackQueryAnswer` | `r.client.GetCallbackQueryAnswer()` | |
-| `GetChatType` | `r.client.GetChat()` → `.Type` | возвращает `"supergroup"` или `"basicGroup"` |
-| `LoadChats` | `r.client.LoadChats()` | bypass `getClient()` |
-| `CreateNewSupergroupChat` | `r.client.CreateNewSupergroupChat()` | возвращает `(chatID, supergroupID, error)` |
+| `GetChatType` | `r.client.GetChat()` → `.Type` | `"supergroup"` или `"basicGroup"` |
+| `LoadChats` | `r.client.LoadChats()` | |
+| `CreateNewSupergroupChat` | `r.client.CreateNewSupergroupChat()` | `(chatID, supergroupID, error)` |
 | `CreateNewBasicGroupChat` | `r.client.CreateNewBasicGroupChat()` | |
-| `SetSupergroupUsername` | `r.client.SetSupergroupUsername()` | принимает supergroupID, не chatID |
+| `SetSupergroupUsername` | `r.client.SetSupergroupUsername()` | принимает supergroupID |
 | `DeleteChat` | `r.client.DeleteChat()` | |
 
-**Источник:** `budva43/repo/telegram/client_adapter.go` (весь файл)
+**Источник:** `budva43/repo/telegram/client_adapter.go`
 
 ### T11. Loader: LoadChats + WarmUpChat
 
-После авторизации (Ready) вызвать:
+После авторизации (Ready):
 1. `LoadChats(ctx, 200)` — загрузка списка чатов в кеш TDLib
 2. `WarmUpChat(ctx, chatID, 1)` — прогрев кеша для каждого целевого чата из ruleset
 
-В budva43 это делает `service/loader`. В budva-claude можно встроить в `cmd/engine/main.go` после `clientDone`.
-
 **Источник:** `budva43/service/loader/service.go:131-147`
 
-### T12. Integration test с TDLib Test DC
-
-Перенести `budva43/test/auth_test.go`:
-- `UseTestDC=true`
-- Фейковые номера телефонов для тестового DC
-- Полный flow: Start → Auth → Ready → GetStatus
-- Использовать `termIO` mock для эмуляции ввода
-- Build tag `tdlib` для пропуска без TDLib
-
-**Источник:** `budva43/test/auth_test.go`
-
-### T13. Удаление FakeTelegram, перевод тестов на реальный TDLib
+### T12. Удаление FakeTelegram, перевод тестов на реальный TDLib
 
 `FakeTelegram` — строительные леса Phase A. После подключения TDLib удаляется.
 
 **Удалить:**
 - `test/support/fake_telegram.go`
-- `test/support/stack.go` (зависит от FakeTelegram)
+- `test/support/stack.go`
 
 **Переписать:**
-- `test/bdd/steps/context_test.go` — `scenarioCtx` использует `Stack` с FakeTelegram. Заменить на реальный `telegram.Repo` + фикстуры из `.config/stand.json`
-- `test/bdd/steps/*_steps_test.go` — шаги Given/Then работают через `FakeTelegram.PutMessage()` / `MessagesInChat()`. Заменить на реальные TDLib-вызовы через `Repo`
+- `test/bdd/steps/context_test.go` — заменить `Stack` на реальный `telegram.Repo` + фикстуры из `.config/stand.json`
+- `test/bdd/steps/*_steps_test.go` — заменить `FakeTelegram.PutMessage()` / `MessagesInChat()` на реальные TDLib-вызовы
 
 **Тестовая стратегия после Phase B:**
 
@@ -511,47 +486,41 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 | bdd | ничего | всё: TDLib + services + handler, чаты из `cmd/stand --up` |
 
 **BDD prerequisites:**
-1. Docker-контейнер с TDLib
-2. Авторизованная сессия (`cmd/engine` или `cmd/stand`)
+1. TDLib собран локально (или Docker)
+2. Реальный Telegram-аккаунт в `.env`
 3. Тестовые чаты развёрнуты (`cmd/stand --up`)
 4. Фикстуры загружены из `.config/stand.json`
-
-**Порядок:** T13 выполняется после T10 (когда все методы clientAdapter реализованы).
 
 ## Порядок выполнения
 
 ```
-T1 (Dockerfile → Alpine) + T2 (go-tdlib) + T3 (Config)
-         ↓  checkpoint: docker build
+T1 (Dockerfile) + T2 (go-tdlib) + T3 (Config + .env)
+         ↓  checkpoint: docker build + go build (локально с TDLib)
 T4 (repo/telegram core) + T5 (state mapping)
          ↓  checkpoint: auth flow через реальный TDLib
 T6 (static methods) + T7 (update listener)
          ↓
 T8 (маппинг inline) + T9 (GetOption/GetMe) + T10 (все методы clientAdapter)
          ↓  checkpoint: cmd/stand --up создаёт реальные чаты
-T11 (Loader) + T12 (integration test)
+T11 (Loader)
          ↓
-T13 (удаление FakeTelegram, BDD через реальный TDLib)
+T12 (удаление FakeTelegram, BDD через реальный TDLib)
 ```
 
-- T1-T3 — инфраструктура Docker + config.
+- T1-T3 — инфраструктура: Docker, зависимость, конфиг, реальный аккаунт.
 - T4-T5 — ядро auth.
-- T6-T7 — данные и events.
-- T8-T10 — реализация всех методов (маппинг типов — inline, не отдельный слой).
-- T11-T12 — загрузка чатов и integration test.
-- T13 — удаление строительных лесов, перевод BDD на живой TDLib.
+- T6-T7 — static methods и update events.
+- T8-T10 — реализация всех методов (маппинг inline).
+- T11 — загрузка чатов.
+- T12 — удаление строительных лесов, перевод BDD на живой TDLib.
 
 ## Риски
 
 | Риск | Митигация |
 |---|---|
-| go-tdlib v0.7.6 может не поддерживать Go 1.25 | Проверить совместимость, при необходимости обновить go-tdlib |
-| `ghcr.io/zelenin/tdlib-docker:22d49d5-alpine` — single-platform (amd64) | Для arm64 (Apple Silicon) Docker Desktop использует qemu-эмуляцию; если медленно — собрать TDLib для arm64 отдельным stage |
-| `time.Sleep(1s)` при Close() — хрупкий workaround | Оставить как есть, зафиксировать TODO |
-| `ParseTextEntities` / `GetMarkdownText` — static, но требуют загруженную `libtdjson.so` | Работают только внутри Docker-контейнера (где SO доступна) |
-| Mapping domain ↔ go-tdlib types | Маппинг механический, go-tdlib — источник правды |
-| Локальная разработка | Сборка и тесты — только внутри Docker; IDE подсветка может ломаться без TDLib headers |
-| BDD через живой TDLib | Тесты зависят от Telegram API (rate limits, сетевые ошибки); использовать Test DC где возможно |
+| Сборка TDLib ~30 мин | Один раз на рабочей машине; Docker кеширует stage |
+| BDD зависят от Telegram API | Rate limits, сетевые ошибки; выделенный аккаунт, retry в шагах |
+| Реальный аккаунт может быть заблокирован | Не автоматизировать агрессивно; использовать отдельную SIM |
 
 ## Что НЕ меняется
 
@@ -560,5 +529,5 @@ T13 (удаление FakeTelegram, BDD через реальный TDLib)
 - transport layer (grpc, http, term) — без изменений
 - test/support/fixtures.go — маппинг BDD Examples → реальные chat ID из `.config/stand.json`
 - auth.Service — без изменений (AuthStates/InputChan/Subscribe/Close уже готовы)
-- Интерфейс `clientAdapter` — определён полностью, включая stand-методы (CreateNewSupergroupChat, CreateNewBasicGroupChat, SetSupergroupUsername, DeleteChat). При подключении TDLib меняется только реализация методов
+- Интерфейс `clientAdapter` — определён полностью, включая stand-методы. При подключении TDLib меняется только реализация методов
 - `cmd/stand/` — утилита для управления тестовыми чатами (up/down), фикстуры в `.config/stand.json`
