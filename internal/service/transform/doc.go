@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	svc := transform.New(telegram, state)
+//	svc := transform.New(telegramRepo, stateRepo)
 //	text, err := svc.Transform(ctx, domain.TransformParams{...})
 //	updated := svc.AddNextLink(ctx, text, src, dstChatID, nextMessageID)
 //
@@ -12,5 +12,5 @@
 //
 //   - Трансформации применяются последовательно: перевод, auto-answer,
 //     замена ссылок, замена фрагментов, подпись, ссылка на источник, навигация prev/next.
-//   - Зависит от telegramGateway и stateStore через частично применяемые интерфейсы.
+//   - Зависит от telegramRepo и stateRepo через частично применяемые интерфейсы.
 package transform

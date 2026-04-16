@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	t := term.New(authService, telegramGateway, termIO, phoneNumber)
+//	t := term.New(authService, telegramRepo, termIO, phoneNumber)
 //	t.Run(ctx, shutdownFunc)
 //	defer t.Close()
 //
@@ -12,5 +12,5 @@
 //
 //   - Интерактивный ввод: телефон, код подтверждения, пароль.
 //   - Блокирует горутину до завершения контекста.
-//   - Зависит от authService, telegramGateway и termIO через частично применяемые интерфейсы.
+//   - Зависит от authService, telegramRepo и termIO через частично применяемые интерфейсы.
 package term

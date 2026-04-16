@@ -15,7 +15,7 @@ import (
 
 var tracer = otel.Tracer("github.com/pure-golang/budva-claude/internal/service/transform")
 
-type telegramGateway interface {
+type telegramRepo interface {
 	TranslateText(ctx context.Context, text *domain.FormattedText, lang string) (*domain.FormattedText, error)
 	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error)
 	GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error)
@@ -24,7 +24,7 @@ type telegramGateway interface {
 	ParseTextEntities(ctx context.Context, text string) (*domain.FormattedText, error)
 }
 
-type stateStore interface {
+type stateRepo interface {
 	GetNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID) domain.MessageID
 	GetCopiedMessageIDs(chatID domain.ChatID, messageID domain.MessageID) []string
 }
@@ -32,16 +32,16 @@ type stateStore interface {
 // Service применяет трансформации к тексту сообщения.
 type Service struct {
 	logger   *slog.Logger
-	telegram telegramGateway
-	state    stateStore
+	telegramRepo telegramRepo
+	stateRepo    stateRepo
 }
 
 // New создаёт новый экземпляр сервиса трансформаций.
-func New(telegram telegramGateway, state stateStore) *Service {
+func New(telegramRepo telegramRepo, stateRepo stateRepo) *Service {
 	return &Service{
-		logger:   slog.Default().With("module", "service.transform"),
-		telegram: telegram,
-		state:    state,
+		logger:       slog.Default().With("module", "service.transform"),
+		telegramRepo: telegramRepo,
+		stateRepo:    stateRepo,
 	}
 }
 
@@ -54,7 +54,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 	// 1. Перевод
 	if p.Source.Translate != nil && containsChatID(p.Source.Translate.For, p.DstChatID) {
-		translated, err := s.telegram.TranslateText(ctx, text, p.Source.Translate.Lang)
+		translated, err := s.telegramRepo.TranslateText(ctx, text, p.Source.Translate.Lang)
 		if err != nil {
 			s.logger.Error("Translation failed", slog.Any("err", err))
 		} else {
@@ -86,7 +86,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 	// 6. Ссылка на источник
 	if p.WithSources && p.Source.Link != nil && containsChatID(p.Source.Link.For, p.DstChatID) {
-		link, err := s.telegram.GetMessageLink(ctx, p.SrcChatID, p.SrcMessageID)
+		link, err := s.telegramRepo.GetMessageLink(ctx, p.SrcChatID, p.SrcMessageID)
 		if err == nil && link != "" {
 			text = s.addText(ctx, text, "["+p.Source.Link.Title+"]("+link+")")
 		}
@@ -94,7 +94,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 	// 7. Ссылка на предыдущую версию
 	if p.PrevMessageID != 0 && p.Source.Prev != nil && containsChatID(p.Source.Prev.For, p.DstChatID) {
-		link, err := s.telegram.GetMessageLink(ctx, p.DstChatID, p.PrevMessageID)
+		link, err := s.telegramRepo.GetMessageLink(ctx, p.DstChatID, p.PrevMessageID)
 		if err == nil && link != "" {
 			text = s.addText(ctx, text, "["+p.Source.Prev.Title+"]("+link+")")
 		}
@@ -112,7 +112,7 @@ func (s *Service) AddNextLink(ctx context.Context, text *domain.FormattedText, s
 	if src.Next == nil || !containsChatID(src.Next.For, dstChatID) {
 		return text
 	}
-	link, err := s.telegram.GetMessageLink(ctx, dstChatID, nextMessageID)
+	link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, nextMessageID)
 	if err != nil || link == "" {
 		return text
 	}
@@ -121,7 +121,7 @@ func (s *Service) AddNextLink(ctx context.Context, text *domain.FormattedText, s
 
 // addAutoAnswer добавляет текст ответа на callback-кнопку к сообщению.
 func (s *Service) addAutoAnswer(ctx context.Context, text *domain.FormattedText, srcChatID domain.ChatID, srcMessageID domain.MessageID, replyMarkup []byte) *domain.FormattedText {
-	answer, err := s.telegram.GetCallbackQueryAnswer(ctx, srcChatID, srcMessageID, replyMarkup)
+	answer, err := s.telegramRepo.GetCallbackQueryAnswer(ctx, srcChatID, srcMessageID, replyMarkup)
 	if err != nil {
 		s.logger.Error("Failed to get callback query answer", slog.Any("err", err))
 		return text
@@ -139,7 +139,7 @@ func (s *Service) replaceMyselfLinks(ctx context.Context, text *domain.Formatted
 	}
 
 	// Проверяем тип чата — basic groups не поддерживают ссылки на сообщения
-	chatType, err := s.telegram.GetChatType(ctx, srcChatID)
+	chatType, err := s.telegramRepo.GetChatType(ctx, srcChatID)
 	if err != nil {
 		s.logger.Error("Failed to get chat type", slog.Any("err", err))
 		return text
@@ -169,7 +169,7 @@ func (s *Service) replaceMyselfLinks(ctx context.Context, text *domain.Formatted
 			url = ent.URL
 		}
 
-		linkInfo, err := s.telegram.GetMessageLinkInfo(ctx, url)
+		linkInfo, err := s.telegramRepo.GetMessageLinkInfo(ctx, url)
 		if err != nil || linkInfo == nil {
 			continue
 		}
@@ -217,16 +217,16 @@ func (s *Service) replaceMyselfLinks(ctx context.Context, text *domain.Formatted
 
 // findCopyLink ищет ссылку на копию сообщения в целевом чате.
 func (s *Service) findCopyLink(ctx context.Context, srcChatID domain.ChatID, srcMessageID domain.MessageID, dstChatID domain.ChatID) string {
-	copies := s.state.GetCopiedMessageIDs(srcChatID, srcMessageID)
+	copies := s.stateRepo.GetCopiedMessageIDs(srcChatID, srcMessageID)
 	dstPrefix := formatDstPrefix(dstChatID)
 	for _, copy := range copies {
 		if strings.HasPrefix(copy, dstPrefix) {
 			parts := strings.Split(copy, ":")
 			if len(parts) >= 3 {
 				tmpID := parseMessageID(parts[len(parts)-1])
-				newID := s.state.GetNewMessageID(dstChatID, tmpID)
+				newID := s.stateRepo.GetNewMessageID(dstChatID, tmpID)
 				if newID != 0 {
-					link, err := s.telegram.GetMessageLink(ctx, dstChatID, newID)
+					link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, newID)
 					if err == nil {
 						return link
 					}
@@ -239,7 +239,7 @@ func (s *Service) findCopyLink(ctx context.Context, srcChatID domain.ChatID, src
 
 // addText добавляет форматированный текст (Markdown v2) в конец сообщения.
 func (s *Service) addText(ctx context.Context, text *domain.FormattedText, markdown string) *domain.FormattedText {
-	parsed, err := s.telegram.ParseTextEntities(ctx, markdown)
+	parsed, err := s.telegramRepo.ParseTextEntities(ctx, markdown)
 	if err != nil {
 		// Fallback: добавляем как plain text
 		result := text.DeepCopy()

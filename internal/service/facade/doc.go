@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	svc := facade.New(telegramGateway)
+//	svc := facade.New(telegramRepo)
 //
 // Пакет не читает переменные окружения напрямую.
 //

@@ -31,26 +31,26 @@ func (q *syncQueue) drain() {
 func newTestHandler(t *testing.T) (*Handler, *testDeps) {
 	t.Helper()
 	d := &testDeps{
-		telegram:  mocks.NewTelegramGateway(t),
-		state:     mocks.NewStateStore(t),
-		messages:  mocks.NewMessageService(t),
-		filters:   mocks.NewFilterService(t),
-		transform: mocks.NewTransformService(t),
-		albums:    mocks.NewAlbumService(t),
-		limiter:   mocks.NewRateLimiter(t),
-		queue:     &syncQueue{},
+		telegramRepo:     mocks.NewTelegramRepo(t),
+		stateRepo:        mocks.NewStateRepo(t),
+		messageService:   mocks.NewMessageService(t),
+		filterService:    mocks.NewFilterService(t),
+		transformService: mocks.NewTransformService(t),
+		albumService:     mocks.NewAlbumService(t),
+		rateLimiter:      mocks.NewRateLimiter(t),
+		taskQueue:        &syncQueue{},
 	}
 	tracker := mocks.NewDedupTracker(t)
 
 	h := New(
-		d.telegram,
-		d.state,
-		d.messages,
-		d.filters,
-		d.transform,
-		d.albums,
-		d.queue,
-		d.limiter,
+		d.telegramRepo,
+		d.stateRepo,
+		d.messageService,
+		d.filterService,
+		d.transformService,
+		d.albumService,
+		d.taskQueue,
+		d.rateLimiter,
 		func(_ []domain.ChatID) DedupTracker { return tracker },
 	)
 	d.tracker = tracker
@@ -58,15 +58,15 @@ func newTestHandler(t *testing.T) (*Handler, *testDeps) {
 }
 
 type testDeps struct {
-	telegram  *mocks.TelegramGateway
-	state     *mocks.StateStore
-	messages  *mocks.MessageService
-	filters   *mocks.FilterService
-	transform *mocks.TransformService
-	albums    *mocks.AlbumService
-	limiter   *mocks.RateLimiter
-	queue     *syncQueue
-	tracker   *mocks.DedupTracker
+	telegramRepo     *mocks.TelegramRepo
+	stateRepo        *mocks.StateRepo
+	messageService   *mocks.MessageService
+	filterService    *mocks.FilterService
+	transformService *mocks.TransformService
+	albumService     *mocks.AlbumService
+	rateLimiter      *mocks.RateLimiter
+	taskQueue        *syncQueue
+	tracker          *mocks.DedupTracker
 }
 
 func makeRuleSet(rules ...*domain.ForwardRule) *domain.RuleSet {
@@ -125,12 +125,12 @@ func TestOnNewMessage_SystemMessage_DeleteEnabled(t *testing.T) {
 		ID:      1,
 		Content: domain.MessageContent{Type: domain.ContentSystem},
 	}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(true)
-	d.telegram.EXPECT().DeleteMessages(mock.Anything, int64(100), []int64{int64(1)}, true).Return(nil)
+	d.messageService.EXPECT().IsSystemMessage(msg).Return(true)
+	d.telegramRepo.EXPECT().DeleteMessages(mock.Anything, int64(100), []int64{int64(1)}, true).Return(nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnNewMessage_ForwardWithoutCopy(t *testing.T) {
@@ -145,19 +145,19 @@ func TestOnNewMessage_ForwardWithoutCopy(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
 	text := &domain.FormattedText{Text: "hello"}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.filters.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
+	d.messageService.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.filterService.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
 	d.tracker.EXPECT().TryMark(int64(200)).Return(true)
-	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(200))
-	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(200), []int64{int64(1)}).Return([]int64{int64(300)}, nil)
+	d.rateLimiter.EXPECT().WaitForForward(mock.Anything, int64(200))
+	d.telegramRepo.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(200), []int64{int64(1)}).Return([]int64{int64(300)}, nil)
 	// Stats
-	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
-	d.state.EXPECT().IncrementForwardedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.stateRepo.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.stateRepo.EXPECT().IncrementForwardedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnNewMessage_SendCopy(t *testing.T) {
@@ -184,23 +184,23 @@ func TestOnNewMessage_SendCopy(t *testing.T) {
 	transformed := &domain.FormattedText{Text: "transformed"}
 	inputContent := domain.InputMessageContent{Type: domain.ContentText, Text: transformed, DisableLinkPreview: true}
 
-	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
-	d.messages.EXPECT().BuildInputContent(msg, transformed).Return(inputContent)
-	d.filters.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
+	d.messageService.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.messageService.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.messageService.EXPECT().BuildInputContent(msg, transformed).Return(inputContent)
+	d.filterService.EXPECT().Evaluate("hello", rule).Return(domain.FiltersOK)
 	d.tracker.EXPECT().TryMark(int64(200)).Return(true)
-	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(200))
-	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.telegram.EXPECT().SendMessage(mock.Anything, int64(200), mock.AnythingOfType("domain.InputMessageContent")).Return(int64(500), nil)
-	d.state.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:500").Return(nil)
+	d.rateLimiter.EXPECT().WaitForForward(mock.Anything, int64(200))
+	d.transformService.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegramRepo.EXPECT().SendMessage(mock.Anything, int64(200), mock.AnythingOfType("domain.InputMessageContent")).Return(int64(500), nil)
+	d.stateRepo.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:500").Return(nil)
 	// Stats
-	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
-	d.state.EXPECT().IncrementForwardedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.stateRepo.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.stateRepo.EXPECT().IncrementForwardedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnNewMessage_FiltersCheck(t *testing.T) {
@@ -215,17 +215,17 @@ func TestOnNewMessage_FiltersCheck(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
 	text := &domain.FormattedText{Text: "suspicious"}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.filters.EXPECT().Evaluate("suspicious", rule).Return(domain.FiltersCheck)
-	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(300))
-	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(300), []int64{int64(1)}).Return([]int64{int64(400)}, nil)
+	d.messageService.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.filterService.EXPECT().Evaluate("suspicious", rule).Return(domain.FiltersCheck)
+	d.rateLimiter.EXPECT().WaitForForward(mock.Anything, int64(300))
+	d.telegramRepo.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(300), []int64{int64(1)}).Return([]int64{int64(400)}, nil)
 	// Stats (viewed only, not forwarded for FiltersCheck)
-	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.stateRepo.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnNewMessage_CannotBeSaved_WithoutSendCopy(t *testing.T) {
@@ -240,8 +240,8 @@ func TestOnNewMessage_CannotBeSaved_WithoutSendCopy(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: false}
 	text := &domain.FormattedText{Text: "hello"}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
+	d.messageService.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
@@ -256,17 +256,17 @@ func TestOnDeletedMessages_PermanentWithCopies(t *testing.T) {
 	rs := makeRuleSet(rule)
 	h.SetRuleSet(rs)
 
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
-	d.telegram.EXPECT().DeleteMessages(mock.Anything, int64(200), []int64{int64(600)}, true).Return(nil)
-	d.state.EXPECT().DeleteNewMessageID(int64(200), int64(500)).Return(nil)
-	d.state.EXPECT().DeleteTmpMessageID(int64(200), int64(600)).Return(nil)
-	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
-	d.state.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.stateRepo.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.telegramRepo.EXPECT().DeleteMessages(mock.Anything, int64(200), []int64{int64(600)}, true).Return(nil)
+	d.stateRepo.EXPECT().DeleteNewMessageID(int64(200), int64(500)).Return(nil)
+	d.stateRepo.EXPECT().DeleteTmpMessageID(int64(200), int64(600)).Return(nil)
+	d.stateRepo.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+	d.stateRepo.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
 
 	// Act
 	h.OnDeletedMessages(context.Background(), 100, []int64{1}, true)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnDeletedMessages_IndelibleRule(t *testing.T) {
@@ -278,12 +278,12 @@ func TestOnDeletedMessages_IndelibleRule(t *testing.T) {
 	rs := makeRuleSet(rule)
 	h.SetRuleSet(rs)
 
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.stateRepo.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
 
 	// Act
 	h.OnDeletedMessages(context.Background(), 100, []int64{1}, true)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnDeletedMessages_RetryOnMissingNewID(t *testing.T) {
@@ -296,23 +296,23 @@ func TestOnDeletedMessages_RetryOnMissingNewID(t *testing.T) {
 	h.SetRuleSet(rs)
 
 	call := 0
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"}).Times(2)
-	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).RunAndReturn(func(_ int64, _ int64) int64 {
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"}).Times(2)
+	d.stateRepo.EXPECT().GetNewMessageID(int64(200), int64(500)).RunAndReturn(func(_ int64, _ int64) int64 {
 		call++
 		if call == 1 {
 			return 0 // retry
 		}
 		return 600 // success
 	}).Times(2)
-	d.state.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil).Once()
-	d.telegram.EXPECT().DeleteMessages(mock.Anything, int64(200), []int64{int64(600)}, true).Return(nil)
-	d.state.EXPECT().DeleteNewMessageID(int64(200), int64(500)).Return(nil)
-	d.state.EXPECT().DeleteTmpMessageID(int64(200), int64(600)).Return(nil)
-	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+	d.stateRepo.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil).Once()
+	d.telegramRepo.EXPECT().DeleteMessages(mock.Anything, int64(200), []int64{int64(600)}, true).Return(nil)
+	d.stateRepo.EXPECT().DeleteNewMessageID(int64(200), int64(500)).Return(nil)
+	d.stateRepo.EXPECT().DeleteTmpMessageID(int64(200), int64(600)).Return(nil)
+	d.stateRepo.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
 
 	// Act — drain выполняет и retry
 	h.OnDeletedMessages(context.Background(), 100, []int64{1}, true)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnMessageSendSucceeded(t *testing.T) {
@@ -320,12 +320,12 @@ func TestOnMessageSendSucceeded(t *testing.T) {
 
 	// Arrange
 	h, d := newTestHandler(t)
-	d.state.EXPECT().SetNewMessageID(int64(200), int64(500), int64(600)).Return(nil)
-	d.state.EXPECT().SetTmpMessageID(int64(200), int64(600), int64(500)).Return(nil)
+	d.stateRepo.EXPECT().SetNewMessageID(int64(200), int64(500), int64(600)).Return(nil)
+	d.stateRepo.EXPECT().SetTmpMessageID(int64(200), int64(600), int64(500)).Return(nil)
 
 	// Act
 	h.OnMessageSendSucceeded(200, 500, 600)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnNewMessage_FiltersOther(t *testing.T) {
@@ -340,17 +340,17 @@ func TestOnNewMessage_FiltersOther(t *testing.T) {
 
 	msg := &domain.Message{ChatID: 100, ID: 1, CanBeSaved: true}
 	text := &domain.FormattedText{Text: "unrelated"}
-	d.messages.EXPECT().IsSystemMessage(msg).Return(false)
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.filters.EXPECT().Evaluate("unrelated", rule).Return(domain.FiltersOther)
-	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(400))
-	d.telegram.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(400), []int64{int64(1)}).Return([]int64{int64(500)}, nil)
+	d.messageService.EXPECT().IsSystemMessage(msg).Return(false)
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.filterService.EXPECT().Evaluate("unrelated", rule).Return(domain.FiltersOther)
+	d.rateLimiter.EXPECT().WaitForForward(mock.Anything, int64(400))
+	d.telegramRepo.EXPECT().ForwardMessages(mock.Anything, int64(100), int64(400), []int64{int64(1)}).Return([]int64{int64(500)}, nil)
 	// Stats (viewed only, not forwarded for FiltersOther)
-	d.state.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
+	d.stateRepo.EXPECT().IncrementViewedMessages(int64(200), mock.AnythingOfType("string")).Return(uint64(1), nil)
 
 	// Act
 	h.OnNewMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnEditedMessage_NoRuleSet(t *testing.T) {
@@ -396,17 +396,17 @@ func TestOnEditedMessage_TextUpdate(t *testing.T) {
 	text := &domain.FormattedText{Text: "edited text"}
 	transformed := &domain.FormattedText{Text: "transformed edit"}
 
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
-	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.telegram.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
-	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.stateRepo.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.messageService.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transformService.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegramRepo.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.stateRepo.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
 
 	// Act
 	h.OnEditedMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnEditedMessage_CaptionUpdate(t *testing.T) {
@@ -430,17 +430,17 @@ func TestOnEditedMessage_CaptionUpdate(t *testing.T) {
 	text := &domain.FormattedText{Text: "new caption"}
 	transformed := &domain.FormattedText{Text: "transformed caption"}
 
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
-	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.telegram.EXPECT().EditMessageCaption(mock.Anything, int64(200), int64(600), transformed).Return(nil)
-	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.stateRepo.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.messageService.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transformService.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegramRepo.EXPECT().EditMessageCaption(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.stateRepo.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
 
 	// Act
 	h.OnEditedMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnEditedMessage_CopyOnce_Versioning(t *testing.T) {
@@ -465,21 +465,21 @@ func TestOnEditedMessage_CopyOnce_Versioning(t *testing.T) {
 	transformed := &domain.FormattedText{Text: "transformed v2"}
 	inputContent := domain.InputMessageContent{Type: domain.ContentText, Text: transformed, DisableLinkPreview: true}
 
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
-	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.messages.EXPECT().BuildInputContent(msg, transformed).Return(inputContent)
-	d.limiter.EXPECT().WaitForForward(mock.Anything, int64(200))
-	d.telegram.EXPECT().SendMessage(mock.Anything, int64(200), mock.AnythingOfType("domain.InputMessageContent")).Return(int64(700), nil)
-	d.state.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:700").Return(nil)
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.stateRepo.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.messageService.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transformService.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.messageService.EXPECT().BuildInputContent(msg, transformed).Return(inputContent)
+	d.rateLimiter.EXPECT().WaitForForward(mock.Anything, int64(200))
+	d.telegramRepo.EXPECT().SendMessage(mock.Anything, int64(200), mock.AnythingOfType("domain.InputMessageContent")).Return(int64(700), nil)
+	d.stateRepo.EXPECT().SetCopiedMessageID(int64(100), int64(1), "r1:200:700").Return(nil)
 
 	// Act — cancelled context останавливает goroutine runNextLinkWorkflow
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	h.OnEditedMessage(ctx, msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnEditedMessage_RetryOnMissingNewID(t *testing.T) {
@@ -504,23 +504,23 @@ func TestOnEditedMessage_RetryOnMissingNewID(t *testing.T) {
 	transformed := &domain.FormattedText{Text: "transformed"}
 
 	call := 0
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"}).Times(2)
-	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).RunAndReturn(func(_ int64, _ int64) int64 {
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"}).Times(2)
+	d.stateRepo.EXPECT().GetNewMessageID(int64(200), int64(500)).RunAndReturn(func(_ int64, _ int64) int64 {
 		call++
 		if call == 1 {
 			return 0
 		}
 		return 600
 	}).Times(2)
-	d.messages.EXPECT().GetFormattedText(msg).Return(text).Times(2)
-	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
-	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.telegram.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
-	d.state.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text).Times(2)
+	d.messageService.EXPECT().GetReplyMarkupData(msg).Return([]byte(nil))
+	d.transformService.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegramRepo.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.stateRepo.EXPECT().DeleteAnswerMessageID(int64(200), int64(500)).Return(nil)
 
 	// Act
 	h.OnEditedMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestOnEditedMessage_ReplyMarkupSync(t *testing.T) {
@@ -545,17 +545,17 @@ func TestOnEditedMessage_ReplyMarkupSync(t *testing.T) {
 	text := &domain.FormattedText{Text: "with button"}
 	transformed := &domain.FormattedText{Text: "transformed"}
 
-	d.state.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
-	d.state.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
-	d.messages.EXPECT().GetFormattedText(msg).Return(text)
-	d.messages.EXPECT().GetReplyMarkupData(msg).Return([]byte("action"))
-	d.transform.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
-	d.telegram.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
-	d.state.EXPECT().SetAnswerMessageID(int64(200), int64(500), int64(100), int64(1)).Return(nil)
+	d.stateRepo.EXPECT().GetCopiedMessageIDs(int64(100), int64(1)).Return([]string{"r1:200:500"})
+	d.stateRepo.EXPECT().GetNewMessageID(int64(200), int64(500)).Return(int64(600))
+	d.messageService.EXPECT().GetFormattedText(msg).Return(text)
+	d.messageService.EXPECT().GetReplyMarkupData(msg).Return([]byte("action"))
+	d.transformService.EXPECT().Transform(mock.Anything, mock.AnythingOfType("domain.TransformParams")).Return(transformed, nil)
+	d.telegramRepo.EXPECT().EditMessageText(mock.Anything, int64(200), int64(600), transformed).Return(nil)
+	d.stateRepo.EXPECT().SetAnswerMessageID(int64(200), int64(500), int64(100), int64(1)).Return(nil)
 
 	// Act
 	h.OnEditedMessage(context.Background(), msg)
-	d.queue.drain()
+	d.taskQueue.drain()
 }
 
 func TestSetRuleSet(t *testing.T) {

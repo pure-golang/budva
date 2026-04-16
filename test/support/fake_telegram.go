@@ -8,7 +8,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-// FakeTelegram — stateful in-memory реализация telegramGateway для тестов.
+// FakeTelegram — stateful in-memory реализация telegramRepo для тестов.
 // Хранит сообщения, позволяет проверять доставку между steps.
 type FakeTelegram struct {
 	mu         sync.Mutex

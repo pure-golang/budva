@@ -12,10 +12,10 @@ import (
 	"github.com/pure-golang/budva-claude/internal/service/transform/mocks"
 )
 
-func newTestService(t *testing.T) (*Service, *mocks.TelegramGateway, *mocks.StateStore) {
+func newTestService(t *testing.T) (*Service, *mocks.TelegramRepo, *mocks.StateRepo) {
 	t.Helper()
-	tg := mocks.NewTelegramGateway(t)
-	st := mocks.NewStateStore(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
 	return New(tg, st), tg, st
 }
 

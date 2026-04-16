@@ -14,7 +14,7 @@ type authService interface {
 	State() domain.AuthorizationState
 }
 
-type telegramGateway interface {
+type telegramRepo interface {
 	ClientDone() <-chan struct{}
 	GetOption(ctx context.Context, name string) (string, error)
 	GetMe(ctx context.Context) (int64, error)
@@ -36,9 +36,9 @@ type command struct {
 // Transport реализует терминальный интерфейс для авторизации и CLI-команд.
 type Transport struct {
 	logger        *slog.Logger
-	auth          authService
-	telegram      telegramGateway
-	term          termIO
+	authService   authService
+	telegramRepo  telegramRepo
+	termIO        termIO
 	authStateChan chan domain.AuthorizationState
 	authExtra     chan any
 	commands      []command
@@ -48,12 +48,12 @@ type Transport struct {
 }
 
 // New создаёт новый экземпляр терминального транспорта.
-func New(auth authService, telegram telegramGateway, term termIO, phoneNumber string) *Transport {
+func New(authService authService, telegramRepo telegramRepo, termIO termIO, phoneNumber string) *Transport {
 	t := &Transport{
-		logger:        slog.Default().With("module", "transport.term"),
-		auth:          auth,
-		telegram:      telegram,
-		term:          term,
+		logger:       slog.Default().With("module", "transport.term"),
+		authService:  authService,
+		telegramRepo: telegramRepo,
+		termIO:        termIO,
 		authStateChan: make(chan domain.AuthorizationState, 10),
 		authExtra:     make(chan any, 10),
 		phoneNumber:   phoneNumber,
@@ -66,7 +66,7 @@ func New(auth authService, telegram telegramGateway, term termIO, phoneNumber st
 func (t *Transport) Run(ctx context.Context, shutdown func()) error {
 	t.shutdown = shutdown
 
-	t.auth.Subscribe(func(state domain.AuthorizationState, extra any) {
+	t.authService.Subscribe(func(state domain.AuthorizationState, extra any) {
 		select {
 		case t.authStateChan <- state:
 			select {
@@ -93,13 +93,13 @@ func (t *Transport) runInputLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.telegram.ClientDone():
+		case <-t.telegramRepo.ClientDone():
 			if !isAuth {
 				t.printStatus(ctx)
 				isAuth = true
 			}
-			t.term.Println(">")
-			input, err := t.term.ReadLine()
+			t.termIO.Println(">")
+			input, err := t.termIO.ReadLine()
 			if err != nil {
 				return
 			}
@@ -116,15 +116,15 @@ func (t *Transport) runInputLoop(ctx context.Context) {
 }
 
 func (t *Transport) printStatus(ctx context.Context) {
-	version, err := t.telegram.GetOption(ctx, "version")
+	version, err := t.telegramRepo.GetOption(ctx, "version")
 	if err != nil {
 		t.logger.Error("Failed to get TDLib version", slog.Any("err", err))
 	}
-	userID, err := t.telegram.GetMe(ctx)
+	userID, err := t.telegramRepo.GetMe(ctx)
 	if err != nil {
 		t.logger.Error("Failed to get user ID", slog.Any("err", err))
 	}
-	t.term.Printf("TDLib version: %s, User ID: %d\n", version, userID)
+	t.termIO.Printf("TDLib version: %s, User ID: %d\n", version, userID)
 }
 
 func (t *Transport) registerCommands() {
@@ -145,7 +145,7 @@ func (t *Transport) processCommand(input string) {
 	}
 	cmd, ok := t.commandMap[parts[0]]
 	if !ok {
-		t.term.Printf("Unknown command: %s. Type 'help' for available commands.\n", parts[0])
+		t.termIO.Printf("Unknown command: %s. Type 'help' for available commands.\n", parts[0])
 		return
 	}
 	var args []string
@@ -156,14 +156,14 @@ func (t *Transport) processCommand(input string) {
 }
 
 func (t *Transport) handleHelp(_ []string) {
-	t.term.Println("Available commands:")
+	t.termIO.Println("Available commands:")
 	for _, cmd := range t.commands {
-		t.term.Printf("  %-15s - %s\n", cmd.name, cmd.description)
+		t.termIO.Printf("  %-15s - %s\n", cmd.name, cmd.description)
 	}
 }
 
 func (t *Transport) handleExit(_ []string) {
-	t.term.Println("Shutting down...")
+	t.termIO.Println("Shutting down...")
 	if t.shutdown != nil {
 		t.shutdown()
 	}
@@ -174,26 +174,26 @@ func (t *Transport) processAuth(state domain.AuthorizationState, extra any) {
 	case domain.AuthStateWaitPhone:
 		phone := t.phoneNumber
 		if phone == "" {
-			t.term.Println("Enter phone number:")
+			t.termIO.Println("Enter phone number:")
 			var err error
-			phone, err = t.term.ReadPassword()
+			phone, err = t.termIO.ReadPassword()
 			if err != nil {
 				t.logger.Error("Failed to read phone", slog.Any("err", err))
 				return
 			}
 		} else {
-			t.term.Printf("Phone: %s\n", domain.MaskPhoneNumber(phone))
+			t.termIO.Printf("Phone: %s\n", domain.MaskPhoneNumber(phone))
 		}
-		t.auth.InputChan() <- phone
+		t.authService.InputChan() <- phone
 
 	case domain.AuthStateWaitCode:
-		t.term.Println("Enter confirmation code:")
-		code, err := t.term.ReadPassword()
+		t.termIO.Println("Enter confirmation code:")
+		code, err := t.termIO.ReadPassword()
 		if err != nil {
 			t.logger.Error("Failed to read code", slog.Any("err", err))
 			return
 		}
-		t.auth.InputChan() <- code
+		t.authService.InputChan() <- code
 
 	case domain.AuthStateWaitPassword:
 		hint := ""
@@ -201,18 +201,18 @@ func (t *Transport) processAuth(state domain.AuthorizationState, extra any) {
 			hint = ws.PasswordHint
 		}
 		if hint != "" {
-			t.term.Printf("Enter password (hint: %s):\n", hint)
+			t.termIO.Printf("Enter password (hint: %s):\n", hint)
 		} else {
-			t.term.Println("Enter password:")
+			t.termIO.Println("Enter password:")
 		}
-		password, err := t.term.ReadPassword()
+		password, err := t.termIO.ReadPassword()
 		if err != nil {
 			t.logger.Error("Failed to read password", slog.Any("err", err))
 			return
 		}
-		t.auth.InputChan() <- password
+		t.authService.InputChan() <- password
 
 	case domain.AuthStateReady:
-		t.term.Println("Authorization complete.")
+		t.termIO.Println("Authorization complete.")
 	}
 }
