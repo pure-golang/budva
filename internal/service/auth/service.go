@@ -60,28 +60,23 @@ func (s *Service) run(ctx context.Context) {
 				return
 			}
 
-			// Ожидаем пользовательский ввод и отправляем в repo.
-			// При ошибке (rejection) остаёмся в том же состоянии и ждём повторного ввода.
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case input := <-s.inputChan:
-					var err error
-					switch event.State {
-					case domain.AuthStateWaitPhone:
-						err = s.telegramRepo.SubmitPhone(ctx, input)
-					case domain.AuthStateWaitCode:
-						err = s.telegramRepo.SubmitCode(ctx, input)
-					case domain.AuthStateWaitPassword:
-						err = s.telegramRepo.SubmitPassword(ctx, input)
-					}
-					if err != nil {
-						s.logger.Error("Failed to submit auth input", slog.Any("err", err))
-						continue // ждём повторного ввода
-					}
+			// Ожидаем пользовательский ввод и отправляем в repo
+			select {
+			case <-ctx.Done():
+				return
+			case input := <-s.inputChan:
+				var err error
+				switch event.State {
+				case domain.AuthStateWaitPhone:
+					err = s.telegramRepo.SubmitPhone(ctx, input)
+				case domain.AuthStateWaitCode:
+					err = s.telegramRepo.SubmitCode(ctx, input)
+				case domain.AuthStateWaitPassword:
+					err = s.telegramRepo.SubmitPassword(ctx, input)
 				}
-				break
+				if err != nil {
+					s.logger.Error("Failed to submit auth input", slog.Any("err", err))
+				}
 			}
 		}
 	}

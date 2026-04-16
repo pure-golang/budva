@@ -288,7 +288,7 @@ func TestClosingStateIsSkipped(t *testing.T) {
 	})
 }
 
-func TestSubmitCodeRejection_RetriesInput(t *testing.T) {
+func TestSubmitCodeRejection_WaitsForReEmit(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -298,20 +298,22 @@ func TestSubmitCodeRejection_RetriesInput(t *testing.T) {
 		svc := New(repo)
 		svc.Start(t.Context())
 
-		// Act — WaitCode, первый ввод отклонён
+		// Act — WaitCode, ввод отклонён repo
 		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
 		time.Sleep(1 * time.Millisecond)
 
 		svc.InputChan() <- "wrong"
 		time.Sleep(1 * time.Millisecond)
 
-		// Состояние не изменилось — всё ещё WaitCode
-		assert.Equal(t, domain.AuthStateWaitCode, svc.State())
+		// Сервис вернулся в внешний цикл — ждёт новый event от repo.
+		// Repo повторно эмитит WaitCode (как TDLib при rejection).
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
+		time.Sleep(1 * time.Millisecond)
 
-		// Второй ввод — успех
 		svc.InputChan() <- "correct"
 		time.Sleep(1 * time.Millisecond)
 
+		// Assert
 		repo.mu.Lock()
 		require.Len(t, repo.codes, 2)
 		assert.Equal(t, "wrong", repo.codes[0])
