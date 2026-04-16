@@ -4,10 +4,9 @@ import (
 	"context"
 	"log/slog"
 
+	alogger "github.com/pure-golang/adapters/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	alogger "github.com/pure-golang/adapters/logger"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
