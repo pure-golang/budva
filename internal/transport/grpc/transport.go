@@ -2,9 +2,12 @@ package grpc
 
 import (
 	"context"
+	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	alogger "github.com/pure-golang/adapters/logger"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
@@ -40,6 +43,7 @@ func New(facadeService facadeService) *Transport {
 func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*pb.MessagesResponse, error) {
 	msgs, err := t.facadeService.GetMessages(ctx, req.GetChatId(), req.GetMessageIds())
 	if err != nil {
+		alogger.FromContext(ctx).Error("Failed to get messages", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	var messages []*pb.Message
@@ -55,6 +59,7 @@ func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest)
 func (t *Transport) GetChatHistory(ctx context.Context, req *pb.GetChatHistoryRequest) (*pb.MessagesResponse, error) {
 	msgs, err := t.facadeService.GetChatHistory(ctx, req.GetChatId(), req.GetFromMessageId(), req.GetOffset(), req.GetLimit())
 	if err != nil {
+		alogger.FromContext(ctx).Error("Failed to get chat history", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	var messages []*pb.Message
@@ -71,6 +76,7 @@ func (t *Transport) SendMessage(ctx context.Context, req *pb.SendMessageRequest)
 		return nil, status.Error(codes.InvalidArgument, "message is required")
 	}
 	if err := t.facadeService.SendMessage(ctx, msg.GetChatId(), msg.GetText()); err != nil {
+		alogger.FromContext(ctx).Error("Failed to send message", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -91,6 +97,7 @@ func (t *Transport) SendMessageAlbum(ctx context.Context, req *pb.SendMessageAlb
 		})
 	}
 	if err := t.facadeService.SendMessageAlbum(ctx, chatID, items); err != nil {
+		alogger.FromContext(ctx).Error("Failed to send message album", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -99,6 +106,7 @@ func (t *Transport) SendMessageAlbum(ctx context.Context, req *pb.SendMessageAlb
 // ForwardMessage пересылает сообщение.
 func (t *Transport) ForwardMessage(ctx context.Context, req *pb.ForwardMessageRequest) (*pb.EmptyResponse, error) {
 	if err := t.facadeService.ForwardMessage(ctx, req.GetChatId(), req.GetMessageId()); err != nil {
+		alogger.FromContext(ctx).Error("Failed to forward message", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -108,6 +116,7 @@ func (t *Transport) ForwardMessage(ctx context.Context, req *pb.ForwardMessageRe
 func (t *Transport) GetMessage(ctx context.Context, req *pb.GetMessageRequest) (*pb.MessageResponse, error) {
 	msg, err := t.facadeService.GetMessage(ctx, req.GetChatId(), req.GetMessageId())
 	if err != nil {
+		alogger.FromContext(ctx).Error("Failed to get message", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.MessageResponse{Message: domainToProto(msg)}, nil
@@ -120,6 +129,7 @@ func (t *Transport) UpdateMessage(ctx context.Context, req *pb.UpdateMessageRequ
 		return nil, status.Error(codes.InvalidArgument, "message is required")
 	}
 	if err := t.facadeService.UpdateMessage(ctx, msg.GetChatId(), msg.GetId(), msg.GetText()); err != nil {
+		alogger.FromContext(ctx).Error("Failed to update message", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -128,6 +138,7 @@ func (t *Transport) UpdateMessage(ctx context.Context, req *pb.UpdateMessageRequ
 // DeleteMessages удаляет сообщения.
 func (t *Transport) DeleteMessages(ctx context.Context, req *pb.DeleteMessagesRequest) (*pb.EmptyResponse, error) {
 	if err := t.facadeService.DeleteMessages(ctx, req.GetChatId(), req.GetMessageIds()); err != nil {
+		alogger.FromContext(ctx).Error("Failed to delete messages", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -137,6 +148,7 @@ func (t *Transport) DeleteMessages(ctx context.Context, req *pb.DeleteMessagesRe
 func (t *Transport) GetMessageLink(ctx context.Context, req *pb.GetMessageLinkRequest) (*pb.MessageLinkResponse, error) {
 	link, err := t.facadeService.GetMessageLink(ctx, req.GetChatId(), req.GetMessageId())
 	if err != nil {
+		alogger.FromContext(ctx).Error("Failed to get message link", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.MessageLinkResponse{Link: link}, nil
@@ -146,6 +158,7 @@ func (t *Transport) GetMessageLink(ctx context.Context, req *pb.GetMessageLinkRe
 func (t *Transport) GetMessageLinkInfo(ctx context.Context, req *pb.GetMessageLinkInfoRequest) (*pb.MessageResponse, error) {
 	info, err := t.facadeService.GetMessageLinkInfo(ctx, req.GetLink())
 	if err != nil {
+		alogger.FromContext(ctx).Error("Failed to get message link info", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.MessageResponse{

@@ -49,6 +49,7 @@ func TestRunInputLoop_Exit(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
+		// Arrange
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
@@ -74,8 +75,10 @@ func TestRunInputLoop_Exit(t *testing.T) {
 			cancel()
 		}
 
+		// Act
 		go tr.runInputLoop(ctx)
 
+		// Assert
 		select {
 		case <-shutdownCh:
 			// OK
@@ -101,6 +104,7 @@ func TestProcessAuth_WaitPassword(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			// Arrange
 			inputChan := make(chan string, 1)
 			auth := &fakeAuth{inputChan: inputChan}
 			term := &fakeTerm{
@@ -113,8 +117,11 @@ func TestProcessAuth_WaitPassword(t *testing.T) {
 			if test.passwordHint != "" {
 				extra = &domain.WaitPasswordState{PasswordHint: test.passwordHint}
 			}
+
+			// Act
 			tr.processAuth(domain.AuthStateWaitPassword, extra)
 
+			// Assert
 			assert.Equal(t, test.userInput, <-inputChan)
 		})
 	}

@@ -11,11 +11,11 @@ import (
 	"syscall"
 
 	aenv "github.com/pure-golang/adapters/env"
+	agrpc "github.com/pure-golang/adapters/grpc/std"
 	amiddleware "github.com/pure-golang/adapters/httpserver/middleware"
 	ahttp "github.com/pure-golang/adapters/httpserver/std"
 	"github.com/pure-golang/platform/monitoring"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 
 	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/controller"
@@ -83,15 +83,15 @@ func run() error {
 	httpTransport := httptransport.New(authService, gqlResolver)
 	httpTransport.EnrichRoutes(mux)
 
-	handler := amiddleware.Chain(mux, amiddleware.Monitoring(), amiddleware.Recovery)
+	handler := amiddleware.Chain(mux, amiddleware.Monitoring("/graphql", "/api/*"), amiddleware.Recovery)
 
 	httpServer := ahttp.NewDefault(cfg.HTTPServer, handler)
 
 	// 7. gRPC transport
-	grpcTransport := grpctransport.New(facadeService)
-	grpcServer := grpc.NewServer()
-	pb.RegisterFacadeGRPCServer(grpcServer, grpcTransport)
-	reflection.Register(grpcServer)
+	grpcServer := agrpc.NewDefault(cfg.GRPCServer, func(s *grpc.Server) {
+		grpcTransport := grpctransport.New(facadeService)
+		pb.RegisterFacadeGRPCServer(s, grpcTransport)
+	})
 
 	// 8. Terminal transport
 	termRepo := repoterm.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
@@ -108,11 +108,17 @@ func run() error {
 		httpServer.Run()
 	}()
 
+	go func() {
+		grpcServer.Run()
+	}()
+
 	logger.Info("Facade started, waiting for shutdown signal")
 	<-ctx.Done()
 	logger.Info("Shutting down facade")
 
-	grpcServer.GracefulStop()
+	if err := grpcServer.Shutdown(); err != nil {
+		logger.Error("gRPC server shutdown error", slog.Any("err", err))
+	}
 
 	if err := httpServer.Shutdown(); err != nil {
 		logger.Error("HTTP server shutdown error", slog.Any("err", err))
