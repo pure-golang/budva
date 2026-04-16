@@ -173,7 +173,7 @@ func (f *FakeTelegram) DeleteMessages(_ context.Context, chatID domain.ChatID, m
 }
 
 // GetMessageLink возвращает фиктивную ссылку.
-func (f *FakeTelegram) GetMessageLink(_ context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error) {
+func (f *FakeTelegram) GetMessageLink(_ context.Context, chatID domain.ChatID, messageID domain.MessageID, _ bool) (string, error) {
 	return fmt.Sprintf("https://t.me/c/%d/%d", chatID, messageID), nil
 }
 

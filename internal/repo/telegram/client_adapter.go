@@ -19,7 +19,7 @@ type clientAdapter interface {
 	DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID, revoke bool) error
 
 	// Операции со ссылками.
-	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error)
+	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error)
 	GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error)
 
 	// Операции с текстом.
@@ -33,9 +33,15 @@ type clientAdapter interface {
 	GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error)
 	GetChatType(ctx context.Context, chatID domain.ChatID) (string, error)
 
+	// Операции с текстом (static TDLib methods).
+	GetMarkdownText(ctx context.Context, text *domain.FormattedText) (*domain.FormattedText, error)
+
 	// Системные операции.
 	GetOption(ctx context.Context, name string) (string, error)
 	GetMe(ctx context.Context) (int64, error)
+
+	// Batch-операции.
+	GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)
 
 	// Отправка данных авторизации.
 	SubmitPhone(ctx context.Context, phone string) error
@@ -81,7 +87,7 @@ func (r *Repo) DeleteMessages(_ context.Context, _ domain.ChatID, _ []domain.Mes
 }
 
 // GetMessageLink возвращает ссылку на сообщение.
-func (r *Repo) GetMessageLink(_ context.Context, _ domain.ChatID, _ domain.MessageID) (string, error) {
+func (r *Repo) GetMessageLink(_ context.Context, _ domain.ChatID, _ domain.MessageID, _ bool) (string, error) {
 	return "", nil
 }
 
@@ -123,6 +129,16 @@ func (r *Repo) GetChatHistory(_ context.Context, _ domain.ChatID, _ domain.Messa
 // GetChatType возвращает тип чата.
 func (r *Repo) GetChatType(_ context.Context, _ domain.ChatID) (string, error) {
 	return "supergroup", nil
+}
+
+// GetMarkdownText конвертирует FormattedText в Markdown-представление.
+func (r *Repo) GetMarkdownText(_ context.Context, text *domain.FormattedText) (*domain.FormattedText, error) {
+	return text, nil
+}
+
+// GetMessages возвращает сообщения по списку ID (batch).
+func (r *Repo) GetMessages(_ context.Context, _ domain.ChatID, _ []domain.MessageID) ([]*domain.Message, error) {
+	return nil, nil
 }
 
 // GetOption возвращает значение опции TDLib.

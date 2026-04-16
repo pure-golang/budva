@@ -17,7 +17,7 @@ var tracer = otel.Tracer("github.com/pure-golang/budva-claude/internal/service/t
 
 type telegramRepo interface {
 	TranslateText(ctx context.Context, text *domain.FormattedText, lang string) (*domain.FormattedText, error)
-	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error)
+	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error)
 	GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error)
 	GetCallbackQueryAnswer(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, data []byte) (string, error)
 	GetChatType(ctx context.Context, chatID domain.ChatID) (string, error)
@@ -86,7 +86,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 	// 6. Ссылка на источник
 	if p.WithSources && p.Source.Link != nil && containsChatID(p.Source.Link.For, p.DstChatID) {
-		link, err := s.telegramRepo.GetMessageLink(ctx, p.SrcChatID, p.SrcMessageID)
+		link, err := s.telegramRepo.GetMessageLink(ctx, p.SrcChatID, p.SrcMessageID, p.ForAlbum)
 		if err == nil && link != "" {
 			text = s.addText(ctx, text, "["+p.Source.Link.Title+"]("+link+")")
 		}
@@ -94,7 +94,7 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 	// 7. Ссылка на предыдущую версию
 	if p.PrevMessageID != 0 && p.Source.Prev != nil && containsChatID(p.Source.Prev.For, p.DstChatID) {
-		link, err := s.telegramRepo.GetMessageLink(ctx, p.DstChatID, p.PrevMessageID)
+		link, err := s.telegramRepo.GetMessageLink(ctx, p.DstChatID, p.PrevMessageID, p.ForAlbum)
 		if err == nil && link != "" {
 			text = s.addText(ctx, text, "["+p.Source.Prev.Title+"]("+link+")")
 		}
@@ -112,7 +112,7 @@ func (s *Service) AddNextLink(ctx context.Context, text *domain.FormattedText, s
 	if src.Next == nil || !containsChatID(src.Next.For, dstChatID) {
 		return text
 	}
-	link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, nextMessageID)
+	link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, nextMessageID, false)
 	if err != nil || link == "" {
 		return text
 	}
@@ -226,7 +226,7 @@ func (s *Service) findCopyLink(ctx context.Context, srcChatID domain.ChatID, src
 				tmpID := parseMessageID(parts[len(parts)-1])
 				newID := s.stateRepo.GetNewMessageID(dstChatID, tmpID)
 				if newID != 0 {
-					link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, newID)
+					link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, newID, false)
 					if err == nil {
 						return link
 					}

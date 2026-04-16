@@ -109,9 +109,12 @@ func TestSubscribeReceivesStateChanges(t *testing.T) {
 		repo := newFakeTelegramRepo()
 		svc := New(repo)
 
+		var mu sync.Mutex
 		var received []domain.AuthorizationState
 		svc.Subscribe(func(state domain.AuthorizationState, _ any) {
+			mu.Lock()
 			received = append(received, state)
+			mu.Unlock()
 		})
 
 		svc.Start(t.Context())
@@ -121,7 +124,9 @@ func TestSubscribeReceivesStateChanges(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 
 		// Assert
+		mu.Lock()
 		assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
+		mu.Unlock()
 	})
 }
 
@@ -133,9 +138,12 @@ func TestSubscribeReceivesExtra(t *testing.T) {
 		repo := newFakeTelegramRepo()
 		svc := New(repo)
 
+		var mu sync.Mutex
 		var gotExtra any
 		svc.Subscribe(func(_ domain.AuthorizationState, extra any) {
+			mu.Lock()
 			gotExtra = extra
+			mu.Unlock()
 		})
 
 		hint := &domain.WaitPasswordState{PasswordHint: "pet name"}
@@ -154,9 +162,11 @@ func TestSubscribeReceivesExtra(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 
 		// Assert
+		mu.Lock()
 		require.NotNil(t, gotExtra)
 		ws, ok := gotExtra.(*domain.WaitPasswordState)
 		require.True(t, ok)
+		mu.Unlock()
 		assert.Equal(t, "pet name", ws.PasswordHint)
 		assert.Equal(t, domain.AuthStateWaitPassword, svc.State())
 	})
@@ -225,9 +235,18 @@ func TestMultipleSubscribers(t *testing.T) {
 		// Arrange
 		repo := newFakeTelegramRepo()
 		svc := New(repo)
+		var mu sync.Mutex
 		var count1, count2 int
-		svc.Subscribe(func(_ domain.AuthorizationState, _ any) { count1++ })
-		svc.Subscribe(func(_ domain.AuthorizationState, _ any) { count2++ })
+		svc.Subscribe(func(_ domain.AuthorizationState, _ any) {
+			mu.Lock()
+			count1++
+			mu.Unlock()
+		})
+		svc.Subscribe(func(_ domain.AuthorizationState, _ any) {
+			mu.Lock()
+			count2++
+			mu.Unlock()
+		})
 
 		svc.Start(t.Context())
 
@@ -236,8 +255,10 @@ func TestMultipleSubscribers(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 
 		// Assert
+		mu.Lock()
 		assert.Equal(t, 1, count1)
 		assert.Equal(t, 1, count2)
+		mu.Unlock()
 	})
 }
 
@@ -270,9 +291,12 @@ func TestClosingStateIsSkipped(t *testing.T) {
 		repo := newFakeTelegramRepo()
 		svc := New(repo)
 
+		var mu sync.Mutex
 		var received []domain.AuthorizationState
 		svc.Subscribe(func(state domain.AuthorizationState, _ any) {
+			mu.Lock()
 			received = append(received, state)
+			mu.Unlock()
 		})
 
 		svc.Start(t.Context())
@@ -284,7 +308,9 @@ func TestClosingStateIsSkipped(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 
 		// Assert — только Ready, без Closing
+		mu.Lock()
 		assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
+		mu.Unlock()
 	})
 }
 

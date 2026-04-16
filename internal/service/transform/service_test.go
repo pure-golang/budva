@@ -154,7 +154,7 @@ func TestTransform_Link(t *testing.T) {
 		ChatID: 100,
 		Link:   &domain.Link{Title: "Orig", For: []int64{200}},
 	}
-	tg.EXPECT().GetMessageLink(mock.Anything, int64(100), int64(1)).Return("https://t.me/c/100/1", nil)
+	tg.EXPECT().GetMessageLink(mock.Anything, int64(100), int64(1), mock.Anything).Return("https://t.me/c/100/1", nil)
 	parsed := &domain.FormattedText{
 		Text: "Orig",
 		Entities: []domain.TextEntity{
@@ -188,7 +188,7 @@ func TestTransform_PrevLink(t *testing.T) {
 		ChatID: 100,
 		Prev:   &domain.Prev{Title: "Prev", For: []int64{200}},
 	}
-	tg.EXPECT().GetMessageLink(mock.Anything, int64(200), int64(50)).Return("https://t.me/c/200/50", nil)
+	tg.EXPECT().GetMessageLink(mock.Anything, int64(200), int64(50), mock.Anything).Return("https://t.me/c/200/50", nil)
 	parsed := &domain.FormattedText{
 		Text: "Prev",
 		Entities: []domain.TextEntity{
@@ -221,7 +221,7 @@ func TestAddNextLink(t *testing.T) {
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{200}},
 	}
-	tg.EXPECT().GetMessageLink(mock.Anything, int64(200), int64(60)).Return("https://t.me/c/200/60", nil)
+	tg.EXPECT().GetMessageLink(mock.Anything, int64(200), int64(60), mock.Anything).Return("https://t.me/c/200/60", nil)
 	parsed := &domain.FormattedText{
 		Text: "Next",
 		Entities: []domain.TextEntity{

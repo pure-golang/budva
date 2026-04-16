@@ -21,17 +21,10 @@ func TestGetMessages_Success(t *testing.T) {
 
 	// Arrange
 	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetMessage(mock.Anything, int64(100), int64(1)).
-		Return(&domain.Message{
-			ChatID:  100,
-			ID:      1,
-			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "hello"}},
-		}, nil)
-	facade.EXPECT().GetMessage(mock.Anything, int64(100), int64(2)).
-		Return(&domain.Message{
-			ChatID:  100,
-			ID:      2,
-			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "hello"}},
+	facade.EXPECT().GetMessages(mock.Anything, int64(100), []int64{1, 2}).
+		Return([]*domain.Message{
+			{ChatID: 100, ID: 1, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "hello"}}},
+			{ChatID: 100, ID: 2, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "world"}}},
 		}, nil)
 	tr := New(facade)
 
@@ -47,19 +40,13 @@ func TestGetMessages_Success(t *testing.T) {
 	assert.Equal(t, "hello", resp.GetMessages()[0].GetText())
 }
 
-func TestGetMessages_PartialFailure(t *testing.T) {
+func TestGetMessages_Error(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
 	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetMessage(mock.Anything, int64(100), int64(1)).
-		Return(nil, errors.New("not found"))
-	facade.EXPECT().GetMessage(mock.Anything, int64(100), int64(2)).
-		Return(&domain.Message{
-			ChatID:  100,
-			ID:      2,
-			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "ok"}},
-		}, nil)
+	facade.EXPECT().GetMessages(mock.Anything, int64(100), []int64{1, 2}).
+		Return(nil, errors.New("batch failed"))
 	tr := New(facade)
 
 	// Act
@@ -69,8 +56,8 @@ func TestGetMessages_PartialFailure(t *testing.T) {
 	})
 
 	// Assert
-	require.NoError(t, err)
-	assert.Len(t, resp.GetMessages(), 1)
+	require.Error(t, err)
+	assert.Nil(t, resp)
 }
 
 func TestSendMessage_Success(t *testing.T) {

@@ -17,7 +17,8 @@ type telegramRepo interface {
 	ForwardMessages(ctx context.Context, fromChatID domain.ChatID, toChatID domain.ChatID, messageIDs []domain.MessageID) ([]domain.MessageID, error)
 	EditMessageText(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text *domain.FormattedText) error
 	DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID, revoke bool) error
-	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error)
+	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error)
+	GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)
 	GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error)
 	GetOption(ctx context.Context, name string) (string, error)
 	GetMe(ctx context.Context) (int64, error)
@@ -91,9 +92,14 @@ func (s *Service) GetChatHistory(ctx context.Context, chatID domain.ChatID, from
 	return s.telegramRepo.GetChatHistory(ctx, chatID, fromMessageID, offset, limit)
 }
 
+// GetMessages возвращает сообщения по списку ID (batch).
+func (s *Service) GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error) {
+	return s.telegramRepo.GetMessages(ctx, chatID, messageIDs)
+}
+
 // GetMessageLink возвращает публичную ссылку на сообщение.
 func (s *Service) GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error) {
-	return s.telegramRepo.GetMessageLink(ctx, chatID, messageID)
+	return s.telegramRepo.GetMessageLink(ctx, chatID, messageID, false)
 }
 
 // GetMessageLinkInfo извлекает информацию о сообщении по ссылке.

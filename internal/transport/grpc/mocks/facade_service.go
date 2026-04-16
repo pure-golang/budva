@@ -464,6 +464,80 @@ func (_c *FacadeService_GetMessageLinkInfo_Call) RunAndReturn(run func(ctx conte
 	return _c
 }
 
+// GetMessages provides a mock function for the type FacadeService
+func (_mock *FacadeService) GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error) {
+	ret := _mock.Called(ctx, chatID, messageIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMessages")
+	}
+
+	var r0 []*domain.Message
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, []domain.MessageID) ([]*domain.Message, error)); ok {
+		return returnFunc(ctx, chatID, messageIDs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, []domain.MessageID) []*domain.Message); ok {
+		r0 = returnFunc(ctx, chatID, messageIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*domain.Message)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID, []domain.MessageID) error); ok {
+		r1 = returnFunc(ctx, chatID, messageIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// FacadeService_GetMessages_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetMessages'
+type FacadeService_GetMessages_Call struct {
+	*mock.Call
+}
+
+// GetMessages is a helper method to define mock.On call
+//   - ctx context.Context
+//   - chatID domain.ChatID
+//   - messageIDs []domain.MessageID
+func (_e *FacadeService_Expecter) GetMessages(ctx interface{}, chatID interface{}, messageIDs interface{}) *FacadeService_GetMessages_Call {
+	return &FacadeService_GetMessages_Call{Call: _e.mock.On("GetMessages", ctx, chatID, messageIDs)}
+}
+
+func (_c *FacadeService_GetMessages_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID)) *FacadeService_GetMessages_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 domain.ChatID
+		if args[1] != nil {
+			arg1 = args[1].(domain.ChatID)
+		}
+		var arg2 []domain.MessageID
+		if args[2] != nil {
+			arg2 = args[2].([]domain.MessageID)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *FacadeService_GetMessages_Call) Return(messages []*domain.Message, err error) *FacadeService_GetMessages_Call {
+	_c.Call.Return(messages, err)
+	return _c
+}
+
+func (_c *FacadeService_GetMessages_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)) *FacadeService_GetMessages_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SendMessage provides a mock function for the type FacadeService
 func (_mock *FacadeService) SendMessage(ctx context.Context, chatID domain.ChatID, text string) error {
 	ret := _mock.Called(ctx, chatID, text)

@@ -2,9 +2,7 @@ package grpc
 
 import (
 	"context"
-	"log/slog"
 
-	alogger "github.com/pure-golang/adapters/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -14,6 +12,7 @@ import (
 
 type facadeService interface {
 	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
+	GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)
 	GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error)
 	SendMessage(ctx context.Context, chatID domain.ChatID, text string) error
 	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem) error
@@ -37,16 +36,17 @@ func New(facadeService facadeService) *Transport {
 	}
 }
 
-// GetMessages возвращает сообщения по списку ID.
+// GetMessages возвращает сообщения по списку ID (batch).
 func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*pb.MessagesResponse, error) {
+	msgs, err := t.facadeService.GetMessages(ctx, req.GetChatId(), req.GetMessageIds())
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 	var messages []*pb.Message
-	for _, id := range req.GetMessageIds() {
-		msg, err := t.facadeService.GetMessage(ctx, req.GetChatId(), id)
-		if err != nil {
-			alogger.FromContext(ctx).Error("Failed to get message", slog.Any("err", err), slog.Int64("message_id", id))
-			continue
+	for _, msg := range msgs {
+		if msg != nil {
+			messages = append(messages, domainToProto(msg))
 		}
-		messages = append(messages, domainToProto(msg))
 	}
 	return &pb.MessagesResponse{Messages: messages}, nil
 }

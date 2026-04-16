@@ -18,6 +18,8 @@ type TransformParams struct {
 	PrevMessageID MessageID
 	// WithSources — добавлять подпись и ссылку на источник.
 	WithSources bool
+	// ForAlbum — сообщение является частью альбома (влияет на формат ссылки).
+	ForAlbum bool
 	// ReplyMarkup — данные callback-кнопки.
 	ReplyMarkup []byte
 }
