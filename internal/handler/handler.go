@@ -79,17 +79,17 @@ type rateLimiter interface {
 
 // Handler обрабатывает обновления Telegram.
 type Handler struct {
-	logger     *slog.Logger
-	telegramRepo   telegramRepo
-	stateRepo      stateRepo
+	logger           *slog.Logger
+	telegramRepo     telegramRepo
+	stateRepo        stateRepo
 	messageService   messageService
 	filterService    filterService
 	transformService transformService
 	albumService     albumService
 	taskQueue        taskQueue
 	rateLimiter      rateLimiter
-	newTracker DedupFactory
-	ruleset    atomic.Pointer[domain.RuleSet]
+	newTracker       DedupFactory
+	ruleset          atomic.Pointer[domain.RuleSet]
 }
 
 // New создаёт новый экземпляр обработчика обновлений.
@@ -114,7 +114,7 @@ func New(
 		albumService:     albumService,
 		taskQueue:        taskQueue,
 		rateLimiter:      rateLimiter,
-		newTracker: newTracker,
+		newTracker:       newTracker,
 	}
 }
 

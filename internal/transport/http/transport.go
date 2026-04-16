@@ -21,14 +21,14 @@ type authService interface {
 // Transport реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
 type Transport struct {
 	authService authService
-	resolver *graph.Resolver
+	resolver    *graph.Resolver
 }
 
 // New создаёт новый экземпляр HTTP-транспорта.
 func New(authService authService, resolver *graph.Resolver) *Transport {
 	return &Transport{
 		authService: authService,
-		resolver: resolver,
+		resolver:    resolver,
 	}
 }
 

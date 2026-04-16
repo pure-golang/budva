@@ -2,11 +2,12 @@ package telegram
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-// clientAdapter — методы TDLib-клиента (для моков в юнит-тестах).
+// clientAdapter — контракт TDLib-клиента.
 type clientAdapter interface {
 	// Операции с сообщениями.
 	SendMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error)
@@ -41,6 +42,8 @@ type clientAdapter interface {
 	SubmitCode(ctx context.Context, code string) error
 	SubmitPassword(ctx context.Context, password string) error
 }
+
+var _ clientAdapter = (*Repo)(nil)
 
 // SendMessage отправляет сообщение в чат.
 func (r *Repo) SendMessage(_ context.Context, _ domain.ChatID, _ domain.InputMessageContent) (domain.MessageID, error) {
@@ -136,16 +139,27 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 }
 
 // SubmitPhone отправляет номер телефона для авторизации.
-func (r *Repo) SubmitPhone(_ context.Context, _ string) error {
+func (r *Repo) SubmitPhone(_ context.Context, phone string) error {
+	r.logger.Info("Phone submitted", slog.String("phone", domain.MaskPhoneNumber(phone)))
+	r.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
 	return nil
 }
 
 // SubmitCode отправляет код подтверждения.
 func (r *Repo) SubmitCode(_ context.Context, _ string) error {
+	r.logger.Info("Code submitted")
+	r.authStates <- domain.AuthStateEvent{
+		State: domain.AuthStateWaitPassword,
+		Extra: &domain.WaitPasswordState{PasswordHint: "2FA password"},
+	}
 	return nil
 }
 
 // SubmitPassword отправляет пароль двухфакторной аутентификации.
 func (r *Repo) SubmitPassword(_ context.Context, _ string) error {
+	r.logger.Info("Password submitted")
+	r.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+	close(r.clientDone)
+	r.logger.Info("Authorization complete")
 	return nil
 }

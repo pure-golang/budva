@@ -38,6 +38,14 @@ func (s AuthorizationState) String() string {
 	}
 }
 
+// AuthStateEvent — событие изменения состояния авторизации.
+type AuthStateEvent struct {
+	// State — новое состояние авторизации.
+	State AuthorizationState
+	// Extra — дополнительные данные состояния (например, WaitPasswordState).
+	Extra any
+}
+
 // WaitPasswordState содержит дополнительную информацию о состоянии ожидания пароля.
 type WaitPasswordState struct {
 	// PasswordHint — подсказка для пароля.

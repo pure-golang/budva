@@ -31,7 +31,7 @@ type stateRepo interface {
 
 // Service применяет трансформации к тексту сообщения.
 type Service struct {
-	logger   *slog.Logger
+	logger       *slog.Logger
 	telegramRepo telegramRepo
 	stateRepo    stateRepo
 }

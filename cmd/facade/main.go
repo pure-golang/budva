@@ -70,7 +70,9 @@ func run() error {
 	}()
 
 	// 5. Сервисы
-	authService := auth.New()
+	authService := auth.New(telegramRepo)
+	authService.Start(ctx)
+
 	facadeService := facade.New(telegramRepo)
 
 	// 6. HTTP transport

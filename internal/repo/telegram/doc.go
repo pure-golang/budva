@@ -5,6 +5,7 @@
 //	r := telegram.New(cfg)
 //	if err := r.Start(ctx); err != nil { ... }
 //	defer r.Close()
+//	events := r.AuthStates() // канал событий авторизации
 //
 // Конфигурация:
 //
@@ -21,6 +22,7 @@
 // Ограничения:
 //
 //   - Текущая реализация — заглушка. Реальная интеграция с TDLib будет добавлена позже.
-//   - Start() инициализирует TDLib-клиент.
+//   - Start() инициализирует TDLib-клиент и отправляет начальное событие авторизации в AuthStates().
+//   - SubmitPhone/SubmitCode/SubmitPassword продвигают state machine авторизации.
 //   - Close() завершает сессию и освобождает ресурсы.
 package telegram

@@ -50,9 +50,9 @@ type Transport struct {
 // New создаёт новый экземпляр терминального транспорта.
 func New(authService authService, telegramRepo telegramRepo, termIO termIO, phoneNumber string) *Transport {
 	t := &Transport{
-		logger:       slog.Default().With("module", "transport.term"),
-		authService:  authService,
-		telegramRepo: telegramRepo,
+		logger:        slog.Default().With("module", "transport.term"),
+		authService:   authService,
+		telegramRepo:  telegramRepo,
 		termIO:        termIO,
 		authStateChan: make(chan domain.AuthorizationState, 10),
 		authExtra:     make(chan any, 10),

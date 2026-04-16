@@ -8,20 +8,14 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-// authService — интерфейс для управления состоянием авторизации.
-type authService interface {
-	SetState(state domain.AuthorizationState, extra any)
-	ReadChan() <-chan string
-}
-
 // Repo реализует взаимодействие с Telegram через TDLib.
 // Текущая версия работает без TDLib; реальная TDLib-интеграция будет добавлена в Phase B.
 type Repo struct {
-	clientAdapter
 	logger     *slog.Logger
 	cfg        config.TelegramConfig
 	clientDone chan struct{}
 	updates    chan domain.Update
+	authStates chan domain.AuthStateEvent
 }
 
 // New создаёт новый экземпляр Telegram-репозитория.
@@ -31,62 +25,25 @@ func New(cfg config.TelegramConfig) *Repo {
 		cfg:        cfg,
 		clientDone: make(chan struct{}),
 		updates:    make(chan domain.Update, 100),
+		authStates: make(chan domain.AuthStateEvent, 10),
 	}
 }
 
-// Start инициализирует репозиторий (без TDLib).
+// Start инициализирует репозиторий и отправляет начальное состояние авторизации.
 func (r *Repo) Start(_ context.Context) error {
 	r.logger.Info("Telegram repo started")
+	r.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
 	return nil
-}
-
-// RunAuthFlow запускает state machine авторизации.
-// В Phase B этот метод будет заменён на реальный TDLib flow.
-func (r *Repo) RunAuthFlow(ctx context.Context, auth authService) {
-	// WaitPhone
-	auth.SetState(domain.AuthStateWaitPhone, nil)
-	phone := r.readInputOrCancel(ctx, auth)
-	if phone == "" {
-		return
-	}
-	r.logger.Info("Phone submitted", slog.String("phone", domain.MaskPhoneNumber(phone)))
-
-	// WaitCode
-	auth.SetState(domain.AuthStateWaitCode, nil)
-	code := r.readInputOrCancel(ctx, auth)
-	if code == "" {
-		return
-	}
-	r.logger.Info("Code submitted")
-
-	// WaitPassword (в реальном TDLib этот шаг опционален — зависит от 2FA)
-	auth.SetState(domain.AuthStateWaitPassword, &domain.WaitPasswordState{
-		PasswordHint: "2FA password",
-	})
-	password := r.readInputOrCancel(ctx, auth)
-	if password == "" {
-		return
-	}
-	r.logger.Info("Password submitted")
-
-	// Ready
-	auth.SetState(domain.AuthStateReady, nil)
-	close(r.clientDone)
-	r.logger.Info("Authorization complete")
-}
-
-func (r *Repo) readInputOrCancel(ctx context.Context, auth authService) string {
-	select {
-	case <-ctx.Done():
-		return ""
-	case input := <-auth.ReadChan():
-		return input
-	}
 }
 
 // Close завершает TDLib-сессию.
 func (r *Repo) Close() error {
 	return nil
+}
+
+// AuthStates возвращает канал событий авторизации.
+func (r *Repo) AuthStates() <-chan domain.AuthStateEvent {
+	return r.authStates
 }
 
 // ClientDone возвращает канал, закрывающийся после авторизации.

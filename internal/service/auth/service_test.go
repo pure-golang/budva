@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -11,163 +13,232 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
+type fakeTelegramRepo struct {
+	mu         sync.Mutex
+	authStates chan domain.AuthStateEvent
+	phones     []string
+	codes      []string
+	passwords  []string
+}
+
+func newFakeTelegramRepo() *fakeTelegramRepo {
+	return &fakeTelegramRepo{
+		authStates: make(chan domain.AuthStateEvent, 10),
+	}
+}
+
+func (f *fakeTelegramRepo) AuthStates() <-chan domain.AuthStateEvent {
+	return f.authStates
+}
+
+func (f *fakeTelegramRepo) SubmitPhone(_ context.Context, phone string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.phones = append(f.phones, phone)
+	return nil
+}
+
+func (f *fakeTelegramRepo) SubmitCode(_ context.Context, code string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.codes = append(f.codes, code)
+	return nil
+}
+
+func (f *fakeTelegramRepo) SubmitPassword(_ context.Context, password string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.passwords = append(f.passwords, password)
+	return nil
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 
 	// Act
-	svc := New()
+	repo := newFakeTelegramRepo()
+	svc := New(repo)
 
 	// Assert
 	assert.Equal(t, domain.AuthorizationState(0), svc.State())
 	assert.NotNil(t, svc.InputChan())
 }
 
-func TestSetStateAndState(t *testing.T) {
+func TestStateUpdatedFromEvent(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := New()
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
+		svc.Start(t.Context())
 
-	// Act
-	svc.SetState(domain.AuthStateWaitPhone, nil)
+		// Act
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		time.Sleep(1 * time.Millisecond)
 
-	// Assert
-	assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
-
-	// Act
-	svc.SetState(domain.AuthStateReady, nil)
-
-	// Assert
-	assert.Equal(t, domain.AuthStateReady, svc.State())
+		// Assert
+		assert.Equal(t, domain.AuthStateReady, svc.State())
+	})
 }
 
 func TestSubscribeReceivesStateChanges(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := New()
-	var received []domain.AuthorizationState
-	var mu sync.Mutex
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
 
-	svc.Subscribe(func(state domain.AuthorizationState, _ any) {
-		mu.Lock()
-		received = append(received, state)
-		mu.Unlock()
+		var received []domain.AuthorizationState
+		svc.Subscribe(func(state domain.AuthorizationState, _ any) {
+			received = append(received, state)
+		})
+
+		svc.Start(t.Context())
+
+		// Act — Ready завершает run(), поэтому отправляем его последним
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert
+		assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
 	})
-
-	// Act
-	svc.SetState(domain.AuthStateWaitPhone, nil)
-	svc.SetState(domain.AuthStateWaitCode, nil)
-	svc.SetState(domain.AuthStateReady, nil)
-
-	// Assert
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Equal(t, []domain.AuthorizationState{
-		domain.AuthStateWaitPhone,
-		domain.AuthStateWaitCode,
-		domain.AuthStateReady,
-	}, received)
 }
 
 func TestSubscribeReceivesExtra(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := New()
-	var gotExtra any
-	svc.Subscribe(func(_ domain.AuthorizationState, extra any) {
-		gotExtra = extra
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
+
+		var gotExtra any
+		svc.Subscribe(func(_ domain.AuthorizationState, extra any) {
+			gotExtra = extra
+		})
+
+		hint := &domain.WaitPasswordState{PasswordHint: "pet name"}
+
+		svc.Start(t.Context())
+
+		// Act
+		repo.authStates <- domain.AuthStateEvent{
+			State: domain.AuthStateWaitPassword,
+			Extra: hint,
+		}
+		time.Sleep(1 * time.Millisecond)
+
+		// Отправляем input, чтобы run() продолжился
+		svc.InputChan() <- "secret"
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert
+		require.NotNil(t, gotExtra)
+		ws, ok := gotExtra.(*domain.WaitPasswordState)
+		require.True(t, ok)
+		assert.Equal(t, "pet name", ws.PasswordHint)
+		assert.Equal(t, domain.AuthStateWaitPassword, svc.State())
 	})
+}
 
-	hint := &domain.WaitPasswordState{PasswordHint: "pet name"}
+func TestFullAuthFlow(t *testing.T) {
+	t.Parallel()
 
-	// Act
-	svc.SetState(domain.AuthStateWaitPassword, hint)
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
+		svc.Start(t.Context())
 
-	// Assert
-	require.NotNil(t, gotExtra)
-	ws, ok := gotExtra.(*domain.WaitPasswordState)
-	require.True(t, ok)
-	assert.Equal(t, "pet name", ws.PasswordHint)
+		// WaitPhone
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
+		time.Sleep(1 * time.Millisecond)
+		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
+
+		svc.InputChan() <- "+79261234567"
+		time.Sleep(1 * time.Millisecond)
+
+		repo.mu.Lock()
+		require.Len(t, repo.phones, 1)
+		assert.Equal(t, "+79261234567", repo.phones[0])
+		repo.mu.Unlock()
+
+		// WaitCode
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
+		time.Sleep(1 * time.Millisecond)
+
+		svc.InputChan() <- "12345"
+		time.Sleep(1 * time.Millisecond)
+
+		repo.mu.Lock()
+		require.Len(t, repo.codes, 1)
+		assert.Equal(t, "12345", repo.codes[0])
+		repo.mu.Unlock()
+
+		// WaitPassword
+		repo.authStates <- domain.AuthStateEvent{
+			State: domain.AuthStateWaitPassword,
+			Extra: &domain.WaitPasswordState{PasswordHint: "2FA"},
+		}
+		time.Sleep(1 * time.Millisecond)
+
+		svc.InputChan() <- "secret"
+		time.Sleep(1 * time.Millisecond)
+
+		repo.mu.Lock()
+		require.Len(t, repo.passwords, 1)
+		assert.Equal(t, "secret", repo.passwords[0])
+		repo.mu.Unlock()
+
+		// Ready
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		time.Sleep(1 * time.Millisecond)
+		assert.Equal(t, domain.AuthStateReady, svc.State())
+	})
 }
 
 func TestMultipleSubscribers(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := New()
-	var count1, count2 int
-	svc.Subscribe(func(_ domain.AuthorizationState, _ any) { count1++ })
-	svc.Subscribe(func(_ domain.AuthorizationState, _ any) { count2++ })
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
+		var count1, count2 int
+		svc.Subscribe(func(_ domain.AuthorizationState, _ any) { count1++ })
+		svc.Subscribe(func(_ domain.AuthorizationState, _ any) { count2++ })
 
-	// Act
-	svc.SetState(domain.AuthStateReady, nil)
+		svc.Start(t.Context())
 
-	// Assert
-	assert.Equal(t, 1, count1)
-	assert.Equal(t, 1, count2)
+		// Act
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert
+		assert.Equal(t, 1, count1)
+		assert.Equal(t, 1, count2)
+	})
 }
 
-func TestInputChanSend(t *testing.T) {
+func TestCancelDuringWait(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := New()
-	done := make(chan string, 1)
-	go func() {
-		done <- svc.ReadInput()
-	}()
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		ctx, cancel := context.WithCancel(t.Context())
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
+		svc.Start(ctx)
 
-	// Act
-	svc.InputChan() <- "phone123"
+		// Act — отправляем состояние, но не даём input
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
+		time.Sleep(1 * time.Millisecond)
+		cancel()
+		time.Sleep(1 * time.Millisecond)
 
-	// Assert
-	select {
-	case got := <-done:
-		assert.Equal(t, "phone123", got)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for input")
-	}
-}
-
-func TestReadInput(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	svc := New()
-	done := make(chan string, 1)
-	go func() {
-		done <- svc.ReadInput()
-	}()
-
-	// Act
-	svc.InputChan() <- "code456"
-
-	// Assert
-	select {
-	case got := <-done:
-		assert.Equal(t, "code456", got)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for ReadInput")
-	}
-}
-
-func TestConcurrentStateAccess(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	svc := New()
-
-	// Act + Assert
-	var wg sync.WaitGroup
-	for i := range 10 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			svc.SetState(domain.AuthorizationState(i%3), nil)
-			_ = svc.State()
-		}()
-	}
-	wg.Wait()
+		// Assert — сервис остановился, состояние зафиксировано
+		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
+	})
 }

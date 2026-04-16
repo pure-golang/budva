@@ -92,7 +92,9 @@ func run() error {
 	}()
 
 	// 5. Сервисы
-	authService := auth.New()
+	authService := auth.New(telegramRepo)
+	authService.Start(ctx)
+
 	messageService := message.New()
 	transformService := transform.New(telegramRepo, stateRepo)
 	filterService := filters.New()
@@ -174,9 +176,6 @@ func run() error {
 			logger.Error("Terminal transport error", slog.Any("err", err))
 		}
 	}()
-
-	// 11. Auth flow
-	go telegramRepo.RunAuthFlow(ctx, authService)
 
 	logger.Info("Engine started, waiting for shutdown signal")
 	<-ctx.Done()

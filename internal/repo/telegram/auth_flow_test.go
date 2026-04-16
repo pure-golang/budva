@@ -1,8 +1,6 @@
 package telegram
 
 import (
-	"context"
-	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -14,85 +12,97 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-type fakeAuthDriver struct {
-	mu        sync.Mutex
-	states    []domain.AuthorizationState
-	extras    []any
-	inputChan chan string
-}
-
-func newFakeAuthDriver() *fakeAuthDriver {
-	return &fakeAuthDriver{
-		inputChan: make(chan string, 1),
-	}
-}
-
-func (f *fakeAuthDriver) SetState(state domain.AuthorizationState, extra any) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.states = append(f.states, state)
-	f.extras = append(f.extras, extra)
-}
-
-func (f *fakeAuthDriver) snapshot() ([]domain.AuthorizationState, []any) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	s := make([]domain.AuthorizationState, len(f.states))
-	copy(s, f.states)
-	e := make([]any, len(f.extras))
-	copy(e, f.extras)
-	return s, e
-}
-
-func (f *fakeAuthDriver) ReadChan() <-chan string {
-	return f.inputChan
-}
-
-func TestRunAuthFlow_FullCycle(t *testing.T) {
+func TestStart_EmitsWaitPhone(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-
+		// Arrange
 		repo := New(config.TelegramConfig{})
-		auth := newFakeAuthDriver()
 
-		go repo.RunAuthFlow(ctx, auth)
+		// Act
+		require.NoError(t, repo.Start(t.Context()))
 
-		// WaitPhone
+		// Assert
 		time.Sleep(1 * time.Millisecond)
-		states, _ := auth.snapshot()
-		require.Len(t, states, 1)
-		assert.Equal(t, domain.AuthStateWaitPhone, states[0])
+		select {
+		case event := <-repo.AuthStates():
+			assert.Equal(t, domain.AuthStateWaitPhone, event.State)
+		default:
+			t.Error("expected WaitPhone event")
+		}
+	})
+}
 
-		auth.inputChan <- "+79261234567"
+func TestSubmitPhone_EmitsWaitCode(t *testing.T) {
+	t.Parallel()
 
-		// WaitCode
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := New(config.TelegramConfig{})
+		require.NoError(t, repo.Start(t.Context()))
+		<-repo.AuthStates() // drain WaitPhone
+
+		// Act
+		require.NoError(t, repo.SubmitPhone(t.Context(), "+79261234567"))
+
+		// Assert
 		time.Sleep(1 * time.Millisecond)
-		states, _ = auth.snapshot()
-		require.Len(t, states, 2)
-		assert.Equal(t, domain.AuthStateWaitCode, states[1])
+		select {
+		case event := <-repo.AuthStates():
+			assert.Equal(t, domain.AuthStateWaitCode, event.State)
+		default:
+			t.Error("expected WaitCode event")
+		}
+	})
+}
 
-		auth.inputChan <- "12345"
+func TestSubmitCode_EmitsWaitPassword(t *testing.T) {
+	t.Parallel()
 
-		// WaitPassword
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := New(config.TelegramConfig{})
+		require.NoError(t, repo.Start(t.Context()))
+		<-repo.AuthStates() // drain WaitPhone
+
+		// Act
+		require.NoError(t, repo.SubmitCode(t.Context(), "12345"))
+
+		// Assert
 		time.Sleep(1 * time.Millisecond)
-		states, extras := auth.snapshot()
-		require.Len(t, states, 3)
-		assert.Equal(t, domain.AuthStateWaitPassword, states[2])
-		ws, ok := extras[2].(*domain.WaitPasswordState)
-		require.True(t, ok)
-		assert.Equal(t, "2FA password", ws.PasswordHint)
+		select {
+		case event := <-repo.AuthStates():
+			assert.Equal(t, domain.AuthStateWaitPassword, event.State)
+			ws, ok := event.Extra.(*domain.WaitPasswordState)
+			require.True(t, ok)
+			assert.Equal(t, "2FA password", ws.PasswordHint)
+		default:
+			t.Error("expected WaitPassword event")
+		}
+	})
+}
 
-		auth.inputChan <- "secret"
+func TestSubmitPassword_EmitsReadyAndClosesClientDone(t *testing.T) {
+	t.Parallel()
 
-		// Ready
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := New(config.TelegramConfig{})
+		require.NoError(t, repo.Start(t.Context()))
+		<-repo.AuthStates() // drain WaitPhone
+
+		// Act
+		require.NoError(t, repo.SubmitPassword(t.Context(), "secret"))
+
+		// Assert
 		time.Sleep(1 * time.Millisecond)
-		states, _ = auth.snapshot()
-		require.Len(t, states, 4)
-		assert.Equal(t, domain.AuthStateReady, states[3])
+		select {
+		case event := <-repo.AuthStates():
+			assert.Equal(t, domain.AuthStateReady, event.State)
+		default:
+			t.Error("expected Ready event")
+		}
 
-		// ClientDone закрыт
 		select {
 		case <-repo.ClientDone():
 			// OK
@@ -100,42 +110,4 @@ func TestRunAuthFlow_FullCycle(t *testing.T) {
 			t.Error("clientDone should be closed after Ready")
 		}
 	})
-}
-
-func TestRunAuthFlow_CancelDuringInput(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	repo := New(config.TelegramConfig{})
-	auth := newFakeAuthDriver()
-
-	done := make(chan struct{})
-	go func() {
-		repo.RunAuthFlow(ctx, auth)
-		close(done)
-	}()
-
-	// Ждём WaitPhone
-	time.Sleep(50 * time.Millisecond)
-	states, _ := auth.snapshot()
-	require.Len(t, states, 1)
-
-	cancel()
-
-	select {
-	case <-done:
-		// OK
-	case <-time.After(2 * time.Second):
-		t.Error("RunAuthFlow did not exit after context cancel")
-	}
-
-	// clientDone НЕ закрыт
-	select {
-	case <-repo.ClientDone():
-		t.Error("clientDone should NOT be closed after cancel")
-	default:
-		// OK
-	}
 }
