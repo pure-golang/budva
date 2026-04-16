@@ -1,12 +1,36 @@
 # Phase B: план интеграции TDLib
 
-Последняя актуализация: 2026-04-14.
+Последняя актуализация: 2026-04-16.
 
 ## Предусловия
 
 Phase A полностью закрыта. Вся бизнес-логика (handler, transform, filters, dedup, album, limiter, message, facade, auth) работает через абстракции `domain.*` и интерфейсы. TDLib-зависимый код локализован в `internal/repo/telegram/`.
 
-**Текущее состояние `repo/telegram`:** заглушка с `RunAuthFlow` (WaitPhone → WaitCode → WaitPassword → Ready), остальные методы возвращают nil/пустые значения.
+**Текущее состояние `repo/telegram`:** fake-реализация с event-driven auth flow (SubmitPhone/Code/Password эмитят события в `authStates` канал), опциональный WaitPassword через `has2FA`, остальные методы `clientAdapter` возвращают nil/пустые значения.
+
+**Текущая архитектура auth flow:**
+
+```
+Repo (владеет state machine):
+  Start()           → эмитит AuthStateWaitPhone в authStates
+  SubmitPhone()     → эмитит AuthStateWaitCode
+  SubmitCode()      → эмитит AuthStateWaitPassword (has2FA) или AuthStateReady
+  SubmitPassword()  → эмитит AuthStateReady, закрывает clientDone
+  AuthStates()      → <-chan domain.AuthStateEvent
+  ClientDone()      → <-chan struct{}
+
+auth.Service (оркестратор):
+  run() → читает AuthStates(), фильтрует Closing/Closed,
+          уведомляет listeners (async), ждёт input из InputChan(),
+          вызывает SubmitPhone/Code/Password
+  Close() → закрывает inputChan
+
+Transport (терминал / HTTP):
+  Subscribe() на auth.Service → показывает промпты
+  Отправляет input в InputChan()
+```
+
+При подключении TDLib меняется только внутренняя реализация `Repo`. Интерфейсы `clientAdapter`, `telegramRepo` (consumer-side в auth.Service) и `authService` (consumer-side в транспортах) — без изменений.
 
 ## Зависимости
 
@@ -60,40 +84,85 @@ go get github.com/zelenin/go-tdlib@v0.7.6
 
 ### T4. repo/telegram — TDLib клиент
 
-Заменить заглушку на реальную TDLib-интеграцию.
+Заменить fake-реализацию на реальную TDLib-интеграцию. Все изменения внутри `Repo` — интерфейс `clientAdapter` не меняется.
 
 #### T4.1. Структура Repo
+
+Добавить поле `client` и `authorizer`:
 
 ```go
 type Repo struct {
     logger     *slog.Logger
     cfg        config.TelegramConfig
-    client     *client.Client       // go-tdlib клиент
+    client     *client.Client              // go-tdlib клиент (nil до авторизации)
+    authorizer *client.ClientAuthorizer    // каналы для phone/code/password
     clientDone chan struct{}
     updates    chan domain.Update
+    authStates chan domain.AuthStateEvent
 }
 ```
 
-#### T4.2. Start() + setupClientLog()
+Поле `has2FA` удаляется — TDLib сам решает, нужен ли WaitPassword.
 
-- Вызвать `client.SetLogStream()` → файл `cfg.LogDirectory/telegram.log`
-- Вызвать `client.SetLogVerbosityLevel()` → `cfg.LogVerbosityLevel`
+#### T4.2. Start() — полная инициализация
+
+```go
+func (r *Repo) Start(ctx context.Context) error {
+    if err := r.setupClientLog(); err != nil {
+        return err
+    }
+
+    r.authorizer = client.ClientAuthorizer(r.createTdlibParameters())
+
+    // Горутина: слушает authorizer.State, маппит в domain events
+    go r.listenAuthStates(ctx)
+
+    // Горутина: создаёт TDLib клиент (retry loop)
+    go r.createClient(ctx)
+
+    return nil
+}
+```
+
+`setupClientLog()`:
+- `client.SetLogStream()` → файл `cfg.LogDirectory/telegram.log`
+- `client.SetLogVerbosityLevel()` → `cfg.LogVerbosityLevel`
 
 **Источник:** `budva43/repo/telegram/repo.go:150-169`
 
-#### T4.3. CreateClient() с retry loop
+#### T4.3. listenAuthStates() — маппинг TDLib → domain
 
 ```go
-func (r *Repo) CreateClient(handler func() client.AuthorizationStateHandler, onReady func()) {
+func (r *Repo) listenAuthStates(ctx context.Context) {
     for {
-        authorizer := handler()
-        tdlibClient, err := client.NewClient(authorizer)
+        select {
+        case <-ctx.Done():
+            return
+        case state, ok := <-r.authorizer.State:
+            if !ok {
+                r.authStates <- domain.AuthStateEvent{State: domain.AuthStateClosed}
+                return
+            }
+            if _, isClosing := state.(*client.AuthorizationStateClosing); isClosing {
+                continue
+            }
+            r.authStates <- mapTDLibState(state)
+        }
+    }
+}
+```
+
+#### T4.4. createClient() — retry loop
+
+```go
+func (r *Repo) createClient(ctx context.Context) {
+    for {
+        tdlibClient, err := client.NewClient(r.authorizer)
         if err != nil {
             r.logger.Error("Failed to create TDLib client", slog.Any("err", err))
             continue
         }
         r.client = tdlibClient
-        onReady()
         close(r.clientDone)
         return
     }
@@ -102,7 +171,31 @@ func (r *Repo) CreateClient(handler func() client.AuthorizationStateHandler, onR
 
 **Источник:** `budva43/repo/telegram/repo.go:82-113`
 
-#### T4.4. Close() с sleep workaround
+#### T4.5. Submit* — делегирование в authorizer
+
+```go
+func (r *Repo) SubmitPhone(_ context.Context, phone string) error {
+    r.logger.Info("Phone submitted", slog.String("phone", domain.MaskPhoneNumber(phone)))
+    r.authorizer.PhoneNumber <- phone
+    return nil
+}
+
+func (r *Repo) SubmitCode(_ context.Context, _ string) error {
+    r.logger.Info("Code submitted")
+    r.authorizer.Code <- code
+    return nil
+}
+
+func (r *Repo) SubmitPassword(_ context.Context, _ string) error {
+    r.logger.Info("Password submitted")
+    r.authorizer.Password <- password
+    return nil
+}
+```
+
+TDLib сам эмитит следующее состояние в `authorizer.State` → `listenAuthStates` маппит его → `authStates` канал → `auth.Service.run()` обрабатывает.
+
+#### T4.6. Close() с sleep workaround
 
 ```go
 func (r *Repo) Close() error {
@@ -118,44 +211,25 @@ func (r *Repo) Close() error {
 
 **Источник:** `budva43/repo/telegram/repo.go:116-136`
 
-### T5. Auth flow → реальный TDLib
-
-Заменить `RunAuthFlow` на реальный `newFuncRunAuthorizationStateHandler`:
+### T5. Маппинг TDLib states → domain
 
 ```go
-func (r *Repo) newAuthHandler(ctx context.Context, auth authDriver) client.AuthorizationStateHandler {
-    authorizer := client.ClientAuthorizer(r.CreateTdlibParameters())
-    go func() {
-        for {
-            select {
-            case <-ctx.Done():
-                return
-            case state, ok := <-authorizer.State:
-                if !ok {
-                    auth.SetState(domain.AuthStateClosed, nil)
-                    return
-                }
-                if _, isClosing := state.(*client.AuthorizationStateClosing); isClosing {
-                    continue // пропускаем broadcast
-                }
-                domainState, extra := mapTDLibState(state)
-                auth.SetState(domainState, extra)
-                switch state.(type) {
-                case *client.AuthorizationStateWaitPhoneNumber:
-                    authorizer.PhoneNumber <- <-auth.ReadChan()
-                case *client.AuthorizationStateWaitCode:
-                    authorizer.Code <- <-auth.ReadChan()
-                case *client.AuthorizationStateWaitPassword:
-                    authorizer.Password <- <-auth.ReadChan()
-                }
-            }
+func mapTDLibState(state client.AuthorizationState) domain.AuthStateEvent {
+    switch s := state.(type) {
+    case *client.AuthorizationStateWaitPhoneNumber:
+        return domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
+    case *client.AuthorizationStateWaitCode:
+        return domain.AuthStateEvent{State: domain.AuthStateWaitCode}
+    case *client.AuthorizationStateWaitPassword:
+        return domain.AuthStateEvent{
+            State: domain.AuthStateWaitPassword,
+            Extra: &domain.WaitPasswordState{PasswordHint: s.PasswordHint},
         }
-    }()
-    return authorizer
+    default:
+        return domain.AuthStateEvent{State: domain.AuthStateReady}
+    }
 }
 ```
-
-Маппинг TDLib states → domain states:
 
 | TDLib State | Domain State | Extra |
 |---|---|---|
@@ -163,8 +237,8 @@ func (r *Repo) newAuthHandler(ctx context.Context, auth authDriver) client.Autho
 | `AuthorizationStateWaitCode` | `AuthStateWaitCode` | nil |
 | `AuthorizationStateWaitPassword` | `AuthStateWaitPassword` | `&WaitPasswordState{PasswordHint}` |
 | `AuthorizationStateReady` | `AuthStateReady` | nil |
-| `AuthorizationStateClosing` | — | пропускается |
-| `AuthorizationStateClosed` | `AuthStateClosed` | nil |
+| `AuthorizationStateClosing` | — | пропускается в `listenAuthStates` |
+| channel closed | `AuthStateClosed` | nil |
 
 **Источник:** `budva43/service/auth/service.go:122-159`
 
@@ -172,7 +246,7 @@ func (r *Repo) newAuthHandler(ctx context.Context, auth authDriver) client.Autho
 
 #### T6.1. ParseTextEntities
 
-Текущая заглушка в `repo.go` возвращает пустой `FormattedText`. Заменить на:
+Текущая заглушка возвращает пустой `FormattedText`. Заменить на:
 
 ```go
 func (r *Repo) ParseTextEntities(_ context.Context, text string) (*domain.FormattedText, error) {
@@ -206,7 +280,7 @@ func (r *Repo) GetMarkdownText(_ context.Context, text *domain.FormattedText) (*
 
 В budva43 обновления приходят через `client.Listener.Updates`. Нужно:
 
-1. После `CreateClient()` получить listener: `r.client.GetListener()`
+1. После `createClient()` получить listener: `r.client.GetListener()`
 2. Читать `listener.Updates` в горутине
 3. Конвертировать `client.Update*` → `domain.Update` и отправлять в `r.updates` канал
 
@@ -301,7 +375,7 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 - `UseTestDC=true`
 - Фейковые номера телефонов для тестового DC
 - Полный flow: Start → Auth → Ready → GetStatus
-- TermAutomator для эмуляции stdin (или использовать `termIO` mock)
+- Использовать `termIO` mock для эмуляции ввода
 - Build tag `tdlib` для пропуска без TDLib
 
 **Источник:** `budva43/test/auth_test.go`
@@ -311,18 +385,16 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 ```
 T1 (Dockerfile) + T2 (go-tdlib) + T3 (Config)
          ↓
-T4 (repo/telegram core)
+T4 (repo/telegram core) + T5 (state mapping)
          ↓
-T5 (auth flow) + T6 (static methods)
-         ↓
-T7 (update listener) + T8 (type conversion)
+T6 (static methods) + T7 (update listener) + T8 (type conversion)
          ↓
 T9 (GetOption/GetMe) + T10 (CRUD operations)
          ↓
 T11 (Loader) + T12 (integration test)
 ```
 
-Первые три задачи (T1-T3) — инфраструктура. T4-T6 — ядро. T7-T10 — всё остальное. T11-T12 — финализация.
+Первые три задачи (T1-T3) — инфраструктура. T4-T5 — ядро auth. T6-T8 — данные. T9-T10 — операции. T11-T12 — финализация.
 
 ## Риски
 
@@ -340,4 +412,5 @@ T11 (Loader) + T12 (integration test)
 - domain types — без изменений
 - transport layer (grpc, http, term) — без изменений
 - test/support/FakeTelegram — остаётся для unit/BDD/integration тестов
-- auth.Service — без изменений (SetState/ReadChan уже готовы)
+- auth.Service — без изменений (AuthStates/InputChan/Subscribe/Close уже готовы)
+- Интерфейс `clientAdapter` — без изменений (меняется только реализация методов)
