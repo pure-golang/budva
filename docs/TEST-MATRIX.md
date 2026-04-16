@@ -2,15 +2,15 @@
 
 ## Контекст
 
-Сервис пересылки/копирования сообщений между чатами Telegram. Принимает обновления (new/edit/delete), применяет правила (фильтрация, трансформация, дедупликация), пересылает в целевые чаты. Внешние интерфейсы: gRPC (FacadeGRPC), HTTP (REST auth + GraphQL), Terminal (CLI авторизация). Инфраструктура: BadgerDB (state), YAML (ruleset), in-memory queue.
+Сервис пересылки/копирования сообщений между чатами Telegram. Принимает обновления (new/edit/delete), применяет правила (фильтрация, трансформация, дедупликация), пересылает в целевые чаты. Внешние интерфейсы: gRPC (FacadeGRPC), HTTP (REST auth + GraphQL), Terminal (CLI авторизация). Инфраструктура: BadgerDB (state), YAML (ruleset), in-memory queue, TDLib (Telegram client).
 
 **Архитектура:**
 - `internal/handler` — диспетчер обновлений: OnNewMessage, OnEditedMessage, OnDeletedMessages
 - `internal/service/*` — бизнес-логика: auth, transform, filters, dedup, album, limiter, message, facade
-- `internal/repo/*` — адаптеры: state (BadgerDB), ruleset (YAML), queue, telegram (TDLib stub)
+- `internal/repo/*` — адаптеры: state (BadgerDB), ruleset (YAML), queue, telegram (TDLib через clientAdapter + mapping)
 - `internal/transport/*` — транспорты: grpc, http (REST + GraphQL), term
 - `internal/domain` — доменные типы и утилиты
-- `internal/config` — envconfig
+- `internal/config` — envconfig (включая TelegramConfig с полной параметризацией TDLib)
 - `internal/controller` — health endpoints
 
 **Структура тестов:**
@@ -18,22 +18,26 @@
 - `test/bdd/steps/*_test.go` + `test/bdd/features/` — BDD-тесты через godog, `testing.Short()` skip
 - `test/smoke/*_test.go` — смоук-тесты, build tag `smoke`
 
+**Тестовая инфраструктура BDD:**
+- `test/support/live_stack.go` — LiveStack: полный стек с реальным TDLib и тестовыми чатами из фикстур
+- `test/support/fixtures.go` — загрузка фикстур тестовых чатов из JSON
+
 ---
 
 ## Покрытие по пакетам
 
 | Пакет | Unit | BDD | Smoke |
 |-------|------|-----|-------|
-| internal/config | ✅ 3 | — | — |
+| internal/config | ✅ 4 | — | — |
 | internal/controller | ✅ 5 | — | ✅ |
 | internal/domain | ✅ 7 | — | — |
 | internal/handler | ✅ 20 | ✅ | — |
 | internal/repo/queue | ✅ 4 | — | — |
 | internal/repo/ruleset | ✅ 11 | — | — |
 | internal/repo/state | ✅ 11 | — | — |
-| internal/repo/telegram | ✅ 4 | — | — |
+| internal/repo/telegram | — | ✅ | — |
 | internal/service/album | ✅ 10 | ✅ | — |
-| internal/service/auth | ✅ 7 | — | — |
+| internal/service/auth | ✅ 11 | — | — |
 | internal/service/dedup | ✅ 3 | ✅ | — |
 | internal/service/facade | ✅ 9 | — | — |
 | internal/service/filters | ✅ 8 | ✅ | — |
@@ -56,8 +60,9 @@
 | ID | Тест | Статус |
 |----|------|--------|
 | CFG-U-001 | TestTelegramConfig_RequiredFields | ✅ |
-| CFG-U-002 | TestStorageConfig_Defaults | ✅ |
-| CFG-U-003 | TestRulesetConfig_Defaults | ✅ |
+| CFG-U-002 | TestTelegramConfig_Defaults | ✅ |
+| CFG-U-003 | TestStorageConfig_Defaults | ✅ |
+| CFG-U-004 | TestRulesetConfig_Defaults | ✅ |
 
 ---
 
@@ -175,14 +180,7 @@
 
 ### Repo / Telegram (internal/repo/telegram)
 
-Файл: `auth_flow_test.go` ✅
-
-| ID | Тест | Статус |
-|----|------|--------|
-| REPO-U-027 | TestStart_EmitsWaitPhone | ✅ |
-| REPO-U-028 | TestSubmitPhone_EmitsWaitCode | ✅ |
-| REPO-U-029 | TestSubmitCode_EmitsWaitPassword | ✅ |
-| REPO-U-030 | TestSubmitPassword_EmitsReadyAndClosesClientDone | ✅ |
+Тестовые файлы отсутствуют. Пакет содержит `client_adapter.go`, `repo.go`, `mapping.go`. Покрытие обеспечивается BDD-тестами через LiveStack с реальным TDLib.
 
 ---
 
@@ -218,6 +216,10 @@
 | SVC-U-015 | TestFullAuthFlow | ✅ |
 | SVC-U-016 | TestMultipleSubscribers | ✅ |
 | SVC-U-017 | TestCancelDuringWait | ✅ |
+| SVC-U-018 | TestClosingStateIsSkipped | ✅ |
+| SVC-U-019 | TestSubmitCodeRejection_WaitsForReEmit | ✅ |
+| SVC-U-020 | TestFlowWithout2FA | ✅ |
+| SVC-U-021 | TestClose_ClosesInputChan | ✅ |
 
 ---
 
@@ -227,9 +229,9 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-019 | TestTracker_TryMark_first_time | ✅ |
-| SVC-U-020 | TestTracker_TryMark_duplicate | ✅ |
-| SVC-U-021 | TestTracker_TryMark_unknown_chat | ✅ |
+| SVC-U-022 | TestTracker_TryMark_first_time | ✅ |
+| SVC-U-023 | TestTracker_TryMark_duplicate | ✅ |
+| SVC-U-024 | TestTracker_TryMark_unknown_chat | ✅ |
 
 ---
 
@@ -239,15 +241,15 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-022 | TestSendMessage_Success | ✅ |
-| SVC-U-023 | TestSendMessageAlbum_with_files_and_text | ✅ |
-| SVC-U-024 | TestSendMessageAlbum_empty | ✅ |
-| SVC-U-025 | TestGetStatus_Success | ✅ |
-| SVC-U-026 | TestGetStatus_GetOption_error | ✅ |
-| SVC-U-027 | TestGetStatus_GetMe_error | ✅ |
-| SVC-U-028 | TestForwardMessage_Success | ✅ |
-| SVC-U-029 | TestDeleteMessages_Success | ✅ |
-| SVC-U-030 | TestUpdateMessage_Success | ✅ |
+| SVC-U-025 | TestSendMessage_Success | ✅ |
+| SVC-U-026 | TestSendMessageAlbum_with_files_and_text | ✅ |
+| SVC-U-027 | TestSendMessageAlbum_empty | ✅ |
+| SVC-U-028 | TestGetStatus_Success | ✅ |
+| SVC-U-029 | TestGetStatus_GetOption_error | ✅ |
+| SVC-U-030 | TestGetStatus_GetMe_error | ✅ |
+| SVC-U-031 | TestForwardMessage_Success | ✅ |
+| SVC-U-032 | TestDeleteMessages_Success | ✅ |
+| SVC-U-033 | TestUpdateMessage_Success | ✅ |
 
 ---
 
@@ -257,14 +259,14 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-031 | TestEvaluate_no_filters | ✅ |
-| SVC-U-032 | TestEvaluate_exclude_matches | ✅ |
-| SVC-U-033 | TestEvaluate_exclude_no_match | ✅ |
-| SVC-U-034 | TestEvaluate_include_matches | ✅ |
-| SVC-U-035 | TestEvaluate_include_no_match | ✅ |
-| SVC-U-036 | TestEvaluate_empty_text_with_include | ✅ |
-| SVC-U-037 | TestEvaluate_submatch | ✅ |
-| SVC-U-038 | TestEvaluate_submatch_no_match | ✅ |
+| SVC-U-034 | TestEvaluate_no_filters | ✅ |
+| SVC-U-035 | TestEvaluate_exclude_matches | ✅ |
+| SVC-U-036 | TestEvaluate_exclude_no_match | ✅ |
+| SVC-U-037 | TestEvaluate_include_matches | ✅ |
+| SVC-U-038 | TestEvaluate_include_no_match | ✅ |
+| SVC-U-039 | TestEvaluate_empty_text_with_include | ✅ |
+| SVC-U-040 | TestEvaluate_submatch | ✅ |
+| SVC-U-041 | TestEvaluate_submatch_no_match | ✅ |
 
 ---
 
@@ -274,7 +276,7 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-039 | TestWaitForForward | ✅ |
+| SVC-U-042 | TestWaitForForward | ✅ |
 
 ---
 
@@ -284,16 +286,16 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-040 | TestGetFormattedText (5 subtests) | ✅ |
-| SVC-U-041 | TestIsSystemMessage (3 subtests) | ✅ |
-| SVC-U-042 | TestGetReplyMarkupData (3 subtests) | ✅ |
-| SVC-U-043 | TestBuildInputContent_Photo | ✅ |
-| SVC-U-044 | TestBuildInputContent_Text_InvertsLinkPreview | ✅ |
-| SVC-U-045 | TestBuildInputContent_Document | ✅ |
-| SVC-U-046 | TestBuildInputContent_VoiceNote | ✅ |
-| SVC-U-047 | TestBuildInputContent_Video | ✅ |
-| SVC-U-048 | TestBuildInputContent_Animation | ✅ |
-| SVC-U-049 | TestBuildInputContent_Audio | ✅ |
+| SVC-U-043 | TestGetFormattedText (5 subtests) | ✅ |
+| SVC-U-044 | TestIsSystemMessage (3 subtests) | ✅ |
+| SVC-U-045 | TestGetReplyMarkupData (3 subtests) | ✅ |
+| SVC-U-046 | TestBuildInputContent_Photo | ✅ |
+| SVC-U-047 | TestBuildInputContent_Text_InvertsLinkPreview | ✅ |
+| SVC-U-048 | TestBuildInputContent_Document | ✅ |
+| SVC-U-049 | TestBuildInputContent_VoiceNote | ✅ |
+| SVC-U-050 | TestBuildInputContent_Video | ✅ |
+| SVC-U-051 | TestBuildInputContent_Animation | ✅ |
+| SVC-U-052 | TestBuildInputContent_Audio | ✅ |
 
 ---
 
@@ -303,22 +305,22 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-050 | TestTransform_NoTransformations | ✅ |
-| SVC-U-051 | TestTransform_Translation | ✅ |
-| SVC-U-052 | TestTransform_Translation_SkippedForOtherChat | ✅ |
-| SVC-U-053 | TestTransform_ReplaceFragments | ✅ |
-| SVC-U-054 | TestTransform_Sign | ✅ |
-| SVC-U-055 | TestTransform_Link | ✅ |
-| SVC-U-056 | TestTransform_PrevLink | ✅ |
-| SVC-U-057 | TestAddNextLink | ✅ |
-| SVC-U-058 | TestAddNextLink_NoNextConfig | ✅ |
-| SVC-U-059 | TestAddNextLink_ChatNotInFor | ✅ |
-| SVC-U-060 | TestEncodeDecodeUTF16 (4 subtests) | ✅ |
-| SVC-U-061 | TestExtractSubstring | ✅ |
-| SVC-U-062 | TestExtractSubstring_BeyondLength | ✅ |
-| SVC-U-063 | TestReplaceFragment | ✅ |
-| SVC-U-064 | TestReplaceFragment_NoMatch | ✅ |
-| SVC-U-065 | TestReplaceFragment_NilText | ✅ |
+| SVC-U-053 | TestTransform_NoTransformations | ✅ |
+| SVC-U-054 | TestTransform_Translation | ✅ |
+| SVC-U-055 | TestTransform_Translation_SkippedForOtherChat | ✅ |
+| SVC-U-056 | TestTransform_ReplaceFragments | ✅ |
+| SVC-U-057 | TestTransform_Sign | ✅ |
+| SVC-U-058 | TestTransform_Link | ✅ |
+| SVC-U-059 | TestTransform_PrevLink | ✅ |
+| SVC-U-060 | TestAddNextLink | ✅ |
+| SVC-U-061 | TestAddNextLink_NoNextConfig | ✅ |
+| SVC-U-062 | TestAddNextLink_ChatNotInFor | ✅ |
+| SVC-U-063 | TestEncodeDecodeUTF16 (4 subtests) | ✅ |
+| SVC-U-064 | TestExtractSubstring | ✅ |
+| SVC-U-065 | TestExtractSubstring_BeyondLength | ✅ |
+| SVC-U-066 | TestReplaceFragment | ✅ |
+| SVC-U-067 | TestReplaceFragment_NoMatch | ✅ |
+| SVC-U-068 | TestReplaceFragment_NilText | ✅ |
 
 ---
 
@@ -398,76 +400,113 @@
 
 ## BDD-тесты (test/bdd/)
 
-Требуют: BadgerDB (TempDir), FakeTelegram, support.Stack. Skip: `testing.Short()`.
+Требуют: TDLib (реальный клиент), авторизованная сессия, тестовые чаты из `cmd/stand`, LiveStack. Skip: `testing.Short()`.
+
+Каждая feature содержит два типа сценариев:
+- **Outline 01** — проверка через все типы исходных чатов (4 источника x все целевые)
+- **Outline 02** — матрица конкретных пар источник-назначение (до 4x4=16 комбинаций)
+
+Типы чатов: исходный публичный канал, исходный приватный канал, исходная публичная группа, исходная приватная группа, целевой публичный канал, целевой приватный канал, целевая публичная группа, целевая приватная группа.
 
 ### 01_delivery
 
 Steps: `01_delivery_steps_test.go`
 
-| ID | Feature | Сценарий | Статус |
+| ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-001 | 01_copy | 01. Копирование во все целевые чаты (×4) | ✅ |
-| BDD-002 | 02_forward | 01. Пересылка во все целевые чаты (×4) | ✅ |
-| BDD-003 | 03_rate_limiting | 01. Не чаще раза в 3 секунды | ✅ |
-| BDD-004 | 04_reply_chain | 01. Ответ сохраняет связь | ✅ |
-| BDD-005 | 05_origin_unwrapping | 01. Разворачивание до оригинала | ✅ |
-| BDD-006 | 06_statistics | 01. Счётчики просмотренных/пересланных | ✅ |
-| BDD-007 | 07_system_messages | 01. Удаление при включённом флаге | ✅ |
-| BDD-008 | 07_system_messages | 02. Игнорирование при выключенном | ✅ |
+| BDD-001 | 01_copy | 01. Копирование во все целевые чаты | ×4 |
+| BDD-002 | 01_copy | 02. Копирование из конкретного источника в конкретный целевой чат | ×16 |
+| BDD-003 | 02_forward | 01. Пересылка во все целевые чаты | ×4 |
+| BDD-004 | 02_forward | 02. Пересылка из конкретного источника в конкретный целевой чат | ×16 |
+| BDD-005 | 03_rate_limiting | 01. Не чаще раза в 3 секунды | ×1 |
+| BDD-006 | 04_reply_chain | 01. Ответ сохраняет связь | ×1 |
+| BDD-007 | 05_origin_unwrapping | 01. Разворачивание до оригинала | ×1 |
+| BDD-008 | 06_statistics | 01. Счётчики просмотренных/пересланных | ×1 |
+| BDD-009 | 07_system_messages | 01. Удаление при включённом флаге | ×1 |
+| BDD-010 | 07_system_messages | 02. Игнорирование при выключенном | ×1 |
+
+Итого 01_delivery: **46 scenario instances**
 
 ### 02_filters
 
 Steps: `02_filters_steps_test.go`
 
-| ID | Feature | Сценарий | Статус |
+| ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-009 | 01_exclude | 01. Без паттерна проходит (×8) | ✅ |
-| BDD-010 | 01_exclude | 02. С паттерном блокируется (×8) | ✅ |
-| BDD-011 | 02_include | 01. С разрешённым проходит (×8) | ✅ |
-| BDD-012 | 03_submatch | 01. Submatch-фильтр (×8) | ✅ |
-| BDD-013 | 04_check_other_dedup | 01. В check-чат один раз | ✅ |
+| BDD-011 | 01_exclude | 01. Без паттерна проходит (2 режима × 4 источника) | ×8 |
+| BDD-012 | 01_exclude | 02. Фильтр исключения из конкретного источника в целевой чат (2 × 16) | ×32 |
+| BDD-013 | 01_exclude | 03. С паттерном блокируется (2 × 4) | ×8 |
+| BDD-014 | 01_exclude | 04. Блокировка из конкретного источника в целевой чат (2 × 16) | ×32 |
+| BDD-015 | 02_include | 01. С разрешённым проходит (2 × 4) | ×8 |
+| BDD-016 | 02_include | 02. Фильтр включения из конкретного источника в целевой чат (2 × 16) | ×32 |
+| BDD-017 | 03_submatch | 01. Submatch-фильтр (2 × 4) | ×8 |
+| BDD-018 | 03_submatch | 02. Submatch из конкретного источника в целевой чат (2 × 16) | ×32 |
+| BDD-019 | 04_check_other_dedup | 01. В check-чат один раз | ×1 |
+
+Итого 02_filters: **161 scenario instances**
 
 ### 03_transform
 
 Steps: `03_transform_steps_test.go`
 
-| ID | Feature | Сценарий | Статус |
+| ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-014 | 01_replace_own_links | 01. Замена ссылок (×3) | ✅ |
-| BDD-015 | 02_remove_external_links | 01. Удаление внешних (×3) | ✅ |
-| BDD-016 | 03_replace_fragments | 01. Замена фрагментов (×4) | ✅ |
-| BDD-017 | 04_source_link | 01. Ссылка на оригинал (×3) | ✅ |
-| BDD-018 | 05_source_sign | 01. Подпись источника (×4) | ✅ |
-| BDD-019 | 06_translate | 01. Перевод (×4) | ✅ |
+| BDD-020 | 01_replace_own_links | 01. Замена ссылок (3 источника) | ×3 |
+| BDD-021 | 01_replace_own_links | 02. Замена ссылок из источника в целевой чат (3 × 4) | ×12 |
+| BDD-022 | 02_remove_external_links | 01. Удаление внешних (3 источника) | ×3 |
+| BDD-023 | 02_remove_external_links | 02. Удаление внешних из источника в целевой чат (3 × 4) | ×12 |
+| BDD-024 | 03_replace_fragments | 01. Замена фрагментов (4 источника) | ×4 |
+| BDD-025 | 03_replace_fragments | 02. Замена фрагментов из источника в целевой чат (4 × 4) | ×16 |
+| BDD-026 | 04_source_link | 01. Ссылка на оригинал (3 источника) | ×3 |
+| BDD-027 | 04_source_link | 02. Ссылка на оригинал из источника в целевой чат (3 × 4) | ×12 |
+| BDD-028 | 05_source_sign | 01. Подпись источника (4 источника) | ×4 |
+| BDD-029 | 05_source_sign | 02. Подпись источника из источника в целевой чат (4 × 4) | ×16 |
+| BDD-030 | 06_translate | 01. Перевод (4 источника) | ×4 |
+| BDD-031 | 06_translate | 02. Перевод из источника в целевой чат (4 × 4) | ×16 |
+
+Итого 03_transform: **105 scenario instances**
 
 ### 04_media
 
 Steps: `04_media_steps_test.go`
 
-| ID | Feature | Сценарий | Статус |
+| ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-020 | 01_album_copy | 01. Альбом копируется (×4) | ✅ |
-| BDD-021 | 02_album_forward | 01. Альбом пересылается (×4) | ✅ |
+| BDD-032 | 01_album_copy | 01. Альбом копируется (4 источника) | ×4 |
+| BDD-033 | 01_album_copy | 02. Копирование альбома из источника в целевой чат (4 × 4) | ×16 |
+| BDD-034 | 02_album_forward | 01. Альбом пересылается (4 источника) | ×4 |
+| BDD-035 | 02_album_forward | 02. Пересылка альбома из источника в целевой чат (4 × 4) | ×16 |
+
+Итого 04_media: **40 scenario instances**
 
 ### 05_sync
 
 Steps: `05_sync_steps_test.go`
 
-| ID | Feature | Сценарий | Статус |
+| ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-022 | 01_versioning | 01. Новая версия со ссылками (×3) | ✅ |
-| BDD-023 | 02_edit_update | 01. Обновление копии (×4) | ✅ |
-| BDD-024 | 03_indelible | 01. Неудаляемые копии (×4) | ✅ |
-| BDD-025 | 04_delete_sync | 01. Удаление копий (×4) | ✅ |
-| BDD-026 | 05_retry | 01. Retry при отсутствии permanent ID | ✅ |
+| BDD-036 | 01_versioning | 01. Новая версия со ссылками (3 источника) | ×3 |
+| BDD-037 | 01_versioning | 02. Версионирование из источника в целевой чат (3 × 4) | ×12 |
+| BDD-038 | 02_edit_update | 01. Обновление копии (4 источника) | ×4 |
+| BDD-039 | 02_edit_update | 02. Обновление копии из источника в целевой чат (4 × 4) | ×16 |
+| BDD-040 | 03_indelible | 01. Неудаляемые копии (4 источника) | ×4 |
+| BDD-041 | 03_indelible | 02. Неудаляемые копии из источника в целевой чат (4 × 4) | ×16 |
+| BDD-042 | 04_delete_sync | 01. Удаление копий (4 источника) | ×4 |
+| BDD-043 | 04_delete_sync | 02. Синхронизация удаления из источника в целевой чат (4 × 4) | ×16 |
+| BDD-044 | 05_retry | 01. Retry при отсутствии permanent ID | ×1 |
+
+Итого 05_sync: **76 scenario instances**
 
 ### 06_auto
 
 Steps: `06_auto_steps_test.go`
 
-| ID | Feature | Сценарий | Статус |
+| ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-027 | 01_auto_answers | 01. Автоответ на callback (×3) | ✅ |
+| BDD-045 | 01_auto_answers | 01. Автоответ на callback (3 источника) | ×3 |
+| BDD-046 | 01_auto_answers | 02. Автоответ из источника в целевой чат (3 × 4) | ×12 |
+
+Итого 06_auto: **15 scenario instances**
 
 ---
 
@@ -475,7 +514,7 @@ Steps: `06_auto_steps_test.go`
 
 Требуют: Docker, testcontainers-compose, Dockerfile. Build tag: `smoke`.
 
-Файл: `smoke_test.go` ✅
+Файл: `smoke_test.go` ✅ (SmokeSuite через testify/suite)
 
 | ID | Тест | Статус |
 |----|------|--------|
@@ -490,53 +529,53 @@ Steps: `06_auto_steps_test.go`
 
 | Пакет | Unit | BDD | Smoke |
 |-------|------|-----|-------|
-| internal/config | 3 | — | — |
+| internal/config | 4 | — | — |
 | internal/controller | 5 | — | 4 |
 | internal/domain | 7 | — | — |
-| internal/handler | 20 | 27 | — |
+| internal/handler | 20 | 443 | — |
 | internal/repo/queue | 4 | — | — |
 | internal/repo/ruleset | 11 | — | — |
 | internal/repo/state | 11 | — | — |
-| internal/repo/telegram | 4 | — | — |
-| internal/service/album | 10 | 8 | — |
-| internal/service/auth | 7 | — | — |
+| internal/repo/telegram | — | 443 | — |
+| internal/service/album | 10 | 40 | — |
+| internal/service/auth | 11 | — | — |
 | internal/service/dedup | 3 | 1 | — |
 | internal/service/facade | 9 | — | — |
-| internal/service/filters | 8 | 25 | — |
+| internal/service/filters | 8 | 161 | — |
 | internal/service/limiter | 1 | 1 | — |
 | internal/service/message | 10 | — | — |
-| internal/service/transform | 16 | 21 | — |
+| internal/service/transform | 16 | 105 | — |
 | internal/transport/grpc | 18 | — | — |
 | internal/transport/http | 12 | — | — |
 | internal/transport/http/graph | 5 | — | — |
 | internal/transport/term | 3 | — | — |
-| **Итого** | **167** | **27 scenarios** | **4** |
+| **Итого** | **168** | **443 scenarios** | **4** |
 
 ---
 
 ## Покрытие кода
 
-Снято командой `task cover`. Общее покрытие: **75.1%**.
+Снято командой `task cover`. Общее покрытие: **75.7%**.
 
 | Пакет | Покрытие | Примечание |
 |-------|----------|------------|
 | internal/controller | 100.0% | health endpoints |
 | internal/domain | 100.0% | типы, MaskPhoneNumber, DeepCopy |
-| internal/handler | 81.5% | диспетчер обновлений |
-| internal/repo/queue | 87.2% | in-memory queue |
-| internal/repo/ruleset | 76.7% | YAML loader + валидация |
-| internal/repo/state | 83.4% | BadgerDB CRUD + copies |
-| internal/repo/telegram | 25.9% | TDLib stub + auth events |
+| internal/handler | 77.6% | диспетчер обновлений |
+| internal/repo/queue | 92.2% | in-memory queue |
+| internal/repo/ruleset | 73.6% | YAML loader + валидация |
+| internal/repo/state | 81.8% | BadgerDB CRUD + copies |
+| internal/repo/telegram | 43.6% | TDLib clientAdapter + mapping; нет unit-тестов, покрытие через BDD |
 | internal/repo/term | 0.0% | readline adapter, нет тестов |
 | internal/service/album | 100.0% | — |
-| internal/service/auth | 86.7% | auth flow orchestration |
+| internal/service/auth | 88.9% | auth flow orchestration |
 | internal/service/dedup | 100.0% | — |
-| internal/service/facade | 64.6% | proxy + GetStatus |
-| internal/service/filters | 75.2% | evaluate + submatch |
-| internal/service/limiter | 94.5% | WaitForForward |
+| internal/service/facade | 84.8% | proxy + GetStatus |
+| internal/service/filters | 81.8% | evaluate + submatch |
+| internal/service/limiter | 90.0% | WaitForForward |
 | internal/service/message | 100.0% | GetFormattedText, BuildInputContent |
-| internal/service/transform | 60.8% | transform pipeline, UTF-16 |
-| internal/transport/grpc | 84.8% | все RPC |
-| internal/transport/http | 89.6% | REST auth |
-| internal/transport/http/graph | 95.8% | GraphQL handler |
-| internal/transport/term | 54.3% | CLI auth + commands |
+| internal/service/transform | 46.7% | transform pipeline, UTF-16 |
+| internal/transport/grpc | 87.3% | все RPC |
+| internal/transport/http | 80.8% | REST auth |
+| internal/transport/http/graph | 96.0% | GraphQL handler |
+| internal/transport/term | 51.8% | CLI auth + commands |
