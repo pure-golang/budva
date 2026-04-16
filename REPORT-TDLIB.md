@@ -1,12 +1,12 @@
 # Phase B: план интеграции TDLib
 
-Последняя актуализация: 2026-04-16.
+Последняя актуализация: 2026-04-16 (v2).
 
 ## Предусловия
 
 Phase A полностью закрыта. Вся бизнес-логика (handler, transform, filters, dedup, album, limiter, message, facade, auth) работает через абстракции `domain.*` и интерфейсы. TDLib-зависимый код локализован в `internal/repo/telegram/`.
 
-**Текущее состояние `repo/telegram`:** fake-реализация с event-driven auth flow (SubmitPhone/Code/Password эмитят события в `authStates` канал), опциональный WaitPassword через `has2FA`, остальные методы `clientAdapter` возвращают nil/пустые значения.
+**Текущее состояние `repo/telegram`:** fake-реализация с event-driven auth flow (SubmitPhone/Code/Password эмитят события в `authStates` канал), опциональный WaitPassword через `has2FA`. Интерфейс `clientAdapter` полностью определён (включая `forAlbum` в `GetMessageLink`, batch `GetMessages`, `GetMarkdownText`), методы возвращают nil/пустые значения.
 
 **Текущая архитектура auth flow:**
 
@@ -363,26 +363,27 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 
 **Источник:** `budva43/repo/telegram/client_adapter.go:210-225`
 
-### T10. Реализация SendMessage / ForwardMessages / Edit / Delete
+### T10. Реализация остальных методов clientAdapter
 
 Заменить заглушки на реальные TDLib-вызовы:
 
-| Метод | TDLib API |
-|---|---|
-| `SendMessage` | `r.client.SendMessage()` |
-| `SendMessageAlbum` | `r.client.SendMessageAlbum()` |
-| `ForwardMessages` | `r.client.ForwardMessages()` |
-| `EditMessageText` | `r.client.EditMessageText()` |
-| `EditMessageCaption` | `r.client.EditMessageCaption()` |
-| `DeleteMessages` | `r.client.DeleteMessages()` |
-| `GetMessage` | `r.client.GetMessage()` |
-| `GetMessageLink` | `r.client.GetMessageLink()` |
-| `GetMessageLinkInfo` | `r.client.GetMessageLinkInfo()` |
-| `GetChatHistory` | `r.client.GetChatHistory()` |
-| `TranslateText` | `r.client.TranslateText()` |
-| `GetCallbackQueryAnswer` | `r.client.GetCallbackQueryAnswer()` |
-| `GetChatType` | `r.client.GetChat()` → `.Type` |
-| `LoadChats` | `r.client.LoadChats()` |
+| Метод | TDLib API | Примечание |
+|---|---|---|
+| `SendMessage` | `r.client.SendMessage()` | |
+| `SendMessageAlbum` | `r.client.SendMessageAlbum()` | |
+| `ForwardMessages` | `r.client.ForwardMessages()` | |
+| `EditMessageText` | `r.client.EditMessageText()` | |
+| `EditMessageCaption` | `r.client.EditMessageCaption()` | |
+| `DeleteMessages` | `r.client.DeleteMessages()` | |
+| `GetMessage` | `r.client.GetMessage()` | |
+| `GetMessages` | `r.client.GetMessages()` | batch по списку ID |
+| `GetMessageLink` | `r.client.GetMessageLink()` | `forAlbum` уже в сигнатуре |
+| `GetMessageLinkInfo` | `r.client.GetMessageLinkInfo()` | |
+| `GetChatHistory` | `r.client.GetChatHistory()` | |
+| `TranslateText` | `r.client.TranslateText()` | |
+| `GetCallbackQueryAnswer` | `r.client.GetCallbackQueryAnswer()` | |
+| `GetChatType` | `r.client.GetChat()` → `.Type` | |
+| `LoadChats` | `r.client.LoadChats()` | bypass `getClient()` |
 
 **Источник:** `budva43/repo/telegram/client_adapter.go` (весь файл)
 
