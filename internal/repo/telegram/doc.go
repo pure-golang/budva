@@ -25,4 +25,5 @@
 //   - Start() инициализирует TDLib-клиент и отправляет начальное событие авторизации в AuthStates().
 //   - SubmitPhone/SubmitCode/SubmitPassword продвигают state machine авторизации.
 //   - Close() завершает сессию и освобождает ресурсы.
+//   - CreateNewSupergroupChat/CreateNewBasicGroupChat/SetSupergroupUsername/DeleteChat — методы для cmd/stand, не для runtime.
 package telegram

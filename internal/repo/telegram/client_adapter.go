@@ -43,6 +43,12 @@ type clientAdapter interface {
 	// Batch-операции.
 	GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)
 
+	// Управление чатами (stand).
+	CreateNewSupergroupChat(ctx context.Context, title string, isChannel bool, description string) (domain.ChatID, int64, error)
+	CreateNewBasicGroupChat(ctx context.Context, title string, userIDs []int64) (domain.ChatID, error)
+	SetSupergroupUsername(ctx context.Context, supergroupID int64, username string) error
+	DeleteChat(ctx context.Context, chatID domain.ChatID) error
+
 	// Отправка данных авторизации.
 	SubmitPhone(ctx context.Context, phone string) error
 	SubmitCode(ctx context.Context, code string) error
@@ -152,6 +158,27 @@ func (r *Repo) GetOption(_ context.Context, name string) (string, error) {
 // GetMe возвращает информацию о текущем пользователе.
 func (r *Repo) GetMe(_ context.Context) (int64, error) {
 	return 0, nil
+}
+
+// CreateNewSupergroupChat создаёт новый канал или супергруппу.
+// Возвращает chatID и supergroupID (из Chat.Type.(*ChatTypeSupergroup).SupergroupId).
+func (r *Repo) CreateNewSupergroupChat(_ context.Context, _ string, _ bool, _ string) (domain.ChatID, int64, error) {
+	return 0, 0, nil
+}
+
+// CreateNewBasicGroupChat создаёт новую базовую группу.
+func (r *Repo) CreateNewBasicGroupChat(_ context.Context, _ string, _ []int64) (domain.ChatID, error) {
+	return 0, nil
+}
+
+// SetSupergroupUsername устанавливает username для супергруппы или канала.
+func (r *Repo) SetSupergroupUsername(_ context.Context, _ int64, _ string) error {
+	return nil
+}
+
+// DeleteChat удаляет чат.
+func (r *Repo) DeleteChat(_ context.Context, _ domain.ChatID) error {
+	return nil
 }
 
 // SubmitPhone отправляет номер телефона для авторизации.

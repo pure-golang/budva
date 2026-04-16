@@ -6,7 +6,7 @@
 
 Phase A полностью закрыта. Вся бизнес-логика (handler, transform, filters, dedup, album, limiter, message, facade, auth) работает через абстракции `domain.*` и интерфейсы. TDLib-зависимый код локализован в `internal/repo/telegram/`.
 
-**Текущее состояние `repo/telegram`:** fake-реализация с event-driven auth flow (SubmitPhone/Code/Password эмитят события в `authStates` канал), опциональный WaitPassword через `has2FA`. Интерфейс `clientAdapter` полностью определён (включая `forAlbum` в `GetMessageLink`, batch `GetMessages`, `GetMarkdownText`), методы возвращают nil/пустые значения.
+**Текущее состояние `repo/telegram`:** fake-реализация с event-driven auth flow (SubmitPhone/Code/Password эмитят события в `authStates` канал), опциональный WaitPassword через `has2FA`. Интерфейс `clientAdapter` полностью определён (включая `forAlbum` в `GetMessageLink`, batch `GetMessages`, `GetMarkdownText`, stand-методы для управления чатами), методы возвращают nil/пустые значения.
 
 **Текущая архитектура auth flow:**
 
@@ -322,30 +322,14 @@ func (r *Repo) GetMarkdownText(_ context.Context, text *domain.FormattedText) (*
 
 **Источник:** `budva43/service/engine/service.go:88-121`
 
-### T8. Конвертация domain ↔ TDLib types
+### T8. Тонкий маппинг domain ↔ go-tdlib types
 
-Создать адаптерный слой в `repo/telegram/` для маппинга:
+go-tdlib — источник правды. Domain types уже спроектированы по образу TDLib, поэтому маппинг — механический, без отдельного «адаптерного слоя». Конвертация живёт в `repo/telegram/` рядом с методами.
 
-#### T8.1. Message conversion
-
-`client.Message` → `domain.Message`:
-- ChatID, ID, Content (Text/Photo/Video/Document/Audio/Animation/VoiceNote)
-- ForwardInfo (OriginChatID, OriginMessageID)
-- ReplyMarkup → CallbackData
-
-#### T8.2. InputMessageContent conversion
-
-`domain.InputMessageContent` → `client.InputMessageContent`:
-- ContentText → `InputMessageText` (с LinkPreviewOptions)
-- ContentPhoto → `InputMessagePhoto` (с FilePath/FileID)
-- ContentVideo → `InputMessageVideo`
-- ContentAudio → `InputMessageAudio`
-- ContentDocument → `InputMessageDocument`
-
-#### T8.3. FormattedText conversion
-
-`domain.FormattedText` ↔ `client.FormattedText`:
-- Text, Entities (offset, length, type)
+Основные точки маппинга:
+- `client.Message` → `domain.Message` (ChatID, ID, Content, ForwardInfo, ReplyTo)
+- `domain.InputMessageContent` → `client.InputMessageContent` (Text, Photo, Video и т.д.)
+- `client.FormattedText` ↔ `domain.FormattedText` (Text, Entities)
 
 ### T9. GetOption / GetMe — реальные вызовы
 
@@ -382,8 +366,12 @@ func (r *Repo) GetMe(_ context.Context) (int64, error) {
 | `GetChatHistory` | `r.client.GetChatHistory()` | |
 | `TranslateText` | `r.client.TranslateText()` | |
 | `GetCallbackQueryAnswer` | `r.client.GetCallbackQueryAnswer()` | |
-| `GetChatType` | `r.client.GetChat()` → `.Type` | |
+| `GetChatType` | `r.client.GetChat()` → `.Type` | возвращает `"supergroup"` или `"basicGroup"` |
 | `LoadChats` | `r.client.LoadChats()` | bypass `getClient()` |
+| `CreateNewSupergroupChat` | `r.client.CreateNewSupergroupChat()` | возвращает `(chatID, supergroupID, error)` |
+| `CreateNewBasicGroupChat` | `r.client.CreateNewBasicGroupChat()` | |
+| `SetSupergroupUsername` | `r.client.SetSupergroupUsername()` | принимает supergroupID, не chatID |
+| `DeleteChat` | `r.client.DeleteChat()` | |
 
 **Источник:** `budva43/repo/telegram/client_adapter.go` (весь файл)
 
@@ -415,14 +403,14 @@ T1 (Dockerfile) + T2 (go-tdlib) + T3 (Config)
          ↓
 T4 (repo/telegram core) + T5 (state mapping)
          ↓
-T6 (static methods) + T7 (update listener) + T8 (type conversion)
+T6 (static methods) + T7 (update listener)
          ↓
-T9 (GetOption/GetMe) + T10 (CRUD operations)
+T8 (маппинг inline) + T9 (GetOption/GetMe) + T10 (все методы clientAdapter)
          ↓
 T11 (Loader) + T12 (integration test)
 ```
 
-Первые три задачи (T1-T3) — инфраструктура. T4-T5 — ядро auth. T6-T8 — данные. T9-T10 — операции. T11-T12 — финализация.
+Первые три задачи (T1-T3) — инфраструктура. T4-T5 — ядро auth. T6-T7 — данные и events. T8-T10 — реализация всех методов (маппинг типов — inline в каждом методе, не отдельный слой). T11-T12 — финализация.
 
 ## Риски
 
@@ -432,7 +420,7 @@ T11 (Loader) + T12 (integration test)
 | TDLib C++ сборка занимает ~30 мин | Использовать pre-built образ `tdlib-ubuntu` |
 | `time.Sleep(1s)` при Close() — хрупкий workaround | Оставить как есть, зафиксировать TODO |
 | `ParseTextEntities` / `GetMarkdownText` — static, но требуют загруженную `libtdjson.so` | Убедиться что SO доступна в runtime |
-| Mapping domain ↔ TDLib types — основной объём кода | T8 — самая трудоёмкая задача, начать с неё раньше |
+| Mapping domain ↔ go-tdlib types | Маппинг механический, go-tdlib — источник правды |
 
 ## Что НЕ меняется
 
@@ -441,4 +429,5 @@ T11 (Loader) + T12 (integration test)
 - transport layer (grpc, http, term) — без изменений
 - test/support/FakeTelegram — остаётся для unit/BDD/integration тестов
 - auth.Service — без изменений (AuthStates/InputChan/Subscribe/Close уже готовы)
-- Интерфейс `clientAdapter` — без изменений (меняется только реализация методов)
+- Интерфейс `clientAdapter` — определён полностью, включая stand-методы (CreateNewSupergroupChat, CreateNewBasicGroupChat, SetSupergroupUsername, DeleteChat). При подключении TDLib меняется только реализация методов
+- `cmd/stand/` — утилита для управления тестовыми чатами (up/down), фикстуры в `.config/stand.json`

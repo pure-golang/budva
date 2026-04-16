@@ -11,10 +11,14 @@ import (
 // FakeTelegram — stateful in-memory реализация telegramRepo для тестов.
 // Хранит сообщения, позволяет проверять доставку между steps.
 type FakeTelegram struct {
-	mu         sync.Mutex
-	messages   map[domain.ChatID]map[domain.MessageID]*domain.Message
-	nextMsgID  int64
-	clientDone chan struct{}
+	mu            sync.Mutex
+	messages      map[domain.ChatID]map[domain.MessageID]*domain.Message
+	chatTypes     map[domain.ChatID]string // "supergroup" или "basicGroup" (как в TDLib)
+	supergroupIDs map[domain.ChatID]int64  // chatID → supergroupID
+	nextMsgID     int64
+	nextChatID    int64
+	nextSgID      int64
+	clientDone    chan struct{}
 }
 
 // NewFakeTelegram создаёт новый экземпляр.
@@ -22,9 +26,13 @@ func NewFakeTelegram() *FakeTelegram {
 	done := make(chan struct{})
 	close(done)
 	return &FakeTelegram{
-		messages:   make(map[domain.ChatID]map[domain.MessageID]*domain.Message),
-		nextMsgID:  1000,
-		clientDone: done,
+		messages:      make(map[domain.ChatID]map[domain.MessageID]*domain.Message),
+		chatTypes:     make(map[domain.ChatID]string),
+		supergroupIDs: make(map[domain.ChatID]int64),
+		nextMsgID:     1000,
+		nextChatID:    -1001000000,
+		nextSgID:      1000000,
+		clientDone:    done,
 	}
 }
 
@@ -195,8 +203,13 @@ func (f *FakeTelegram) GetCallbackQueryAnswer(_ context.Context, _ domain.ChatID
 	return "", nil
 }
 
-// GetChatType всегда возвращает "supergroup".
-func (f *FakeTelegram) GetChatType(_ context.Context, _ domain.ChatID) (string, error) {
+// GetChatType возвращает тип чата из chatTypes или "supergroup" по умолчанию.
+func (f *FakeTelegram) GetChatType(_ context.Context, chatID domain.ChatID) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if t, ok := f.chatTypes[chatID]; ok {
+		return t, nil
+	}
 	return "supergroup", nil
 }
 
@@ -231,7 +244,52 @@ func (f *FakeTelegram) Reset() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.messages = make(map[domain.ChatID]map[domain.MessageID]*domain.Message)
+	f.chatTypes = make(map[domain.ChatID]string)
+	f.supergroupIDs = make(map[domain.ChatID]int64)
 	f.nextMsgID = 1000
+	f.nextChatID = -1001000000
+	f.nextSgID = 1000000
+}
+
+// --- Управление чатами (stand) ---
+
+// CreateNewSupergroupChat создаёт фейковую супергруппу или канал.
+// В TDLib каналы — это ChatTypeSupergroup{IsChannel: true}, отдельного типа нет.
+func (f *FakeTelegram) CreateNewSupergroupChat(_ context.Context, _ string, _ bool, _ string) (domain.ChatID, int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextChatID--
+	f.nextSgID++
+	chatID := f.nextChatID
+	sgID := f.nextSgID
+	f.chatTypes[chatID] = "supergroup"
+	f.supergroupIDs[chatID] = sgID
+	return chatID, sgID, nil
+}
+
+// CreateNewBasicGroupChat создаёт фейковую базовую группу.
+func (f *FakeTelegram) CreateNewBasicGroupChat(_ context.Context, _ string, _ []int64) (domain.ChatID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextChatID--
+	chatID := f.nextChatID
+	f.chatTypes[chatID] = "basicGroup"
+	return chatID, nil
+}
+
+// SetSupergroupUsername — no-op для фейка.
+func (f *FakeTelegram) SetSupergroupUsername(_ context.Context, _ int64, _ string) error {
+	return nil
+}
+
+// DeleteChat удаляет чат из store.
+func (f *FakeTelegram) DeleteChat(_ context.Context, chatID domain.ChatID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.messages, chatID)
+	delete(f.chatTypes, chatID)
+	delete(f.supergroupIDs, chatID)
+	return nil
 }
 
 // --- Методы для assertions в тестах ---
