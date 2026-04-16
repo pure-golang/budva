@@ -15,7 +15,6 @@
 
 **Структура тестов:**
 - `internal/**/*_test.go` — юнит-тесты рядом с исходниками, `t.Parallel()`
-- `test/integration/*_test.go` — интеграционные тесты, `testing.Short()` skip
 - `test/bdd/steps/*_test.go` + `test/bdd/features/` — BDD-тесты через godog, `testing.Short()` skip
 - `test/smoke/*_test.go` — смоук-тесты, build tag `smoke`
 
@@ -23,28 +22,28 @@
 
 ## Покрытие по пакетам
 
-| Пакет | Unit | Integration | BDD | Smoke |
-|-------|------|-------------|-----|-------|
-| internal/config | ✅ 3 | — | — | — |
-| internal/controller | ✅ 5 | — | — | ✅ |
-| internal/domain | ✅ 7 | — | — | — |
-| internal/handler | ✅ 20 | ✅ | ✅ | — |
-| internal/repo/queue | ✅ 4 | — | — | — |
-| internal/repo/ruleset | ✅ 11 | — | — | — |
-| internal/repo/state | ✅ 11 | ✅ | — | — |
-| internal/repo/telegram | ✅ 2 | — | — | — |
-| internal/service/album | ✅ 10 | — | ✅ | — |
-| internal/service/auth | ✅ 8 | — | — | — |
-| internal/service/dedup | ✅ 3 | — | ✅ | — |
-| internal/service/facade | ✅ 8 | — | — | — |
-| internal/service/filters | ✅ 8 | ✅ | ✅ | — |
-| internal/service/limiter | ✅ 1 | — | ✅ | — |
-| internal/service/message | ✅ 10 | — | — | — |
-| internal/service/transform | ✅ 16 | ✅ | ✅ | — |
-| internal/transport/grpc | ✅ 18 | — | — | — |
-| internal/transport/http | ✅ 12 | — | — | — |
-| internal/transport/http/graph | ✅ 5 | — | — | — |
-| internal/transport/term | ✅ 3 | — | — | — |
+| Пакет | Unit | BDD | Smoke |
+|-------|------|-----|-------|
+| internal/config | ✅ 3 | — | — |
+| internal/controller | ✅ 5 | — | ✅ |
+| internal/domain | ✅ 7 | — | — |
+| internal/handler | ✅ 20 | ✅ | — |
+| internal/repo/queue | ✅ 4 | — | — |
+| internal/repo/ruleset | ✅ 11 | — | — |
+| internal/repo/state | ✅ 11 | — | — |
+| internal/repo/telegram | ✅ 4 | — | — |
+| internal/service/album | ✅ 10 | ✅ | — |
+| internal/service/auth | ✅ 7 | — | — |
+| internal/service/dedup | ✅ 3 | ✅ | — |
+| internal/service/facade | ✅ 9 | — | — |
+| internal/service/filters | ✅ 8 | ✅ | — |
+| internal/service/limiter | ✅ 1 | ✅ | — |
+| internal/service/message | ✅ 10 | — | — |
+| internal/service/transform | ✅ 16 | ✅ | — |
+| internal/transport/grpc | ✅ 18 | — | — |
+| internal/transport/http | ✅ 12 | — | — |
+| internal/transport/http/graph | ✅ 5 | — | — |
+| internal/transport/term | ✅ 3 | — | — |
 
 ---
 
@@ -180,8 +179,10 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| REPO-U-027 | TestRunAuthFlow_FullCycle | ✅ |
-| REPO-U-028 | TestRunAuthFlow_CancelDuringInput | ✅ |
+| REPO-U-027 | TestStart_EmitsWaitPhone | ✅ |
+| REPO-U-028 | TestSubmitPhone_EmitsWaitCode | ✅ |
+| REPO-U-029 | TestSubmitCode_EmitsWaitPassword | ✅ |
+| REPO-U-030 | TestSubmitPassword_EmitsReadyAndClosesClientDone | ✅ |
 
 ---
 
@@ -211,13 +212,12 @@
 | ID | Тест | Статус |
 |----|------|--------|
 | SVC-U-011 | TestNew | ✅ |
-| SVC-U-012 | TestSetStateAndState | ✅ |
+| SVC-U-012 | TestStateUpdatedFromEvent | ✅ |
 | SVC-U-013 | TestSubscribeReceivesStateChanges | ✅ |
 | SVC-U-014 | TestSubscribeReceivesExtra | ✅ |
-| SVC-U-015 | TestMultipleSubscribers | ✅ |
-| SVC-U-016 | TestInputChanSend | ✅ |
-| SVC-U-017 | TestReadInput | ✅ |
-| SVC-U-018 | TestConcurrentStateAccess | ✅ |
+| SVC-U-015 | TestFullAuthFlow | ✅ |
+| SVC-U-016 | TestMultipleSubscribers | ✅ |
+| SVC-U-017 | TestCancelDuringWait | ✅ |
 
 ---
 
@@ -396,21 +396,6 @@
 
 ---
 
-## Интеграционные тесты (test/integration/)
-
-Требуют: BadgerDB (TempDir), FakeTelegram, support.Stack. Skip: `testing.Short()`.
-
-### Forward pipeline (forward_pipeline_test.go)
-
-| ID | Тест | Статус |
-|----|------|--------|
-| INT-001 | TestForwardPipeline/copy_with_transform | ✅ |
-| INT-002 | TestForwardPipeline/edit_sync | ✅ |
-| INT-003 | TestForwardPipeline/delete_sync | ✅ |
-| INT-004 | TestForwardPipeline/filter_exclude | ✅ |
-
----
-
 ## BDD-тесты (test/bdd/)
 
 Требуют: BadgerDB (TempDir), FakeTelegram, support.Stack. Skip: `testing.Short()`.
@@ -503,55 +488,55 @@ Steps: `06_auto_steps_test.go`
 
 ## Сводная таблица
 
-| Пакет | Unit | Integration | BDD | Smoke |
-|-------|------|-------------|-----|-------|
-| internal/config | 3 | — | — | — |
-| internal/controller | 5 | — | — | 4 |
-| internal/domain | 7 | — | — | — |
-| internal/handler | 20 | 4 | 27 | — |
-| internal/repo/queue | 4 | — | — | — |
-| internal/repo/ruleset | 11 | — | — | — |
-| internal/repo/state | 11 | 4 | — | — |
-| internal/repo/telegram | 2 | — | — | — |
-| internal/service/album | 10 | — | 8 | — |
-| internal/service/auth | 8 | — | — | — |
-| internal/service/dedup | 3 | — | 1 | — |
-| internal/service/facade | 9 | — | — | — |
-| internal/service/filters | 8 | 1 | 25 | — |
-| internal/service/limiter | 1 | — | 1 | — |
-| internal/service/message | 10 | — | — | — |
-| internal/service/transform | 16 | 1 | 21 | — |
-| internal/transport/grpc | 18 | — | — | — |
-| internal/transport/http | 12 | — | — | — |
-| internal/transport/http/graph | 5 | — | — | — |
-| internal/transport/term | 3 | — | — | — |
-| **Итого** | **166** | **4** | **27 scenarios** | **4** |
+| Пакет | Unit | BDD | Smoke |
+|-------|------|-----|-------|
+| internal/config | 3 | — | — |
+| internal/controller | 5 | — | 4 |
+| internal/domain | 7 | — | — |
+| internal/handler | 20 | 27 | — |
+| internal/repo/queue | 4 | — | — |
+| internal/repo/ruleset | 11 | — | — |
+| internal/repo/state | 11 | — | — |
+| internal/repo/telegram | 4 | — | — |
+| internal/service/album | 10 | 8 | — |
+| internal/service/auth | 7 | — | — |
+| internal/service/dedup | 3 | 1 | — |
+| internal/service/facade | 9 | — | — |
+| internal/service/filters | 8 | 25 | — |
+| internal/service/limiter | 1 | 1 | — |
+| internal/service/message | 10 | — | — |
+| internal/service/transform | 16 | 21 | — |
+| internal/transport/grpc | 18 | — | — |
+| internal/transport/http | 12 | — | — |
+| internal/transport/http/graph | 5 | — | — |
+| internal/transport/term | 3 | — | — |
+| **Итого** | **167** | **27 scenarios** | **4** |
 
 ---
 
 ## Покрытие кода
 
-Снято командой `task cover`. Общее покрытие: **74.4%**.
+Снято командой `task cover`. Общее покрытие: **75.1%**.
 
 | Пакет | Покрытие | Примечание |
 |-------|----------|------------|
 | internal/controller | 100.0% | health endpoints |
 | internal/domain | 100.0% | типы, MaskPhoneNumber, DeepCopy |
-| internal/handler | 77.2% | диспетчер обновлений |
-| internal/repo/queue | 92.2% | in-memory queue |
-| internal/repo/ruleset | 73.6% | YAML loader + валидация |
-| internal/repo/state | 81.8% | BadgerDB CRUD + copies |
-| internal/repo/telegram | 42.0% | Phase-A заглушки |
+| internal/handler | 81.5% | диспетчер обновлений |
+| internal/repo/queue | 87.2% | in-memory queue |
+| internal/repo/ruleset | 76.7% | YAML loader + валидация |
+| internal/repo/state | 83.4% | BadgerDB CRUD + copies |
+| internal/repo/telegram | 25.9% | TDLib stub + auth events |
 | internal/repo/term | 0.0% | readline adapter, нет тестов |
 | internal/service/album | 100.0% | — |
-| internal/service/auth | 81.8% | pub-sub + state |
+| internal/service/auth | 86.7% | auth flow orchestration |
 | internal/service/dedup | 100.0% | — |
-| internal/service/facade | 84.8% | proxy + GetStatus |
-| internal/service/filters | 81.8% | evaluate + submatch |
-| internal/service/limiter | 90.0% | WaitForForward |
+| internal/service/facade | 64.6% | proxy + GetStatus |
+| internal/service/filters | 75.2% | evaluate + submatch |
+| internal/service/limiter | 94.5% | WaitForForward |
 | internal/service/message | 100.0% | GetFormattedText, BuildInputContent |
-| internal/service/transform | 46.7% | transform pipeline, UTF-16 |
-| internal/transport/grpc | 87.3% | все RPC |
-| internal/transport/http | 80.8% | REST auth |
-| internal/transport/http/graph | 96.0% | GraphQL handler |
-| internal/transport/term | 51.8% | CLI auth + commands |
+| internal/service/transform | 60.8% | transform pipeline, UTF-16 |
+| internal/transport/grpc | 84.8% | все RPC |
+| internal/transport/http | 89.6% | REST auth |
+| internal/transport/http/graph | 95.8% | GraphQL handler |
+| internal/transport/term | 54.3% | CLI auth + commands |
