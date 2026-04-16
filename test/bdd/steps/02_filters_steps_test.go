@@ -33,7 +33,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: s.messageText},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: text},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -66,12 +66,8 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение не появляется в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) > 0 {
-				return fmt.Errorf("expected no messages in target chat %d, got %d", targetID, len(msgs))
 			}
 		}
 		return nil
@@ -79,21 +75,11 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение с текстом "([^"]*)" появляется во всех целевых чатах$`, func(expected string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 			if err != nil {
 				return err
 			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d for expected text %q", targetID, expected)
-			}
-			found := false
-			for _, m := range msgs {
-				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, expected) {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, expected) {
 				return fmt.Errorf("no message containing text %q in target chat %d", expected, targetID)
 			}
 		}
@@ -112,12 +98,8 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^сообщение появляется в check-чате ровно один раз$`, func() error {
-		msgs, err := s.env.MessagesInChat(context.Background(), s.checkChatID)
-		if err != nil {
+		if _, err := s.env.CheckLastMessage(context.Background(), s.checkChatID, s.prefix); err != nil {
 			return err
-		}
-		if len(msgs) != 1 {
-			return fmt.Errorf("expected exactly 1 message in check chat %d, got %d", s.checkChatID, len(msgs))
 		}
 		return nil
 	})

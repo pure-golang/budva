@@ -18,7 +18,7 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 				Type: domain.ContentPhoto,
 				Text: &domain.FormattedText{Text: fmt.Sprintf("photo %d", i)},
-			})
+			}, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -34,12 +34,8 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^медиа-альбом появляется во всех целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
 		}
 		return nil

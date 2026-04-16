@@ -2,6 +2,8 @@ package steps
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"regexp"
 	"time"
 
@@ -33,6 +35,10 @@ func getOrCreateStack() (*support.LiveStack, error) {
 // scenarioCtx хранит состояние одного сценария.
 type scenarioCtx struct {
 	env *support.LiveStack
+
+	// prefix — уникальный маркер сценария (nanoid). Добавляется к тексту сообщений,
+	// чтобы отличить сообщения текущего сценария от мусора прошлых запусков.
+	prefix string
 
 	deliveryMode string
 	sourceType   string
@@ -67,6 +73,12 @@ type scenarioCtx struct {
 	forwardedMsg *domain.Message
 }
 
+func generatePrefix() string {
+	b := make([]byte, 4)
+	rand.Read(b) //nolint:errcheck // crypto/rand.Read never fails on supported platforms
+	return hex.EncodeToString(b)
+}
+
 func (s *scenarioCtx) reset() error {
 	env, err := getOrCreateStack()
 	if err != nil {
@@ -78,6 +90,7 @@ func (s *scenarioCtx) reset() error {
 	}
 
 	s.env = env
+	s.prefix = generatePrefix()
 	s.deliveryMode = ""
 	s.sourceType = ""
 	s.messageText = ""

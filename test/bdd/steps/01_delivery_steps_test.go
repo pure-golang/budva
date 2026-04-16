@@ -17,7 +17,6 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		return nil
 	})
 
-
 	ctx.When(`^пользователь отправляет сообщение в исходный чат$`, func() error {
 		s.applyRuleSet()
 
@@ -28,7 +27,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: s.messageText},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -42,12 +41,8 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение появляется во всех целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
 		}
 		return nil
@@ -62,7 +57,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 				Type: domain.ContentText,
 				Text: &domain.FormattedText{Text: fmt.Sprintf("message %d", i)},
-			})
+			}, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -75,12 +70,8 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^оба сообщения доставлены в целевые чаты$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) < 2 {
-				return fmt.Errorf("expected at least 2 messages in target chat %d, got %d", targetID, len(msgs))
 			}
 		}
 		return nil
@@ -97,7 +88,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			Type:             domain.ContentText,
 			Text:             &domain.FormattedText{Text: text},
 			ReplyToMessageID: s.sentMsg.ID,
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -110,22 +101,8 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате ответ связан с копией оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) < 2 {
-				return fmt.Errorf("expected at least 2 messages in target chat %d, got %d", targetID, len(msgs))
-			}
-			found := false
-			for _, m := range msgs {
-				if m.ReplyTo != nil && m.ReplyTo.MessageID != 0 {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return fmt.Errorf("no reply message found in target chat %d", targetID)
 			}
 		}
 		return nil
@@ -137,7 +114,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: "original channel content"},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -165,22 +142,12 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате используется контент оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 			if err != nil {
 				return err
 			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
-			}
-			found := false
-			for _, m := range msgs {
-				if m.Content.Text != nil && m.Content.Text.Text != "" {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return fmt.Errorf("no message with content in target chat %d", targetID)
+			if msg.Content.Text == nil || msg.Content.Text.Text == "" {
+				return fmt.Errorf("no content in last message of target chat %d", targetID)
 			}
 		}
 		return nil
@@ -243,12 +210,8 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение не пересылается в целевые чаты$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) > 0 {
-				return fmt.Errorf("unexpected messages in target chat %d: %d", targetID, len(msgs))
 			}
 		}
 		return nil

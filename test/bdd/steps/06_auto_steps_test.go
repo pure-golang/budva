@@ -2,7 +2,6 @@ package steps
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/cucumber/godog"
@@ -18,7 +17,7 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: "message with button"},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -38,12 +37,8 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		// GetCallbackQueryAnswer выполняется на реальном TDLib.
 		// Проверяем что сообщение доставлено (transform pipeline выполнился).
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
 		}
 		return nil

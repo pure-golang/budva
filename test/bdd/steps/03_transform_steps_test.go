@@ -44,7 +44,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		_, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: "previous message"},
-		})
+		}, s.prefix)
 		return err
 	})
 
@@ -56,7 +56,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			Text: &domain.FormattedText{
 				Text: fmt.Sprintf("see https://t.me/c/%d/500", s.env.SourceID),
 			},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -70,16 +70,12 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате ссылка указывает на копию предыдущего сообщения$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 			if err != nil {
 				return err
 			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
-			}
-			text := msgs[0].Content.Text.Text
-			if !strings.Contains(text, "https://t.me") {
-				return fmt.Errorf("expected link in message text, got %q", text)
+			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, "https://t.me") {
+				return fmt.Errorf("expected link in message text, got %q", msg.Content.Text)
 			}
 		}
 		return nil
@@ -97,7 +93,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			Text: &domain.FormattedText{
 				Text: "see https://t.me/c/9999999/42",
 			},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -111,12 +107,8 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение появляется без внешней ссылки$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
 		}
 		return nil
@@ -124,35 +116,25 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение содержит подпись источника$`, func() error {
 		firstTarget := s.env.TargetIDs[0]
-		msgs, err := s.env.MessagesInChat(context.Background(), firstTarget)
+		msg, err := s.env.CheckLastMessage(context.Background(), firstTarget, s.prefix)
 		if err != nil {
 			return err
 		}
-		if len(msgs) == 0 {
-			return fmt.Errorf("no messages in first target chat %d", firstTarget)
+		if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, domain.SignTitle) {
+			return fmt.Errorf("expected sign title %q in first target chat, not found", domain.SignTitle)
 		}
-		for _, msg := range msgs {
-			if msg.Content.Text != nil && strings.Contains(msg.Content.Text.Text, domain.SignTitle) {
-				return nil
-			}
-		}
-		return fmt.Errorf("expected sign title %q in first target chat, not found", domain.SignTitle)
+		return nil
 	})
 
 	ctx.Then(`^в целевом чате сообщение содержит ссылку на оригинал$`, func() error {
 		firstTarget := s.env.TargetIDs[0]
-		msgs, err := s.env.MessagesInChat(context.Background(), firstTarget)
+		msg, err := s.env.CheckLastMessage(context.Background(), firstTarget, s.prefix)
 		if err != nil {
 			return err
 		}
-		if len(msgs) == 0 {
-			return fmt.Errorf("no messages in first target chat %d", firstTarget)
+		if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, "https://t.me") {
+			return fmt.Errorf("expected link to original in first target chat, not found")
 		}
-		for _, msg := range msgs {
-			if msg.Content.Text != nil && strings.Contains(msg.Content.Text.Text, "https://t.me") {
-				return nil
-			}
-		}
-		return fmt.Errorf("expected link to original in first target chat, not found")
+		return nil
 	})
 }

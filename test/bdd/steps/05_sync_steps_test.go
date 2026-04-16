@@ -55,7 +55,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: text},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
 			Text: &domain.FormattedText{Text: s.messageText},
-		})
+		}, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -88,16 +88,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Given(`^сообщение было скопировано в целевые чаты$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 			if err != nil {
 				return err
 			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("message was not copied to target chat %d", targetID)
-			}
-			for _, m := range msgs {
-				s.env.Handler.OnMessageSendSucceeded(m.ChatID, m.ID, m.ID)
-			}
+			s.env.Handler.OnMessageSendSucceeded(msg.ChatID, msg.ID, msg.ID)
 		}
 		s.env.DrainQueue()
 		return nil
@@ -106,16 +101,6 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь редактирует сообщение на "([^"]*)"$`, func(newText string) error {
 		if s.sentMsg == nil {
 			return fmt.Errorf("no previously sent message")
-		}
-
-		// Запоминаем сообщения до редактирования
-		beforeMsgs := make(map[domain.ChatID]map[domain.MessageID]bool)
-		for _, targetID := range s.env.TargetIDs {
-			beforeMsgs[targetID] = make(map[domain.MessageID]bool)
-			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
-			for _, m := range msgs {
-				beforeMsgs[targetID][m.ID] = true
-			}
 		}
 
 		editedMsg := &domain.Message{
@@ -132,12 +117,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 		// Симулируем OnMessageSendSucceeded для новых сообщений (версионирование)
 		for _, targetID := range s.env.TargetIDs {
-			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
-			for _, m := range msgs {
-				if !beforeMsgs[targetID][m.ID] {
-					s.env.Handler.OnMessageSendSucceeded(m.ChatID, m.ID, m.ID)
-				}
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				continue
 			}
+			s.env.Handler.OnMessageSendSucceeded(msg.ChatID, msg.ID, msg.ID)
 		}
 		s.env.DrainQueue()
 
@@ -151,14 +135,12 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				case <-time.After(200 * time.Millisecond):
 					updated := false
 					for _, targetID := range s.env.TargetIDs {
-						msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
-						for _, m := range msgs {
-							if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, "https://t.me") {
-								updated = true
-								break
-							}
+						msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+						if err != nil {
+							continue
 						}
-						if updated {
+						if msg.Content.Text != nil && strings.Contains(msg.Content.Text.Text, "https://t.me") {
+							updated = true
 							break
 						}
 					}
@@ -196,18 +178,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате появляется новая копия с текстом "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 			if err != nil {
 				return err
 			}
-			found := false
-			for _, m := range msgs {
-				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, text) {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, text) {
 				return fmt.Errorf("no message containing text %q in target chat %d", text, targetID)
 			}
 		}
@@ -216,21 +191,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^новая копия содержит ссылку на предыдущую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 			if err != nil {
 				return err
 			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
-			}
-			found := false
-			for _, m := range msgs {
-				if m.Content.Text != nil && strings.Contains(m.Content.Text.Text, "https://t.me") {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, "https://t.me") {
 				return fmt.Errorf("no message with link to previous version in target chat %d", targetID)
 			}
 		}
@@ -239,12 +204,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^предыдущая копия обновляется со ссылкой на новую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("no messages in target chat %d", targetID)
 			}
 		}
 		return nil
@@ -252,11 +213,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^существующая копия в целевых чатах обновляется на "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			found, err := s.env.HasMessageWithText(context.Background(), targetID, text)
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 			if err != nil {
 				return err
 			}
-			if !found {
+			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, text) {
 				return fmt.Errorf("no message with text %q in target chat %d", text, targetID)
 			}
 		}
@@ -265,12 +226,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии остаются в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) == 0 {
-				return fmt.Errorf("copies should remain in target chat %d", targetID)
 			}
 		}
 		return nil
@@ -278,12 +235,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии удаляются из всех целевых чатов$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) > 0 {
-				return fmt.Errorf("copies should be deleted from target chat %d, got %d", targetID, len(msgs))
 			}
 		}
 		return nil
@@ -293,14 +246,15 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.When(`^permanent ID записывается в хранилище$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
-			for _, m := range msgs {
-				if err := s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID)); err != nil {
-					return err
-				}
-				if err := s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, m.ID), fmt.Sprintf("%d", m.ID)); err != nil {
-					return err
-				}
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				return err
+			}
+			if err := s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, msg.ID), fmt.Sprintf("%d", msg.ID)); err != nil {
+				return err
+			}
+			if err := s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, msg.ID), fmt.Sprintf("%d", msg.ID)); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -308,11 +262,12 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Given(`^permanent ID ещё не записан в хранилище$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, _ := s.env.MessagesInChat(context.Background(), targetID) //nolint:errcheck // Best-effort в вспомогательной логике шага
-			for _, m := range msgs {
-				if err := s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", m.ChatID, m.ID)); err != nil {
-					return err
-				}
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				continue
+			}
+			if err := s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", msg.ChatID, msg.ID)); err != nil {
+				return err
 			}
 		}
 		s.skipRetryDrain = true
@@ -323,12 +278,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.env.DrainQueue()
 
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.MessagesInChat(context.Background(), targetID)
-			if err != nil {
+			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
 				return err
-			}
-			if len(msgs) > 0 {
-				return fmt.Errorf("copies should be deleted from target chat %d after retry, got %d", targetID, len(msgs))
 			}
 		}
 		return nil

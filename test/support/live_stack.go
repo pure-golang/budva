@@ -169,7 +169,7 @@ func (s *LiveStack) MakeRuleSet(sendCopy bool, src *domain.Source) *domain.RuleS
 	return rs
 }
 
-// ResetState сбрасывает BadgerDB и очередь между сценариями (TDLib не пересоздаётся).
+// ResetState сбрасывает BadgerDB, очередь и handler между сценариями (TDLib не пересоздаётся).
 func (s *LiveStack) ResetState() error {
 	if s.State != nil {
 		if err := s.State.Close(); err != nil {
@@ -184,12 +184,28 @@ func (s *LiveStack) ResetState() error {
 		return err
 	}
 	s.tmpDir = tmpDir
+
 	stateRepo := state.New(config.StorageConfig{DatabaseDirectory: tmpDir})
 	if err := stateRepo.Start(context.Background()); err != nil {
 		return err
 	}
 	s.State = stateRepo
 	s.Queue = queue.New()
+
+	// Пересоздаём handler с новыми state и queue (TDLib repo переиспользуется)
+	s.Handler = handler.New(
+		s.Telegram,
+		s.State,
+		message.New(),
+		filters.New(),
+		transform.New(s.Telegram, s.State),
+		album.New(),
+		s.Queue,
+		limiter.New(),
+		func(dsts []domain.ChatID) handler.DedupTracker {
+			return dedup.NewTracker(dsts)
+		},
+	)
 	return nil
 }
 
@@ -198,10 +214,22 @@ func (s *LiveStack) DrainQueue() {
 	s.Queue.ProcessAll()
 }
 
-// PutMessage отправляет сообщение в чат через TDLib и возвращает domain.Message.
+// PrefixText добавляет prefix сценария к тексту: "{prefix}\n\n{text}".
+func PrefixText(prefix, text string) string {
+	return fmt.Sprintf("%s\n\n%s", prefix, text)
+}
+
+// PutMessage отправляет сообщение в чат через TDLib с prefix сценария.
 // SendMessage возвращает temporary ID; permanent ID приходит через UpdateMessageSendSucceeded.
-// Для handler достаточно temporary ID — он используется до подтверждения отправки.
-func (s *LiveStack) PutMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (*domain.Message, error) {
+func (s *LiveStack) PutMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent, prefix string) (*domain.Message, error) {
+	// Добавляем prefix к тексту для идентификации сообщения сценария
+	if content.Text != nil && prefix != "" {
+		content.Text = &domain.FormattedText{
+			Text:     PrefixText(prefix, content.Text.Text),
+			Entities: content.Text.Entities,
+		}
+	}
+
 	msgID, err := s.Telegram.SendMessage(ctx, chatID, content)
 	if err != nil {
 		return nil, fmt.Errorf("put message: %w", err)
@@ -217,42 +245,63 @@ func (s *LiveStack) PutMessage(ctx context.Context, chatID domain.ChatID, conten
 	}, nil
 }
 
-// MessagesInChat возвращает последние сообщения из чата через TDLib.
-func (s *LiveStack) MessagesInChat(ctx context.Context, chatID domain.ChatID) ([]*domain.Message, error) {
-	return s.Telegram.GetChatHistory(ctx, chatID, 0, 0, 50)
-}
-
-// HasMessageWithText проверяет наличие сообщения с указанным текстом в чате.
-func (s *LiveStack) HasMessageWithText(ctx context.Context, chatID domain.ChatID, text string) (bool, error) {
-	msgs, err := s.MessagesInChat(ctx, chatID)
-	if err != nil {
-		return false, err
-	}
-	for _, m := range msgs {
-		if m.Content.Text != nil && m.Content.Text.Text == text {
-			return true, nil
+// CheckLastMessage проверяет что последнее сообщение в чате содержит prefix сценария.
+// Поллит до 10 секунд, потому что TDLib SendMessage асинхронный.
+func (s *LiveStack) CheckLastMessage(ctx context.Context, chatID domain.ChatID, prefix string) (*domain.Message, error) {
+	deadline := time.After(10 * time.Second)
+	for {
+		msgs, err := s.Telegram.GetChatHistory(ctx, chatID, 0, 0, 1)
+		if err != nil {
+			return nil, err
+		}
+		if len(msgs) > 0 {
+			msg := msgs[0]
+			if msg.Content.Text != nil && strings.HasPrefix(msg.Content.Text.Text, prefix) {
+				return msg, nil
+			}
+		}
+		select {
+		case <-deadline:
+			var got string
+			if len(msgs) > 0 {
+				got = truncate(msgs[0].Content.Text)
+			}
+			return nil, fmt.Errorf("timeout: last message in chat %d has wrong prefix: want %q, got %q",
+				chatID, prefix, got)
+		case <-time.After(500 * time.Millisecond):
 		}
 	}
-	return false, nil
 }
 
-// ChatByName возвращает фикстуру по имени.
-func (s *LiveStack) ChatByName(name string) (ChatFixture, error) {
-	return s.Fixtures.ChatByName(name)
-}
-
-// CleanupChat удаляет все сообщения из чата (для очистки между сценариями).
-func (s *LiveStack) CleanupChat(ctx context.Context, chatID domain.ChatID) error {
-	msgs, err := s.Telegram.GetChatHistory(ctx, chatID, 0, 0, 100)
+// CheckNoMessage проверяет что последнее сообщение НЕ содержит prefix (сообщение не доставлено).
+// Ждёт 3 секунды чтобы убедиться что сообщение действительно не появится.
+func (s *LiveStack) CheckNoMessage(ctx context.Context, chatID domain.ChatID, prefix string) error {
+	time.Sleep(3 * time.Second)
+	msgs, err := s.Telegram.GetChatHistory(ctx, chatID, 0, 0, 1)
 	if err != nil {
 		return err
 	}
 	if len(msgs) == 0 {
 		return nil
 	}
-	ids := make([]domain.MessageID, 0, len(msgs))
-	for _, m := range msgs {
-		ids = append(ids, m.ID)
+	msg := msgs[0]
+	if msg.Content.Text != nil && strings.HasPrefix(msg.Content.Text.Text, prefix) {
+		return fmt.Errorf("unexpected message with prefix %q in chat %d", prefix, chatID)
 	}
-	return s.Telegram.DeleteMessages(ctx, chatID, ids, true)
+	return nil
+}
+
+func truncate(ft *domain.FormattedText) string {
+	if ft == nil {
+		return "<nil>"
+	}
+	if len(ft.Text) > 50 {
+		return ft.Text[:50] + "..."
+	}
+	return ft.Text
+}
+
+// ChatByName возвращает фикстуру по имени.
+func (s *LiveStack) ChatByName(name string) (ChatFixture, error) {
+	return s.Fixtures.ChatByName(name)
 }
