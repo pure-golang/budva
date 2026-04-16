@@ -44,11 +44,12 @@ func (s *SmokeSuite) SetupSuite() {
 	s.stack = stack
 
 	err = stack.
-		WaitForService("app", wait.ForHTTP("/live").WithPort("7070/tcp").WithStartupTimeout(2*time.Minute)).
+		WaitForService("facade", wait.ForHTTP("/live").WithPort("7070/tcp").WithStartupTimeout(2*time.Minute)).
+		WaitForService("engine", wait.ForLog("Engine started").WithStartupTimeout(2*time.Minute)).
 		Up(ctx, tc.Wait(true))
 	s.Require().NoError(err, "failed to start smoke stack")
 
-	container, err := stack.ServiceContainer(ctx, "app")
+	container, err := stack.ServiceContainer(ctx, "facade")
 	s.Require().NoError(err)
 
 	port, err := container.MappedPort(ctx, "7070/tcp")

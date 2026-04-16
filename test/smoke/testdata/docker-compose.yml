@@ -1,17 +1,18 @@
 services:
-  app:
+  facade:
     build:
       context: ../../..
       dockerfile: Dockerfile
-    environment:
-      ENVIRONMENT: test
-      WEBSERVER_HOST: "0.0.0.0"
-      WEBSERVER_PORT: "7070"
-      TELEGRAM_API_ID: "0"
-      TELEGRAM_API_HASH: "test"
-      TELEGRAM_PHONE: "+10000000000"
-      RULESET_PATH: "ruleset.yml"
-      STORAGE_PATH: "/tmp/badger"
+    entrypoint: ["/app/facade"]
+    env_file: ../../../.env
     ports:
       - "7070"
-    restart: "on-failure"
+    restart: "no"
+
+  engine:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    entrypoint: ["/app/engine"]
+    env_file: ../../../.env
+    restart: "no"
