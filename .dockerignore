@@ -1,0 +1,33 @@
+# Secrets
+.env
+
+# Local state
+.data/
+.config/
+.coverage/
+
+# VCS
+.git/
+.gitignore
+
+# Editor/IDE
+.idea/
+.vscode/
+
+# Local build artifacts
+/engine
+/facade
+/stand
+
+# Tooling metadata
+.agents
+.claude
+AGENTS.md
+CLAUDE.md
+REPORT-TDLIB.md
+docs/
+test/
+
+# Go workspace (host-only)
+go.work
+go.work.sum
