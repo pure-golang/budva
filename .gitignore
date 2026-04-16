@@ -28,6 +28,9 @@ go.work.sum
 # env file
 .env
 
+# Local runtime state (TDLib session, Badger, logs)
+.data/
+
 # Editor/IDE
 # .idea/
 # .vscode/
