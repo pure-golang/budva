@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -19,6 +20,9 @@ type fakeTelegramRepo struct {
 	phones     []string
 	codes      []string
 	passwords  []string
+	phoneErr   error
+	codeErr    error
+	passErr    error
 }
 
 func newFakeTelegramRepo() *fakeTelegramRepo {
@@ -35,6 +39,11 @@ func (f *fakeTelegramRepo) SubmitPhone(_ context.Context, phone string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.phones = append(f.phones, phone)
+	if f.phoneErr != nil {
+		err := f.phoneErr
+		f.phoneErr = nil
+		return err
+	}
 	return nil
 }
 
@@ -42,6 +51,11 @@ func (f *fakeTelegramRepo) SubmitCode(_ context.Context, code string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.codes = append(f.codes, code)
+	if f.codeErr != nil {
+		err := f.codeErr
+		f.codeErr = nil
+		return err
+	}
 	return nil
 }
 
@@ -49,6 +63,11 @@ func (f *fakeTelegramRepo) SubmitPassword(_ context.Context, password string) er
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.passwords = append(f.passwords, password)
+	if f.passErr != nil {
+		err := f.passErr
+		f.passErr = nil
+		return err
+	}
 	return nil
 }
 
@@ -241,4 +260,115 @@ func TestCancelDuringWait(t *testing.T) {
 		// Assert — сервис остановился, состояние зафиксировано
 		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
 	})
+}
+
+func TestClosingStateIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
+
+		var received []domain.AuthorizationState
+		svc.Subscribe(func(state domain.AuthorizationState, _ any) {
+			received = append(received, state)
+		})
+
+		svc.Start(t.Context())
+
+		// Act — Closing не должен попадать в listeners
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateClosing}
+		time.Sleep(1 * time.Millisecond)
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert — только Ready, без Closing
+		assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
+	})
+}
+
+func TestSubmitCodeRejection_RetriesInput(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		repo.codeErr = errors.New("invalid code")
+		svc := New(repo)
+		svc.Start(t.Context())
+
+		// Act — WaitCode, первый ввод отклонён
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
+		time.Sleep(1 * time.Millisecond)
+
+		svc.InputChan() <- "wrong"
+		time.Sleep(1 * time.Millisecond)
+
+		// Состояние не изменилось — всё ещё WaitCode
+		assert.Equal(t, domain.AuthStateWaitCode, svc.State())
+
+		// Второй ввод — успех
+		svc.InputChan() <- "correct"
+		time.Sleep(1 * time.Millisecond)
+
+		repo.mu.Lock()
+		require.Len(t, repo.codes, 2)
+		assert.Equal(t, "wrong", repo.codes[0])
+		assert.Equal(t, "correct", repo.codes[1])
+		repo.mu.Unlock()
+	})
+}
+
+func TestFlowWithout2FA(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := newFakeTelegramRepo()
+		svc := New(repo)
+		svc.Start(t.Context())
+
+		// WaitPhone
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
+		time.Sleep(1 * time.Millisecond)
+		svc.InputChan() <- "+79261234567"
+		time.Sleep(1 * time.Millisecond)
+
+		// WaitCode
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
+		time.Sleep(1 * time.Millisecond)
+		svc.InputChan() <- "12345"
+		time.Sleep(1 * time.Millisecond)
+
+		// Ready — без WaitPassword
+		repo.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert
+		assert.Equal(t, domain.AuthStateReady, svc.State())
+
+		repo.mu.Lock()
+		assert.Len(t, repo.phones, 1)
+		assert.Len(t, repo.codes, 1)
+		assert.Empty(t, repo.passwords)
+		repo.mu.Unlock()
+	})
+}
+
+func TestClose_ClosesInputChan(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := newFakeTelegramRepo()
+	svc := New(repo)
+
+	// Act
+	err := svc.Close()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Panics(t, func() {
+		svc.InputChan() <- "should panic"
+	}, "writing to closed inputChan should panic")
 }

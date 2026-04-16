@@ -148,9 +148,15 @@ func (r *Repo) SubmitPhone(_ context.Context, phone string) error {
 // SubmitCode отправляет код подтверждения.
 func (r *Repo) SubmitCode(_ context.Context, _ string) error {
 	r.logger.Info("Code submitted")
-	r.authStates <- domain.AuthStateEvent{
-		State: domain.AuthStateWaitPassword,
-		Extra: &domain.WaitPasswordState{PasswordHint: "2FA password"},
+	if r.has2FA {
+		r.authStates <- domain.AuthStateEvent{
+			State: domain.AuthStateWaitPassword,
+			Extra: &domain.WaitPasswordState{PasswordHint: "2FA password"},
+		}
+	} else {
+		r.authStates <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		close(r.clientDone)
+		r.logger.Info("Authorization complete")
 	}
 	return nil
 }

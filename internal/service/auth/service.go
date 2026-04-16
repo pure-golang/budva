@@ -49,29 +49,39 @@ func (s *Service) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case event := <-s.telegramRepo.AuthStates():
+			// Пропускаем transitional states — не broadcast, не ждём input
+			if event.State == domain.AuthStateClosing || event.State == domain.AuthStateClosed {
+				continue
+			}
+
 			s.setState(event.State, event.Extra)
 
 			if event.State == domain.AuthStateReady {
 				return
 			}
 
-			// Ожидаем пользовательский ввод и отправляем в repo
-			select {
-			case <-ctx.Done():
-				return
-			case input := <-s.inputChan:
-				var err error
-				switch event.State {
-				case domain.AuthStateWaitPhone:
-					err = s.telegramRepo.SubmitPhone(ctx, input)
-				case domain.AuthStateWaitCode:
-					err = s.telegramRepo.SubmitCode(ctx, input)
-				case domain.AuthStateWaitPassword:
-					err = s.telegramRepo.SubmitPassword(ctx, input)
+			// Ожидаем пользовательский ввод и отправляем в repo.
+			// При ошибке (rejection) остаёмся в том же состоянии и ждём повторного ввода.
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case input := <-s.inputChan:
+					var err error
+					switch event.State {
+					case domain.AuthStateWaitPhone:
+						err = s.telegramRepo.SubmitPhone(ctx, input)
+					case domain.AuthStateWaitCode:
+						err = s.telegramRepo.SubmitCode(ctx, input)
+					case domain.AuthStateWaitPassword:
+						err = s.telegramRepo.SubmitPassword(ctx, input)
+					}
+					if err != nil {
+						s.logger.Error("Failed to submit auth input", slog.Any("err", err))
+						continue // ждём повторного ввода
+					}
 				}
-				if err != nil {
-					s.logger.Error("Failed to submit auth input", slog.Any("err", err))
-				}
+				break
 			}
 		}
 	}
@@ -87,7 +97,7 @@ func (s *Service) setState(state domain.AuthorizationState, extra any) {
 
 	s.logger.Info("Auth state changed", slog.String("state", state.String()))
 	for _, l := range listeners {
-		l(state, extra)
+		go l(state, extra)
 	}
 }
 
@@ -115,4 +125,10 @@ func (s *Service) State() domain.AuthorizationState {
 // InputChan возвращает канал для ввода данных авторизации (телефон, код, пароль).
 func (s *Service) InputChan() chan<- string {
 	return s.inputChan
+}
+
+// Close останавливает сервис и закрывает канал ввода.
+func (s *Service) Close() error {
+	close(s.inputChan)
+	return nil
 }

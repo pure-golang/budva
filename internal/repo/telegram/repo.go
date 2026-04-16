@@ -16,6 +16,7 @@ type Repo struct {
 	clientDone chan struct{}
 	updates    chan domain.Update
 	authStates chan domain.AuthStateEvent
+	has2FA     bool
 }
 
 // New создаёт новый экземпляр Telegram-репозитория.
@@ -26,7 +27,14 @@ func New(cfg config.TelegramConfig) *Repo {
 		clientDone: make(chan struct{}),
 		updates:    make(chan domain.Update, 100),
 		authStates: make(chan domain.AuthStateEvent, 10),
+		has2FA:     true,
 	}
+}
+
+// WithHas2FA задаёт наличие двухфакторной аутентификации (для тестирования).
+func (r *Repo) WithHas2FA(v bool) *Repo {
+	r.has2FA = v
+	return r
 }
 
 // Start инициализирует репозиторий и отправляет начальное состояние авторизации.

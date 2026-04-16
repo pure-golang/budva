@@ -111,3 +111,33 @@ func TestSubmitPassword_EmitsReadyAndClosesClientDone(t *testing.T) {
 		}
 	})
 }
+
+func TestSubmitCode_Without2FA_EmitsReadyDirectly(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := New(config.TelegramConfig{}).WithHas2FA(false)
+		require.NoError(t, repo.Start(t.Context()))
+		<-repo.AuthStates() // drain WaitPhone
+
+		// Act
+		require.NoError(t, repo.SubmitCode(t.Context(), "12345"))
+
+		// Assert
+		time.Sleep(1 * time.Millisecond)
+		select {
+		case event := <-repo.AuthStates():
+			assert.Equal(t, domain.AuthStateReady, event.State)
+		default:
+			t.Error("expected Ready event")
+		}
+
+		select {
+		case <-repo.ClientDone():
+			// OK
+		default:
+			t.Error("clientDone should be closed after Ready without 2FA")
+		}
+	})
+}
