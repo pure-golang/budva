@@ -88,13 +88,12 @@ go get github.com/zelenin/go-tdlib@v0.7.6
 
 #### T4.1. Структура Repo
 
-Добавить поле `client` и `authorizer`:
-
 ```go
 type Repo struct {
     logger     *slog.Logger
     cfg        config.TelegramConfig
     client     *client.Client              // go-tdlib клиент (nil до авторизации)
+    mu         sync.RWMutex                // защита authorizer при retry
     authorizer *client.ClientAuthorizer    // каналы для phone/code/password
     clientDone chan struct{}
     updates    chan domain.Update
@@ -104,22 +103,14 @@ type Repo struct {
 
 Поле `has2FA` удаляется — TDLib сам решает, нужен ли WaitPassword.
 
-#### T4.2. Start() — полная инициализация
+#### T4.2. Start() + setupClientLog()
 
 ```go
 func (r *Repo) Start(ctx context.Context) error {
     if err := r.setupClientLog(); err != nil {
         return err
     }
-
-    r.authorizer = client.ClientAuthorizer(r.createTdlibParameters())
-
-    // Горутина: слушает authorizer.State, маппит в domain events
-    go r.listenAuthStates(ctx)
-
-    // Горутина: создаёт TDLib клиент (retry loop)
-    go r.createClient(ctx)
-
+    go r.runAuthLoop(ctx)
     return nil
 }
 ```
@@ -130,18 +121,62 @@ func (r *Repo) Start(ctx context.Context) error {
 
 **Источник:** `budva43/repo/telegram/repo.go:150-169`
 
-#### T4.3. listenAuthStates() — маппинг TDLib → domain
+#### T4.3. runAuthLoop() — единый цикл авторизации с retry
+
+В legacy каждая итерация retry создаёт свежий authorizer и свежую горутину-listener (`budva43/repo/telegram/repo.go:82-113`). Наша архитектура повторяет эту семантику:
 
 ```go
-func (r *Repo) listenAuthStates(ctx context.Context) {
+func (r *Repo) runAuthLoop(ctx context.Context) {
     for {
         select {
         case <-ctx.Done():
             return
-        case state, ok := <-r.authorizer.State:
+        default:
+        }
+
+        // Свежий authorizer на каждую попытку (как в legacy)
+        authorizer := client.ClientAuthorizer(r.createTdlibParameters())
+
+        r.mu.Lock()
+        r.authorizer = authorizer
+        r.mu.Unlock()
+
+        // Горутина: слушает authorizer.State, маппит в domain events.
+        // Завершится когда authorizer.State закроется (при failure или success).
+        go r.listenAuthStates(ctx, authorizer.State)
+
+        // client.NewClient блокируется до завершения авторизации.
+        // При неверном коде/пароле TDLib переэмитит состояние →
+        // listenAuthStates отправит его в authStates →
+        // auth.Service.run() уведомит транспорт → пользователь повторит ввод.
+        tdlibClient, err := client.NewClient(authorizer)
+        if err != nil {
+            r.logger.Error("Failed to create TDLib client", slog.Any("err", err))
+            continue // новая попытка с новым authorizer
+        }
+
+        r.client = tdlibClient
+        close(r.clientDone)
+        return
+    }
+}
+```
+
+**Ключевое отличие от старого плана:** authorizer создаётся заново на каждую попытку, а не переиспользуется. При failure старый authorizer.State закрывается → `listenAuthStates` завершается → `auth.Service.run()` фильтрует AuthStateClosed (continue) → новая итерация эмитит свежий WaitPhone.
+
+#### T4.4. listenAuthStates() — маппинг TDLib → domain
+
+Принимает конкретный канал `authorizer.State`, а не поле `r.authorizer`. Это позволяет нескольким горутинам при retry не конфликтовать:
+
+```go
+func (r *Repo) listenAuthStates(ctx context.Context, states <-chan client.AuthorizationState) {
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case state, ok := <-states:
             if !ok {
-                r.authStates <- domain.AuthStateEvent{State: domain.AuthStateClosed}
-                return
+                return // authorizer закрыт (failure или shutdown)
             }
             if _, isClosing := state.(*client.AuthorizationStateClosing); isClosing {
                 continue
@@ -152,43 +187,35 @@ func (r *Repo) listenAuthStates(ctx context.Context) {
 }
 ```
 
-#### T4.4. createClient() — retry loop
+#### T4.5. Submit* — делегирование в authorizer (с синхронизацией)
 
-```go
-func (r *Repo) createClient(ctx context.Context) {
-    for {
-        tdlibClient, err := client.NewClient(r.authorizer)
-        if err != nil {
-            r.logger.Error("Failed to create TDLib client", slog.Any("err", err))
-            continue
-        }
-        r.client = tdlibClient
-        close(r.clientDone)
-        return
-    }
-}
-```
-
-**Источник:** `budva43/repo/telegram/repo.go:82-113`
-
-#### T4.5. Submit* — делегирование в authorizer
+`r.authorizer` может быть заменён при retry, поэтому чтение под RLock:
 
 ```go
 func (r *Repo) SubmitPhone(_ context.Context, phone string) error {
     r.logger.Info("Phone submitted", slog.String("phone", domain.MaskPhoneNumber(phone)))
-    r.authorizer.PhoneNumber <- phone
+    r.mu.RLock()
+    authorizer := r.authorizer
+    r.mu.RUnlock()
+    authorizer.PhoneNumber <- phone
     return nil
 }
 
-func (r *Repo) SubmitCode(_ context.Context, _ string) error {
+func (r *Repo) SubmitCode(_ context.Context, code string) error {
     r.logger.Info("Code submitted")
-    r.authorizer.Code <- code
+    r.mu.RLock()
+    authorizer := r.authorizer
+    r.mu.RUnlock()
+    authorizer.Code <- code
     return nil
 }
 
-func (r *Repo) SubmitPassword(_ context.Context, _ string) error {
+func (r *Repo) SubmitPassword(_ context.Context, password string) error {
     r.logger.Info("Password submitted")
-    r.authorizer.Password <- password
+    r.mu.RLock()
+    authorizer := r.authorizer
+    r.mu.RUnlock()
+    authorizer.Password <- password
     return nil
 }
 ```
