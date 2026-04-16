@@ -8,8 +8,8 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-// authDriver — интерфейс для управления состоянием авторизации.
-type authDriver interface {
+// authService — интерфейс для управления состоянием авторизации.
+type authService interface {
 	SetState(state domain.AuthorizationState, extra any)
 	ReadChan() <-chan string
 }
@@ -42,7 +42,7 @@ func (r *Repo) Start(_ context.Context) error {
 
 // RunAuthFlow запускает state machine авторизации.
 // В Phase B этот метод будет заменён на реальный TDLib flow.
-func (r *Repo) RunAuthFlow(ctx context.Context, auth authDriver) {
+func (r *Repo) RunAuthFlow(ctx context.Context, auth authService) {
 	// WaitPhone
 	auth.SetState(domain.AuthStateWaitPhone, nil)
 	phone := r.readInputOrCancel(ctx, auth)
@@ -75,7 +75,7 @@ func (r *Repo) RunAuthFlow(ctx context.Context, auth authDriver) {
 	r.logger.Info("Authorization complete")
 }
 
-func (r *Repo) readInputOrCancel(ctx context.Context, auth authDriver) string {
+func (r *Repo) readInputOrCancel(ctx context.Context, auth authService) string {
 	select {
 	case <-ctx.Done():
 		return ""

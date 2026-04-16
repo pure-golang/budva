@@ -48,21 +48,21 @@ func NewStack() (*Stack, error) {
 
 	queueRepo := queue.New()
 
-	messageSvc := message.New()
-	transformSvc := transform.New(telegram, stateRepo)
-	filtersSvc := filters.New()
-	albumSvc := album.New()
-	limiterSvc := limiter.New()
+	messageService := message.New()
+	transformService := transform.New(telegram, stateRepo)
+	filterService := filters.New()
+	albumService := album.New()
+	limiterService := limiter.New()
 
 	h := handler.New(
 		telegram,
 		stateRepo,
-		messageSvc,
-		filtersSvc,
-		transformSvc,
-		albumSvc,
+		messageService,
+		filterService,
+		transformService,
+		albumService,
 		queueRepo,
-		limiterSvc,
+		limiterService,
 		func(dsts []domain.ChatID) handler.DedupTracker {
 			return dedup.NewTracker(dsts)
 		},

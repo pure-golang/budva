@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	tr := http.New(authSvc)
+//	tr := http.New(authService, resolver)
 //	tr.EnrichRoutes(mux)
 //
 // Эндпоинты:

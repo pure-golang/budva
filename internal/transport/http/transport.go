@@ -20,14 +20,14 @@ type authService interface {
 
 // Transport реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
 type Transport struct {
-	auth     authService
+	authService authService
 	resolver *graph.Resolver
 }
 
 // New создаёт новый экземпляр HTTP-транспорта.
-func New(auth authService, resolver *graph.Resolver) *Transport {
+func New(authService authService, resolver *graph.Resolver) *Transport {
 	return &Transport{
-		auth:     auth,
+		authService: authService,
 		resolver: resolver,
 	}
 }
@@ -60,11 +60,11 @@ type statusResponse struct {
 }
 
 func (t *Transport) handleGetState(w http.ResponseWriter, r *http.Request) {
-	state := t.auth.State()
+	state := t.authService.State()
 	resp := stateResponse{StateType: state.String()}
 
 	if state == domain.AuthStateWaitPassword {
-		if ws, ok := t.auth.Extra().(*domain.WaitPasswordState); ok && ws != nil {
+		if ws, ok := t.authService.Extra().(*domain.WaitPasswordState); ok && ws != nil {
 			resp.PasswordHint = ws.PasswordHint
 		}
 	}
@@ -86,7 +86,7 @@ func (t *Transport) handlePostPhone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.auth.InputChan() <- req.Phone
+	t.authService.InputChan() <- req.Phone
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -106,7 +106,7 @@ func (t *Transport) handlePostCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.auth.InputChan() <- req.Code
+	t.authService.InputChan() <- req.Code
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -126,7 +126,7 @@ func (t *Transport) handlePostPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.auth.InputChan() <- req.Password
+	t.authService.InputChan() <- req.Password
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)

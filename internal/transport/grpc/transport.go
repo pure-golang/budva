@@ -27,13 +27,13 @@ type facadeService interface {
 // Transport реализует gRPC-сервер FacadeGRPC.
 type Transport struct {
 	pb.UnimplementedFacadeGRPCServer
-	facade facadeService
+	facadeService facadeService
 }
 
 // New создаёт новый экземпляр gRPC-транспорта.
-func New(facade facadeService) *Transport {
+func New(facadeService facadeService) *Transport {
 	return &Transport{
-		facade: facade,
+		facadeService: facadeService,
 	}
 }
 
@@ -41,7 +41,7 @@ func New(facade facadeService) *Transport {
 func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest) (*pb.MessagesResponse, error) {
 	var messages []*pb.Message
 	for _, id := range req.GetMessageIds() {
-		msg, err := t.facade.GetMessage(ctx, req.GetChatId(), id)
+		msg, err := t.facadeService.GetMessage(ctx, req.GetChatId(), id)
 		if err != nil {
 			alogger.FromContext(ctx).Error("Failed to get message", slog.Any("err", err), slog.Int64("message_id", id))
 			continue
@@ -53,7 +53,7 @@ func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest)
 
 // GetChatHistory возвращает историю чата с пагинацией.
 func (t *Transport) GetChatHistory(ctx context.Context, req *pb.GetChatHistoryRequest) (*pb.MessagesResponse, error) {
-	msgs, err := t.facade.GetChatHistory(ctx, req.GetChatId(), req.GetFromMessageId(), req.GetOffset(), req.GetLimit())
+	msgs, err := t.facadeService.GetChatHistory(ctx, req.GetChatId(), req.GetFromMessageId(), req.GetOffset(), req.GetLimit())
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -70,7 +70,7 @@ func (t *Transport) SendMessage(ctx context.Context, req *pb.SendMessageRequest)
 	if msg == nil {
 		return nil, status.Error(codes.InvalidArgument, "message is required")
 	}
-	if err := t.facade.SendMessage(ctx, msg.GetChatId(), msg.GetText()); err != nil {
+	if err := t.facadeService.SendMessage(ctx, msg.GetChatId(), msg.GetText()); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -90,7 +90,7 @@ func (t *Transport) SendMessageAlbum(ctx context.Context, req *pb.SendMessageAlb
 			FilePath: m.GetFilePath(),
 		})
 	}
-	if err := t.facade.SendMessageAlbum(ctx, chatID, items); err != nil {
+	if err := t.facadeService.SendMessageAlbum(ctx, chatID, items); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -98,7 +98,7 @@ func (t *Transport) SendMessageAlbum(ctx context.Context, req *pb.SendMessageAlb
 
 // ForwardMessage пересылает сообщение.
 func (t *Transport) ForwardMessage(ctx context.Context, req *pb.ForwardMessageRequest) (*pb.EmptyResponse, error) {
-	if err := t.facade.ForwardMessage(ctx, req.GetChatId(), req.GetMessageId()); err != nil {
+	if err := t.facadeService.ForwardMessage(ctx, req.GetChatId(), req.GetMessageId()); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -106,7 +106,7 @@ func (t *Transport) ForwardMessage(ctx context.Context, req *pb.ForwardMessageRe
 
 // GetMessage возвращает одно сообщение.
 func (t *Transport) GetMessage(ctx context.Context, req *pb.GetMessageRequest) (*pb.MessageResponse, error) {
-	msg, err := t.facade.GetMessage(ctx, req.GetChatId(), req.GetMessageId())
+	msg, err := t.facadeService.GetMessage(ctx, req.GetChatId(), req.GetMessageId())
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -119,7 +119,7 @@ func (t *Transport) UpdateMessage(ctx context.Context, req *pb.UpdateMessageRequ
 	if msg == nil {
 		return nil, status.Error(codes.InvalidArgument, "message is required")
 	}
-	if err := t.facade.UpdateMessage(ctx, msg.GetChatId(), msg.GetId(), msg.GetText()); err != nil {
+	if err := t.facadeService.UpdateMessage(ctx, msg.GetChatId(), msg.GetId(), msg.GetText()); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -127,7 +127,7 @@ func (t *Transport) UpdateMessage(ctx context.Context, req *pb.UpdateMessageRequ
 
 // DeleteMessages удаляет сообщения.
 func (t *Transport) DeleteMessages(ctx context.Context, req *pb.DeleteMessagesRequest) (*pb.EmptyResponse, error) {
-	if err := t.facade.DeleteMessages(ctx, req.GetChatId(), req.GetMessageIds()); err != nil {
+	if err := t.facadeService.DeleteMessages(ctx, req.GetChatId(), req.GetMessageIds()); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.EmptyResponse{}, nil
@@ -135,7 +135,7 @@ func (t *Transport) DeleteMessages(ctx context.Context, req *pb.DeleteMessagesRe
 
 // GetMessageLink возвращает публичную ссылку на сообщение.
 func (t *Transport) GetMessageLink(ctx context.Context, req *pb.GetMessageLinkRequest) (*pb.MessageLinkResponse, error) {
-	link, err := t.facade.GetMessageLink(ctx, req.GetChatId(), req.GetMessageId())
+	link, err := t.facadeService.GetMessageLink(ctx, req.GetChatId(), req.GetMessageId())
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -144,7 +144,7 @@ func (t *Transport) GetMessageLink(ctx context.Context, req *pb.GetMessageLinkRe
 
 // GetMessageLinkInfo извлекает информацию о сообщении по ссылке.
 func (t *Transport) GetMessageLinkInfo(ctx context.Context, req *pb.GetMessageLinkInfoRequest) (*pb.MessageResponse, error) {
-	info, err := t.facade.GetMessageLinkInfo(ctx, req.GetLink())
+	info, err := t.facadeService.GetMessageLinkInfo(ctx, req.GetLink())
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

@@ -47,7 +47,7 @@ func (r *Resolver) Handler() http.HandlerFunc {
 }
 
 func (r *Resolver) handleStatus(w http.ResponseWriter, req *http.Request, logger *slog.Logger) {
-	st, err := r.status.GetStatus(req.Context())
+	st, err := r.statusProvider.GetStatus(req.Context())
 	if err != nil {
 		writeJSON(w, http.StatusOK, graphqlResponse{
 			Errors: []graphqlError{{Message: err.Error()}},

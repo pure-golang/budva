@@ -2,7 +2,7 @@
 //
 // Использование:
 //
-//	tr := grpc.New(facadeSvc)
+//	tr := grpc.New(facadeService)
 //	pb.RegisterFacadeGRPCServer(server, tr)
 //
 // Реализует proto-сервис FacadeGRPC с методами:

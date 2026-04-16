@@ -92,24 +92,24 @@ func run() error {
 	}()
 
 	// 5. Сервисы
-	authSvc := auth.New()
-	messageSvc := message.New()
-	transformSvc := transform.New(telegramRepo, stateRepo)
-	filtersSvc := filters.New()
-	albumSvc := album.New()
+	authService := auth.New()
+	messageService := message.New()
+	transformService := transform.New(telegramRepo, stateRepo)
+	filterService := filters.New()
+	albumService := album.New()
 
-	limiterSvc := limiter.New()
+	limiterService := limiter.New()
 
 	// 6. Handler
 	h := handler.New(
 		telegramRepo,
 		stateRepo,
-		messageSvc,
-		filtersSvc,
-		transformSvc,
-		albumSvc,
+		messageService,
+		filterService,
+		transformService,
+		albumService,
 		queueRepo,
-		limiterSvc,
+		limiterService,
 		func(dsts []domain.ChatID) handler.DedupTracker {
 			return dedup.NewTracker(dsts)
 		},
@@ -168,7 +168,7 @@ func run() error {
 
 	// 10. Terminal transport
 	termRepo := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
-	termTransport := termtransport.New(authSvc, telegramRepo, termRepo, cfg.Telegram.Phone)
+	termTransport := termtransport.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {
 			logger.Error("Terminal transport error", slog.Any("err", err))
@@ -176,7 +176,7 @@ func run() error {
 	}()
 
 	// 11. Auth flow
-	go telegramRepo.RunAuthFlow(ctx, authSvc)
+	go telegramRepo.RunAuthFlow(ctx, authService)
 
 	logger.Info("Engine started, waiting for shutdown signal")
 	<-ctx.Done()

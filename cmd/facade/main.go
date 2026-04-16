@@ -70,15 +70,15 @@ func run() error {
 	}()
 
 	// 5. Сервисы
-	authSvc := auth.New()
-	facadeSvc := facade.New(telegramRepo)
+	authService := auth.New()
+	facadeService := facade.New(telegramRepo)
 
 	// 6. HTTP transport
 	mux := http.NewServeMux()
 	ctrl := controller.New()
 	ctrl.EnrichRoutes(mux)
-	gqlResolver := graph.NewResolver(facadeSvc)
-	httpTransport := httptransport.New(authSvc, gqlResolver)
+	gqlResolver := graph.NewResolver(facadeService)
+	httpTransport := httptransport.New(authService, gqlResolver)
 	httpTransport.EnrichRoutes(mux)
 
 	handler := amiddleware.Chain(mux, amiddleware.Monitoring(), amiddleware.Recovery)
@@ -86,14 +86,14 @@ func run() error {
 	httpServer := ahttp.NewDefault(cfg.HTTPServer, handler)
 
 	// 7. gRPC transport
-	grpcTransport := grpctransport.New(facadeSvc)
+	grpcTransport := grpctransport.New(facadeService)
 	grpcServer := grpc.NewServer()
 	pb.RegisterFacadeGRPCServer(grpcServer, grpcTransport)
 	reflection.Register(grpcServer)
 
 	// 8. Terminal transport
 	termRepo := repoterm.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
-	termTransport := termtransport.New(authSvc, telegramRepo, termRepo, cfg.Telegram.Phone)
+	termTransport := termtransport.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {
 			logger.Error("Terminal transport error", slog.Any("err", err))

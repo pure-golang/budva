@@ -12,10 +12,10 @@ type statusProvider interface {
 
 // Resolver связывает GraphQL-схему с сервисным слоем.
 type Resolver struct {
-	status statusProvider
+	statusProvider statusProvider
 }
 
 // NewResolver создаёт новый resolver.
-func NewResolver(status statusProvider) *Resolver {
-	return &Resolver{status: status}
+func NewResolver(statusProvider statusProvider) *Resolver {
+	return &Resolver{statusProvider: statusProvider}
 }
