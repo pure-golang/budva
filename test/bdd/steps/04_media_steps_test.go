@@ -3,30 +3,46 @@ package steps
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/cucumber/godog"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
+var testPhotos = []string{
+	"test/bdd/testdata/photo1.png",
+	"test/bdd/testdata/photo2.png",
+	"test/bdd/testdata/photo3.png",
+}
+
 func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет медиа-альбом в исходный чат$`, func() error {
 		s.applyRuleSet()
 
-		// Отправляем 3 фото-сообщения с одинаковым albumID
-		for i := 1; i <= 3; i++ {
-			msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-				Type: domain.ContentPhoto,
-				Text: &domain.FormattedText{Text: fmt.Sprintf("photo %d", i)},
-			}, s.prefix)
+		// Отправляем реальный альбом из 3 фото через TDLib SendMessageAlbum
+		contents := make([]domain.InputMessageContent, 0, len(testPhotos))
+		for i, photo := range testPhotos {
+			absPath, err := filepath.Abs(photo)
 			if err != nil {
-				return err
+				return fmt.Errorf("resolve photo path: %w", err)
 			}
-			// Устанавливаем albumID вручную (TDLib не гарантирует albumID при отдельной отправке)
-			msg.MediaAlbumID = 12345
-			s.env.Handler.OnNewMessage(context.Background(), msg)
+			contents = append(contents, domain.InputMessageContent{
+				Type:     domain.ContentPhoto,
+				FilePath: absPath,
+				Text:     &domain.FormattedText{Text: fmt.Sprintf("photo %d", i+1)},
+			})
 		}
 
+		albumMsgs, err := s.env.PutAlbum(context.Background(), s.env.SourceID, contents, s.prefix)
+		if err != nil {
+			return err
+		}
+
+		// Handler получает каждое сообщение альбома индивидуально (как в production)
+		for _, msg := range albumMsgs {
+			s.env.Handler.OnNewMessage(context.Background(), msg)
+		}
 		s.env.DrainQueue()
 
 		return nil

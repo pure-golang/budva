@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"regexp"
-	"time"
 
 	"github.com/cucumber/godog"
 
@@ -22,10 +21,8 @@ func getOrCreateStack() (*support.LiveStack, error) {
 	if sharedStack != nil {
 		return sharedStack, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	stack, err := support.NewLiveStack(ctx, fixturesPath)
-	if err != nil {
+	stack := support.NewLiveStack(fixturesPath)
+	if err := stack.Start(); err != nil {
 		return nil, err
 	}
 	sharedStack = stack

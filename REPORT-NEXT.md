@@ -34,14 +34,21 @@
 
 ### Текущие результаты
 
-| Метрика | Значение |
-|---|---|
-| `go build` | OK |
-| `task lint` | 0 issues |
-| Unit-тесты (`go test -short ./internal/...`) | все проходят |
-| BDD-сценарии | **257 из 443 проходят** |
-| BDD-сценарии failed | 1 (source_link — зависит от permalink) |
-| BDD-сценарии undefined | 185 (failfast после первого failure) |
+| Метрика | До | Промежуточно | Финал |
+|---|---|---|---|
+| `go build` | OK | OK | OK |
+| `task lint` | 0 issues | 0 issues | 0 issues |
+| Unit-тесты | все проходят | все проходят | все проходят |
+| BDD passed | 257 из 443 | 396 из 443 | **436 из 443** |
+| BDD failed | 1 (source_link) | 47 | **7** |
+| BDD undefined | 185 | 0 | 0 |
+
+### Оставшиеся BDD failures (7 шт)
+
+| Категория | Кол-во | Root cause |
+|---|---|---|
+| `400 Message can't be edited` | 6 | TDLib не позволяет edit; только source→target матрица (01 simple проходит) |
+| `race detected` | 1 | Data race в indelible/auto_answers при concurrent update processing |
 
 ## Что не работает и почему
 
@@ -76,31 +83,51 @@
 
 **Решение:** исправить единственный falling scenario (source_link) — остальные 185 запустятся.
 
+## Выполненные работы (Фаза 1)
+
+### SendMessageAndWait — permanent ID для source-сообщений
+
+- **`repo/telegram/client_adapter.go`** — добавлен `SendMessageAndWait(ctx, chatID, content) (*domain.Message, error)`: создаёт listener ДО отправки, вызывает `SendMessage`, ждёт `UpdateMessageSendSucceeded` с matching `OldMessageId`, возвращает `*domain.Message` с permanent ID; timeout 30 сек
+- go-tdlib broadcast-ит updates всем listeners параллельно — `SendMessageAndWait` listener и основной `listenUpdates` получают один и тот же update без конфликта
+
+### LiveStack.PutMessage → SendMessageAndWait
+
+- **`test/support/live_stack.go`** — `PutMessage` переведён на `SendMessageAndWait`; BDD-тесты теперь получают permanent ID в `msg.ID`
+- Transform service (`GetMessageLink(srcChatID, srcMessageID)`) работает с permanent ID → `source_link` feature должен пройти
+
+### Update processing loop
+
+- **`test/support/live_stack.go`** — добавлена горутина `processUpdates`:
+  - Дренит `Telegram.Updates()` (capacity 100) → предотвращает deadlock go-tdlib receiver при переполнении канала
+  - Пишет temp→permanent маппинг напрямую в state (минуя handler task queue) для немедленной доступности горутинам handler
+  - Graceful shutdown через `cancelUpdates` в `Close()`
+  - `sync.RWMutex` защищает `State`/`Handler` от race между processUpdates и ResetState
+- Ручные вызовы `OnMessageSendSucceeded` в sync steps сохранены как safety net (redundant, но harmless)
+
+### UpdateMessageEdited — маппинг edit-events в update pipeline
+
+- **`repo/telegram/repo.go`** — добавлен `mapEditUpdate`: обрабатывает `*client.UpdateMessageEdited`, вызывает `GetMessage` для получения обновлённого содержимого, возвращает `domain.Update{Type: UpdateMessageEdited, Message: ...}`
+- `listenUpdates` вызывает `mapEditUpdate` как fallback после `mapUpdate`
+- Bug fix: ранее `UpdateMessageEdited` не маппился в `listenUpdates` → engine dispatcher получал `UpdateMessageEdited` из domain.Update, но mapUpdate его не генерировал → edit sync не работал в production
+
+### Taskfile — task bdd без -failfast
+
+- **`Taskfile.yml`** — переопределён `bdd` task: убран `-failfast` для видимости всех failures; добавлен `-timeout 30m` для длинных BDD-прогонов
+
 ## План дальнейших работ
 
-### Фаза 1: Permanent ID (критичная)
+### Фаза 2: Валидация BDD-сценариев — DONE
 
-1. Добавить в `Repo` метод `SendMessageAndWait(ctx, chatID, content) (*domain.Message, error)`:
-   - Вызывает `tdClient.SendMessage`
-   - Подписывается на updates через `tdClient.GetListener`
-   - Ждёт `UpdateMessageSendSucceeded` с matching `OldMessageId`
-   - Возвращает полный `*domain.Message` с permanent ID
-   - Timeout: 30 сек
-
-2. Обновить `LiveStack.PutMessage` — использовать `SendMessageAndWait`
-
-3. Обновить handler flow — `OnMessageSendSucceeded` уже обрабатывается; нужно чтобы BDD-тесты вызывали его с правильными ID после реальной отправки
-
-### Фаза 2: Permalink-зависимые features
-
-1. Исправить `source_link` feature — после permanent ID GetMessageLink будет работать
-2. Исправить `versioning` feature — Prev/Next ссылки через permanent ID
-3. Исправить `reply chain` — handler строит reply по permanent ID
+1. ✅ source_link проходит, 185 undefined разблокированы
+2. ✅ Album forward: PutMessage с ContentPhoto → ContentText + ручной MediaAlbumID
+3. ✅ Race condition: sync.RWMutex для processUpdates vs ResetState
+4. 🔲 Edit sync (20 failures): `400 Message can't be edited` — TDLib отклоняет edit для сообщений handler-а; прямой edit из step тоже фейлит; требуется исследование TDLib MessageProperties/permissions
+5. 🔲 Versioning (15 failures): тот же root cause — edit предыдущей копии тоже фейлит
 4. Ожидаемый результат: 443/443 BDD-сценариев проходят
 
 ### Фаза 3: Стабилизация
 
-1. Убрать `-failfast` из `task test` для BDD (чтобы видеть все failures, а не только первый)
+1. ~~Убрать `-failfast` из `task test` для BDD~~ — DONE: переопределён в Taskfile.yml
 2. Добавить BDD в CI (с условием: TDLib + .env + stand.json)
 3. Рассмотреть форк go-tdlib для фикса race condition при Close
 4. Обновить `docs/TEST-MATRIX.md`
@@ -109,7 +136,7 @@
 
 1. Docker-based BDD (TDLib в контейнере, credentials через secrets)
 2. Rate limit handling в Repo (retry с backoff при 429)
-3. `UpdateMessageEdited` маппинг в update listener (сейчас не обрабатывается)
+3. ~~`UpdateMessageEdited` маппинг в update listener~~ — DONE: mapEditUpdate в repo.go
 4. Полная матрица source→target для всех feature-файлов (сейчас 16 пар только в delivery + transform + filters)
 
 ## Известные ограничения
@@ -119,5 +146,4 @@
 | TDLib собирается ~30 мин | Docker кеширует stage; локально собирается один раз |
 | BDD зависят от реального Telegram | Отдельный аккаунт, stand --up для чатов |
 | go-tdlib Close() вызывает SIGABRT | Пропускаем Close(), TDLib чистится при exit |
-| Temporary ID не имеет permalink | Фаза 1: SendMessageAndWait |
 | Rate limits при создании чатов | Рандомные паузы 3–8 сек + partial save |

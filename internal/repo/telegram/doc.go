@@ -33,4 +33,6 @@
 //   - Close() завершает TDLib-сессию и освобождает ресурсы.
 //   - ParseTextEntities/GetMarkdownText/GetOption — статические вызовы TDLib, работают до авторизации.
 //   - CreateNewSupergroupChat/CreateNewBasicGroupChat/SetSupergroupUsername/DeleteChat — методы для cmd/stand.
+//   - SendMessageAndWait блокирует до получения permanent ID (таймаут 30 сек), создаёт временный listener.
+//   - UpdateMessageEdited требует GetMessage для получения обновлённого содержимого (mapEditUpdate).
 package telegram

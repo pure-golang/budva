@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	aenv "github.com/pure-golang/adapters/env"
@@ -26,106 +27,149 @@ import (
 
 // LiveStack содержит собранный стек для BDD-тестов с реальным TDLib.
 type LiveStack struct {
-	Telegram  *telegram.Repo
-	Handler   *handler.Handler
-	State     *state.Repo
-	Queue     *queue.Repo
-	Fixtures  *Fixtures
-	SourceID  domain.ChatID
-	TargetIDs []domain.ChatID
-	tmpDir    string
+	Telegram      *telegram.Repo
+	Handler       *handler.Handler
+	State         *state.Repo
+	Queue         *queue.Repo
+	Fixtures      *Fixtures
+	SourceID      domain.ChatID
+	TargetIDs     []domain.ChatID
+	fixturesPath  string
+	tmpDir        string
+	cancelUpdates context.CancelFunc
+	mu            sync.RWMutex // Защищает State и Handler от race между processUpdates и ResetState
 }
 
-// NewLiveStack собирает полный стек с реальным TDLib и тестовыми чатами из фикстур.
+// NewLiveStack создаёт экземпляр стека для BDD-тестов.
+func NewLiveStack(fixturesPath string) *LiveStack {
+	return &LiveStack{fixturesPath: fixturesPath}
+}
+
+// Start инициализирует TDLib, загружает фикстуры, ждёт авторизации, собирает handler pipeline.
 // Требует: TDLib собран, .env с реальными credentials, cmd/stand --up выполнен.
-func NewLiveStack(ctx context.Context, fixturesPath string) (*LiveStack, error) {
+// Context создаётся внутри и живёт до Close().
+func (s *LiveStack) Start() error {
 	var cfg config.TelegramConfig
 	if err := aenv.InitConfig(&cfg); err != nil {
-		return nil, fmt.Errorf("config: %w", err)
+		return fmt.Errorf("config: %w", err)
 	}
 
-	fixtures, err := LoadFixtures(fixturesPath)
+	fixtures, err := LoadFixtures(s.fixturesPath)
 	if err != nil {
-		return nil, fmt.Errorf("load fixtures: %w", err)
+		return fmt.Errorf("load fixtures: %w", err)
 	}
+	s.Fixtures = fixtures
+
+	// Long-lived контекст: listenUpdates и processUpdates живут до Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancelUpdates = cancel
 
 	telegramRepo := telegram.New(cfg)
 	if err := telegramRepo.Start(ctx); err != nil {
-		return nil, fmt.Errorf("telegram start: %w", err)
+		cancel()
+		return fmt.Errorf("telegram start: %w", err)
 	}
 
 	// Ждём авторизации (сессия должна быть закеширована после cmd/stand --up)
 	select {
-	case <-ctx.Done():
-		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup при ошибке инициализации
-		return nil, ctx.Err()
 	case <-telegramRepo.ClientDone():
 	case <-time.After(30 * time.Second):
-		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup при ошибке инициализации
-		return nil, fmt.Errorf("authorization timeout: ensure .env is configured and session is cached")
+		cancel()
+		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+		return fmt.Errorf("authorization timeout: ensure .env is configured and session is cached")
 	}
 
 	tmpDir, err := os.MkdirTemp("", "budva-bdd-*")
 	if err != nil {
-		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup при ошибке инициализации
-		return nil, err
+		cancel()
+		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+		return err
 	}
 
 	stateRepo := state.New(config.StorageConfig{DatabaseDirectory: tmpDir}) //nolint:exhaustruct // Только путь нужен для temp DB
 	if err := stateRepo.Start(context.Background()); err != nil {
-		os.RemoveAll(tmpDir) //nolint:errcheck // Best-effort cleanup при ошибке инициализации
-		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup при ошибке инициализации
-		return nil, err
+		cancel()
+		os.RemoveAll(tmpDir) //nolint:errcheck // Best-effort cleanup
+		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+		return err
 	}
 
-	queueRepo := queue.New()
-	messageService := message.New()
-	transformService := transform.New(telegramRepo, stateRepo)
-	filterService := filters.New()
-	albumService := album.New()
-	limiterService := limiter.New()
-
-	h := handler.New(
+	s.Telegram = telegramRepo
+	s.State = stateRepo
+	s.Queue = queue.New()
+	s.tmpDir = tmpDir
+	s.Handler = handler.New(
 		telegramRepo,
 		stateRepo,
-		messageService,
-		filterService,
-		transformService,
-		albumService,
-		queueRepo,
-		limiterService,
+		message.New(),
+		filters.New(),
+		transform.New(telegramRepo, stateRepo),
+		album.New(),
+		s.Queue,
+		limiter.New(),
 		func(dsts []domain.ChatID) handler.DedupTracker {
 			return dedup.NewTracker(dsts)
 		},
 	)
 
-	// Определяем source и targets из фикстур: "исходный*" → sources, "целевой/целевая*" → targets
-	var sourceID domain.ChatID
-	var targetIDs []domain.ChatID
-	for _, chat := range fixtures.Chats {
+	// Определяем source и targets из фикстур
+	for _, chat := range s.Fixtures.Chats {
 		if strings.HasPrefix(chat.Name, "целевой") || strings.HasPrefix(chat.Name, "целевая") {
-			targetIDs = append(targetIDs, chat.ChatID)
-		} else if strings.HasPrefix(chat.Name, "исходный") || strings.HasPrefix(chat.Name, "исходная") {
-			if sourceID == 0 {
-				sourceID = chat.ChatID
-			}
+			s.TargetIDs = append(s.TargetIDs, chat.ChatID)
+		} else if (strings.HasPrefix(chat.Name, "исходный") || strings.HasPrefix(chat.Name, "исходная")) && s.SourceID == 0 {
+			s.SourceID = chat.ChatID
 		}
 	}
 
-	return &LiveStack{
-		Telegram:  telegramRepo,
-		Handler:   h,
-		State:     stateRepo,
-		Queue:     queueRepo,
-		Fixtures:  fixtures,
-		SourceID:  sourceID,
-		TargetIDs: targetIDs,
-		tmpDir:    tmpDir,
-	}, nil
+	go s.processUpdates(ctx)
+
+	return nil
+}
+
+// processUpdates читает Telegram updates и обрабатывает temp→permanent ID маппинг.
+// Без этой горутины канал updates (capacity 100) переполнится и заблокирует
+// go-tdlib receiver, что сломает SendMessageAndWait и другие операции.
+//
+// Маппинг записывается напрямую в state (минуя handler task queue), чтобы
+// горутины handler (runNextLinkWorkflow) видели permanent ID сразу, не дожидаясь DrainQueue.
+func (s *LiveStack) processUpdates(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case upd, ok := <-s.Telegram.Updates():
+			if !ok {
+				return
+			}
+			s.mu.RLock()
+			st := s.State
+			h := s.Handler
+			s.mu.RUnlock()
+
+			switch upd.Type {
+			case domain.UpdateMessageSendSucceeded:
+				if upd.Message != nil {
+					_ = st.SetNewMessageID(upd.Message.ChatID, upd.OldMessageID, upd.Message.ID) //nolint:errcheck // Best-effort в фоновой горутине
+					_ = st.SetTmpMessageID(upd.Message.ChatID, upd.Message.ID, upd.OldMessageID) //nolint:errcheck // Best-effort в фоновой горутине
+				}
+			case domain.UpdateMessageEdited:
+				if upd.Message != nil {
+					h.OnEditedMessage(ctx, upd.Message)
+				}
+			case domain.UpdateDeleteMessages:
+				if upd.IsPermanent {
+					h.OnDeletedMessages(ctx, upd.ChatID, upd.MessageIDs, upd.IsPermanent)
+				}
+			}
+		}
+	}
 }
 
 // Close освобождает ресурсы.
 func (s *LiveStack) Close() error {
+	if s.cancelUpdates != nil {
+		s.cancelUpdates()
+	}
 	var errs []error
 	if s.State != nil {
 		errs = append(errs, s.State.Close())
@@ -171,6 +215,9 @@ func (s *LiveStack) MakeRuleSet(sendCopy bool, src *domain.Source) *domain.RuleS
 
 // ResetState сбрасывает BadgerDB, очередь и handler между сценариями (TDLib не пересоздаётся).
 func (s *LiveStack) ResetState() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.State != nil {
 		if err := s.State.Close(); err != nil {
 			return err
@@ -220,7 +267,7 @@ func PrefixText(prefix, text string) string {
 }
 
 // PutMessage отправляет сообщение в чат через TDLib с prefix сценария.
-// SendMessage возвращает temporary ID; permanent ID приходит через UpdateMessageSendSucceeded.
+// Блокирует до получения permanent ID через SendMessageAndWait.
 func (s *LiveStack) PutMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent, prefix string) (*domain.Message, error) {
 	// Добавляем prefix к тексту для идентификации сообщения сценария
 	if content.Text != nil && prefix != "" {
@@ -230,19 +277,59 @@ func (s *LiveStack) PutMessage(ctx context.Context, chatID domain.ChatID, conten
 		}
 	}
 
-	msgID, err := s.Telegram.SendMessage(ctx, chatID, content)
+	msg, err := s.Telegram.SendMessageAndWait(ctx, chatID, content)
 	if err != nil {
 		return nil, fmt.Errorf("put message: %w", err)
 	}
-	return &domain.Message{
-		ChatID:     chatID,
-		ID:         msgID,
-		CanBeSaved: true,
-		Content: domain.MessageContent{
-			Type: content.Type,
-			Text: content.Text,
-		},
-	}, nil
+	return msg, nil
+}
+
+// PutAlbum отправляет медиа-альбом в чат через TDLib.
+// Добавляет prefix к caption первого фото. Поллит chat history до появления
+// всех сообщений альбома с matching MediaAlbumID.
+func (s *LiveStack) PutAlbum(ctx context.Context, chatID domain.ChatID, contents []domain.InputMessageContent, prefix string) ([]*domain.Message, error) {
+	// Добавляем prefix к caption первого фото
+	if len(contents) > 0 && prefix != "" {
+		caption := ""
+		if contents[0].Text != nil {
+			caption = contents[0].Text.Text
+		}
+		contents[0].Text = &domain.FormattedText{
+			Text: PrefixText(prefix, caption),
+		}
+	}
+
+	_, err := s.Telegram.SendMessageAlbum(ctx, chatID, contents)
+	if err != nil {
+		return nil, fmt.Errorf("put album: %w", err)
+	}
+
+	// Поллим chat history до появления альбома с prefix
+	deadline := time.After(15 * time.Second)
+	for {
+		msgs, err := s.Telegram.GetChatHistory(ctx, chatID, 0, 0, 10)
+		if err != nil {
+			return nil, err
+		}
+		// Ищем сообщение с prefix → определяем MediaAlbumID → собираем альбом
+		for _, m := range msgs {
+			if m.Content.Text != nil && strings.HasPrefix(m.Content.Text.Text, prefix) && m.MediaAlbumID != 0 {
+				aid := m.MediaAlbumID
+				var result []*domain.Message
+				for _, am := range msgs {
+					if am.MediaAlbumID == aid {
+						result = append(result, am)
+					}
+				}
+				return result, nil
+			}
+		}
+		select {
+		case <-deadline:
+			return nil, fmt.Errorf("timeout: album with prefix %q not found in chat %d", prefix, chatID)
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 // CheckLastMessage проверяет что последнее сообщение в чате содержит prefix сценария.

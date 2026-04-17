@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
+
+// sendMessageTimeout — максимальное время ожидания permanent ID после SendMessage.
+const sendMessageTimeout = 30 * time.Second
 
 // clientAdapter — контракт TDLib-клиента.
 type clientAdapter interface {
@@ -105,6 +109,45 @@ func (r *Repo) SendMessage(_ context.Context, chatID domain.ChatID, content doma
 		return 0, fmt.Errorf("send message: %w", err)
 	}
 	return msg.Id, nil
+}
+
+// SendMessageAndWait отправляет сообщение и ждёт присвоения permanent ID.
+// TDLib возвращает temporary ID из SendMessage; permanent ID приходит
+// асинхронно через UpdateMessageSendSucceeded. Метод блокирует до получения
+// permanent ID или таймаута (30 сек).
+func (r *Repo) SendMessageAndWait(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (*domain.Message, error) {
+	// Создаём listener ДО отправки, чтобы не пропустить update
+	listener := r.tdClient.GetListener()
+	defer listener.Close()
+
+	tmpID, err := r.SendMessage(ctx, chatID, content)
+	if err != nil {
+		return nil, err
+	}
+
+	timeout := time.After(sendMessageTimeout)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timeout:
+			return nil, fmt.Errorf("timeout waiting for permanent ID of message %d in chat %d", tmpID, chatID)
+		case typ, ok := <-listener.Updates:
+			if !ok {
+				return nil, fmt.Errorf("listener closed while waiting for permanent ID")
+			}
+			u, ok := typ.(*client.UpdateMessageSendSucceeded)
+			if !ok || u.OldMessageId != tmpID {
+				continue
+			}
+			r.logger.Debug("Permanent ID received",
+				slog.Int64("chat_id", chatID),
+				slog.Int64("tmp_id", tmpID),
+				slog.Int64("permanent_id", u.Message.Id),
+			)
+			return mapMessage(u.Message), nil
+		}
+	}
 }
 
 // SendMessageAlbum отправляет медиа-альбом.

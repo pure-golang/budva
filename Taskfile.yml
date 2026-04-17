@@ -6,9 +6,14 @@ includes:
     flatten: true
     excludes:
       - mock
+      - bdd
 
 tasks:
   mock:
     desc: "Generate mocks (via mockery v3)"
     cmds:
       - go run github.com/vektra/mockery/v3@latest
+
+  bdd:
+    desc: "Run all BDD scenarios (without -failfast to see all failures)"
+    cmd: go test -race -count=1 -p 8 -timeout 30m ./test/bdd/steps/...

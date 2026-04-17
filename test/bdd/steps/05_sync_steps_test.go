@@ -9,6 +9,7 @@ import (
 	"github.com/cucumber/godog"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/pure-golang/budva-claude/test/support"
 )
 
 func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
@@ -103,49 +104,37 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return fmt.Errorf("no previously sent message")
 		}
 
-		editedMsg := &domain.Message{
-			ChatID: s.env.SourceID,
-			ID:     s.sentMsg.ID,
-			Content: domain.MessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: newText},
-			},
+		// Реально редактируем SOURCE сообщение через TDLib (как в budva43 e2e).
+		// TDLib отправит UpdateMessageEdited → processUpdates → handler.OnEditedMessage →
+		// handler синхронизирует изменение в target-копиях.
+		editedText := &domain.FormattedText{
+			Text: support.PrefixText(s.prefix, newText),
+		}
+		if err := s.env.Telegram.EditMessageText(context.Background(), s.env.SourceID, s.sentMsg.ID, editedText); err != nil {
+			return fmt.Errorf("edit source message: %w", err)
 		}
 
-		s.env.Handler.OnEditedMessage(context.Background(), editedMsg)
+		// Ждём propagation UpdateMessageEdited через TDLib → processUpdates → handler queue
+		time.Sleep(2 * time.Second)
 		s.env.DrainQueue()
 
-		// Симулируем OnMessageSendSucceeded для новых сообщений (версионирование)
-		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
-			if err != nil {
-				continue
-			}
-			s.env.Handler.OnMessageSendSucceeded(msg.ChatID, msg.ID, msg.ID)
-		}
-		s.env.DrainQueue()
-
-		// Ожидаем завершения runNextLinkWorkflow горутины
+		// Для версионирования (copy_once): ждём runNextLinkWorkflow горутину
 		if s.copyOnce {
-			deadline := time.After(5 * time.Second)
+			deadline := time.After(15 * time.Second)
 			for {
 				select {
 				case <-deadline:
-					return fmt.Errorf("runNextLinkWorkflow did not complete within 5s")
-				case <-time.After(200 * time.Millisecond):
-					updated := false
+					return fmt.Errorf("runNextLinkWorkflow did not complete within 15s")
+				case <-time.After(500 * time.Millisecond):
+					s.env.DrainQueue()
 					for _, targetID := range s.env.TargetIDs {
 						msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
 						if err != nil {
 							continue
 						}
 						if msg.Content.Text != nil && strings.Contains(msg.Content.Text.Text, "https://t.me") {
-							updated = true
-							break
+							goto done
 						}
-					}
-					if updated {
-						goto done
 					}
 				}
 			}

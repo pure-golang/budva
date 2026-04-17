@@ -48,6 +48,39 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		return nil
 	})
 
+	ctx.Then(`^копия сообщения появляется без авторства оригинала$`, func() error {
+		for _, targetID := range s.env.TargetIDs {
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				return err
+			}
+			// Copy mode: ForwardInfo должен быть nil (нет атрибуции оригинала)
+			if msg.ForwardInfo != nil {
+				return fmt.Errorf("copy mode: expected no ForwardInfo in target %d, got origin chat %d",
+					targetID, msg.ForwardInfo.OriginChatID)
+			}
+			// Текст сообщения должен содержать оригинальный текст
+			if msg.Content.Text == nil {
+				return fmt.Errorf("copy mode: no text in message in target %d", targetID)
+			}
+		}
+		return nil
+	})
+
+	ctx.Then(`^пересланное сообщение содержит авторство оригинала$`, func() error {
+		for _, targetID := range s.env.TargetIDs {
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				return err
+			}
+			// Forward mode: ForwardInfo должен быть заполнен
+			if msg.ForwardInfo == nil {
+				return fmt.Errorf("forward mode: expected ForwardInfo in target %d, got nil", targetID)
+			}
+		}
+		return nil
+	})
+
 	// --- Rate limiting ---
 
 	ctx.When(`^пользователь отправляет два сообщения подряд$`, func() error {

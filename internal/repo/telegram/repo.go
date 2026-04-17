@@ -172,7 +172,11 @@ func (r *Repo) listenUpdates(ctx context.Context) {
 			if !ok {
 				return
 			}
-			if upd, mapped := r.mapUpdate(typ); mapped {
+			upd, mapped := r.mapUpdate(typ)
+			if !mapped {
+				upd, mapped = r.mapEditUpdate(typ)
+			}
+			if mapped {
 				r.updates <- upd
 			}
 		}
@@ -207,6 +211,30 @@ func (r *Repo) mapUpdate(typ client.Type) (domain.Update, bool) {
 	default:
 		return domain.Update{}, false
 	}
+}
+
+// mapEditUpdate обрабатывает UpdateMessageEdited отдельно от mapUpdate,
+// потому что требует I/O-вызова GetMessage для получения обновлённого содержимого.
+// TDLib обновляет локальный кеш до отправки нотификации, поэтому GetMessage
+// возвращает актуальное содержимое сообщения.
+func (r *Repo) mapEditUpdate(typ client.Type) (domain.Update, bool) {
+	u, ok := typ.(*client.UpdateMessageEdited)
+	if !ok {
+		return domain.Update{}, false
+	}
+	msg, err := r.tdClient.GetMessage(&client.GetMessageRequest{
+		ChatId:    u.ChatId,
+		MessageId: u.MessageId,
+	})
+	if err != nil {
+		r.logger.Warn("Failed to get edited message",
+			slog.Int64("chat_id", u.ChatId),
+			slog.Int64("message_id", u.MessageId),
+			slog.Any("err", err),
+		)
+		return domain.Update{}, false
+	}
+	return domain.Update{Type: domain.UpdateMessageEdited, Message: mapMessage(msg)}, true
 }
 
 // mapTDLibState конвертирует TDLib AuthorizationState в domain.AuthStateEvent.

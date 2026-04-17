@@ -7,7 +7,8 @@
 //
 // Ограничения:
 //
-//   - LiveStack требует: TDLib собран, .env с credentials, cmd/stand --up выполнен.
-//   - LiveStack создаёт временную директорию и BadgerDB; вызов Close() обязателен для освобождения ресурсов.
+//   - NewLiveStack(fixturesPath) создаёт экземпляр; Start() инициализирует TDLib и handler pipeline.
+//   - Start() создаёт long-lived context, запускает processUpdates горутину для drain updates.
+//   - Close() обязателен: освобождает ресурсы, останавливает горутины, канселит context.
 //   - Fixtures загружаются из JSON; ChatByName работает после LoadFixtures или SaveFixtures.
 package support

@@ -51,11 +51,19 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет сообщение со ссылкой на предыдущее сообщение$`, func() error {
 		s.applyRuleSet()
 
+		// Получаем реальный permalink на предыдущее сообщение в source
+		prevMsgs, err := s.env.Telegram.GetChatHistory(context.Background(), s.env.SourceID, 0, 0, 1)
+		if err != nil || len(prevMsgs) == 0 {
+			return fmt.Errorf("no previous message in source chat")
+		}
+		link, err := s.env.Telegram.GetMessageLink(context.Background(), s.env.SourceID, prevMsgs[0].ID, false)
+		if err != nil {
+			return fmt.Errorf("get message link: %w", err)
+		}
+
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
-			Text: &domain.FormattedText{
-				Text: fmt.Sprintf("see https://t.me/c/%d/500", s.env.SourceID),
-			},
+			Text: &domain.FormattedText{Text: fmt.Sprintf("see %s", link)},
 		}, s.prefix)
 		if err != nil {
 			return err
@@ -74,8 +82,19 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, "https://t.me") {
-				return fmt.Errorf("expected link in message text, got %q", msg.Content.Text)
+			if msg.Content.Text == nil {
+				return fmt.Errorf("no text in target %d", targetID)
+			}
+			// Проверяем что ссылка в target указывает на КОПИЮ (в target чате), а не на оригинал
+			hasTargetLink := false
+			for _, e := range msg.Content.Text.Entities {
+				if e.Type == domain.TextEntityTextURL && strings.HasPrefix(e.URL, "https://t.me/") {
+					hasTargetLink = true
+					break
+				}
+			}
+			if !hasTargetLink && !strings.Contains(msg.Content.Text.Text, "https://t.me/") {
+				return fmt.Errorf("expected link to copy in target %d, not found in %q", targetID, msg.Content.Text.Text)
 			}
 		}
 		return nil
@@ -88,11 +107,19 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет сообщение со ссылкой на внешнее сообщение$`, func() error {
 		s.applyRuleSet()
 
+		// Внешняя ссылка — ссылка на сообщение в target чате (не source)
+		externalChat := s.env.TargetIDs[0]
+		extMsgs, err := s.env.Telegram.GetChatHistory(context.Background(), externalChat, 0, 0, 1)
+		externalLink := "https://t.me/c/9999999/42" // Fallback: несуществующий чат
+		if err == nil && len(extMsgs) > 0 {
+			if link, linkErr := s.env.Telegram.GetMessageLink(context.Background(), externalChat, extMsgs[0].ID, false); linkErr == nil {
+				externalLink = link
+			}
+		}
+
 		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
 			Type: domain.ContentText,
-			Text: &domain.FormattedText{
-				Text: "see https://t.me/c/9999999/42",
-			},
+			Text: &domain.FormattedText{Text: fmt.Sprintf("see %s", externalLink)},
 		}, s.prefix)
 		if err != nil {
 			return err
@@ -115,25 +142,75 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^в целевом чате сообщение содержит подпись источника$`, func() error {
-		firstTarget := s.env.TargetIDs[0]
-		msg, err := s.env.CheckLastMessage(context.Background(), firstTarget, s.prefix)
-		if err != nil {
-			return err
+		for _, targetID := range s.env.TargetIDs {
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				return err
+			}
+			if msg.Content.Text == nil {
+				return fmt.Errorf("no text in target %d", targetID)
+			}
+			// Transform добавляет sign как bold: **Sign**
+			// TDLib ParseTextEntities конвертирует markdown → entities + plain text
+			// Проверяем: текст содержит SignTitle И есть bold entity
+			if !strings.Contains(msg.Content.Text.Text, domain.SignTitle) {
+				return fmt.Errorf("expected sign title %q in target %d, got %q",
+					domain.SignTitle, targetID, msg.Content.Text.Text)
+			}
+			hasBoldEntity := false
+			for _, e := range msg.Content.Text.Entities {
+				if e.Type == domain.TextEntityBold {
+					hasBoldEntity = true
+					break
+				}
+			}
+			if !hasBoldEntity {
+				return fmt.Errorf("expected bold entity for sign in target %d, no bold entities found", targetID)
+			}
 		}
-		if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, domain.SignTitle) {
-			return fmt.Errorf("expected sign title %q in first target chat, not found", domain.SignTitle)
+		return nil
+	})
+
+	ctx.Then(`^в целевом чате сообщение содержит переведённый текст$`, func() error {
+		for _, targetID := range s.env.TargetIDs {
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				return err
+			}
+			if msg.Content.Text == nil {
+				return fmt.Errorf("no text in target %d", targetID)
+			}
+			// Проверяем что текст изменился: оригинальная фраза не должна присутствовать
+			if strings.Contains(msg.Content.Text.Text, s.messageText) {
+				return fmt.Errorf("expected translated text in target %d, but original %q still present in %q",
+					targetID, s.messageText, msg.Content.Text.Text)
+			}
 		}
 		return nil
 	})
 
 	ctx.Then(`^в целевом чате сообщение содержит ссылку на оригинал$`, func() error {
-		firstTarget := s.env.TargetIDs[0]
-		msg, err := s.env.CheckLastMessage(context.Background(), firstTarget, s.prefix)
-		if err != nil {
-			return err
-		}
-		if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, "https://t.me") {
-			return fmt.Errorf("expected link to original in first target chat, not found")
+		for _, targetID := range s.env.TargetIDs {
+			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			if err != nil {
+				return err
+			}
+			if msg.Content.Text == nil {
+				return fmt.Errorf("no text in target %d", targetID)
+			}
+			// Transform добавляет link как: [🔗Link](https://t.me/c/{chatID}/{msgID})
+			// TDLib конвертирует → TextEntityTextURL с URL
+			hasLinkEntity := false
+			for _, e := range msg.Content.Text.Entities {
+				if e.Type == domain.TextEntityTextURL && strings.HasPrefix(e.URL, "https://t.me/") {
+					hasLinkEntity = true
+					break
+				}
+			}
+			if !hasLinkEntity {
+				return fmt.Errorf("expected TextURL entity with t.me permalink in target %d, not found; text=%q entities=%v",
+					targetID, msg.Content.Text.Text, msg.Content.Text.Entities)
+			}
 		}
 		return nil
 	})
