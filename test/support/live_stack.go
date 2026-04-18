@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -376,6 +377,64 @@ func (s *LiveStack) CheckLastMessage(ctx context.Context, chatID domain.ChatID, 
 			}
 			return nil, fmt.Errorf("timeout: last message in chat %d has wrong prefix: want %q, got %q",
 				chatID, prefix, got)
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+// CheckAlbumMessage проверяет что среди последних сообщений в чате есть сообщение с prefix.
+// Для альбомов prefix в caption первого фото, но последнее сообщение — photo N.
+func (s *LiveStack) CheckAlbumMessage(ctx context.Context, chatID domain.ChatID, prefix string) (*domain.Message, error) {
+	deadline := time.After(10 * time.Second)
+	for {
+		msgs, err := s.Telegram.GetChatHistory(ctx, chatID, 0, 0, 10)
+		if err != nil {
+			return nil, err
+		}
+		for _, msg := range msgs {
+			if msg.Content.Text != nil && strings.HasPrefix(msg.Content.Text.Text, prefix) {
+				return msg, nil
+			}
+		}
+		select {
+		case <-deadline:
+			return nil, fmt.Errorf("timeout: no album message with prefix %q in chat %d", prefix, chatID)
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+// CheckAlbumMessages проверяет что в чате появился альбом с prefix и возвращает его сообщения
+// отсортированные по ID (возрастающий = порядок фото в альбоме).
+func (s *LiveStack) CheckAlbumMessages(ctx context.Context, chatID domain.ChatID, prefix string, count int) ([]*domain.Message, error) {
+	deadline := time.After(10 * time.Second)
+	for {
+		msgs, err := s.Telegram.GetChatHistory(ctx, chatID, 0, 0, int32(count*2)) //nolint:gosec // count всегда маленький
+		if err != nil {
+			return nil, err
+		}
+		// Ищем сообщение с prefix → определяем MediaAlbumID → собираем альбом
+		for _, m := range msgs {
+			if m.Content.Text != nil && strings.HasPrefix(m.Content.Text.Text, prefix) && m.MediaAlbumID != 0 {
+				aid := m.MediaAlbumID
+				var result []*domain.Message
+				for _, am := range msgs {
+					if am.MediaAlbumID == aid {
+						result = append(result, am)
+					}
+				}
+				// Сортируем по ID — GetChatHistory возвращает newest-first
+				sort.Slice(result, func(i, j int) bool {
+					return result[i].ID < result[j].ID
+				})
+				if len(result) >= count {
+					return result[:count], nil
+				}
+			}
+		}
+		select {
+		case <-deadline:
+			return nil, fmt.Errorf("timeout: album with prefix %q not found in chat %d", prefix, chatID)
 		case <-time.After(500 * time.Millisecond):
 		}
 	}

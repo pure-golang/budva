@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/cucumber/godog"
 
@@ -48,10 +49,23 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		return nil
 	})
 
-	ctx.Then(`^медиа-альбом появляется во всех целевых чатах$`, func() error {
+	ctx.Then(`^медиа-альбом появляется во всех целевых чатах в правильном порядке$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			msgs, err := s.env.CheckAlbumMessages(context.Background(), targetID, s.prefix, len(testPhotos))
+			if err != nil {
 				return err
+			}
+			// Проверяем порядок: photo 1, photo 2, photo 3
+			for i, msg := range msgs {
+				expected := fmt.Sprintf("photo %d", i+1)
+				if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, expected) {
+					got := "<nil>"
+					if msg.Content.Text != nil {
+						got = msg.Content.Text.Text
+					}
+					return fmt.Errorf("album order: expected %q at position %d in target %d, got %q",
+						expected, i, targetID, got)
+				}
 			}
 		}
 		return nil

@@ -5,7 +5,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/pure-golang/budva-claude/internal/domain"
 )
+
+func msg(id domain.MessageID) *domain.Message {
+	return &domain.Message{ID: id}
+}
 
 func TestAddMessage_FirstReturnsTrue(t *testing.T) {
 	t.Parallel()
@@ -14,7 +20,7 @@ func TestAddMessage_FirstReturnsTrue(t *testing.T) {
 	svc := New()
 
 	// Act
-	isFirst := svc.AddMessage("album:1", 100)
+	isFirst := svc.AddMessage("album:1", msg(100))
 
 	// Assert
 	assert.True(t, isFirst)
@@ -25,10 +31,10 @@ func TestAddMessage_SecondReturnsFalse(t *testing.T) {
 
 	// Arrange
 	svc := New()
-	svc.AddMessage("album:1", 100)
+	svc.AddMessage("album:1", msg(100))
 
 	// Act
-	isFirst := svc.AddMessage("album:1", 101)
+	isFirst := svc.AddMessage("album:1", msg(101))
 
 	// Assert
 	assert.False(t, isFirst)
@@ -41,8 +47,8 @@ func TestAddMessage_DifferentKeys(t *testing.T) {
 	svc := New()
 
 	// Act + Assert
-	assert.True(t, svc.AddMessage("album:1", 100))
-	assert.True(t, svc.AddMessage("album:2", 200))
+	assert.True(t, svc.AddMessage("album:1", msg(100)))
+	assert.True(t, svc.AddMessage("album:2", msg(200)))
 }
 
 func TestPopMessages(t *testing.T) {
@@ -50,15 +56,18 @@ func TestPopMessages(t *testing.T) {
 
 	// Arrange
 	svc := New()
-	svc.AddMessage("album:1", 100)
-	svc.AddMessage("album:1", 101)
-	svc.AddMessage("album:1", 102)
+	svc.AddMessage("album:1", msg(100))
+	svc.AddMessage("album:1", msg(101))
+	svc.AddMessage("album:1", msg(102))
 
 	// Act
-	ids := svc.PopMessages("album:1")
+	msgs := svc.PopMessages("album:1")
 
 	// Assert
-	assert.Equal(t, []int64{100, 101, 102}, ids)
+	assert.Len(t, msgs, 3)
+	assert.Equal(t, domain.MessageID(100), msgs[0].ID)
+	assert.Equal(t, domain.MessageID(101), msgs[1].ID)
+	assert.Equal(t, domain.MessageID(102), msgs[2].ID)
 }
 
 func TestPopMessages_RemovesAlbum(t *testing.T) {
@@ -66,14 +75,14 @@ func TestPopMessages_RemovesAlbum(t *testing.T) {
 
 	// Arrange
 	svc := New()
-	svc.AddMessage("album:1", 100)
+	svc.AddMessage("album:1", msg(100))
 	svc.PopMessages("album:1")
 
 	// Act
-	ids := svc.PopMessages("album:1")
+	msgs := svc.PopMessages("album:1")
 
 	// Assert
-	assert.Nil(t, ids)
+	assert.Nil(t, msgs)
 }
 
 func TestPopMessages_EmptyKey(t *testing.T) {
@@ -83,10 +92,10 @@ func TestPopMessages_EmptyKey(t *testing.T) {
 	svc := New()
 
 	// Act
-	ids := svc.PopMessages("nonexistent")
+	msgs := svc.PopMessages("nonexistent")
 
 	// Assert
-	assert.Nil(t, ids)
+	assert.Nil(t, msgs)
 }
 
 func TestLastReceivedAge(t *testing.T) {
@@ -94,7 +103,7 @@ func TestLastReceivedAge(t *testing.T) {
 
 	// Arrange
 	svc := New()
-	svc.AddMessage("album:1", 100)
+	svc.AddMessage("album:1", msg(100))
 	time.Sleep(10 * time.Millisecond)
 
 	// Act
@@ -122,9 +131,9 @@ func TestLastReceivedAge_UpdatedOnNewMessage(t *testing.T) {
 
 	// Arrange
 	svc := New()
-	svc.AddMessage("album:1", 100)
+	svc.AddMessage("album:1", msg(100))
 	time.Sleep(20 * time.Millisecond)
-	svc.AddMessage("album:1", 101)
+	svc.AddMessage("album:1", msg(101))
 
 	// Act
 	age := svc.LastReceivedAge("album:1")

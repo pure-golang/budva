@@ -10,7 +10,7 @@ import (
 )
 
 type entry struct {
-	messageIDs   []domain.MessageID
+	messages     []*domain.Message
 	lastReceived time.Time
 }
 
@@ -31,14 +31,14 @@ func New() *Service {
 
 // AddMessage добавляет сообщение в альбом.
 // Возвращает true, если это первое сообщение в альбоме.
-func (s *Service) AddMessage(key domain.MediaAlbumKey, messageID domain.MessageID) bool {
+func (s *Service) AddMessage(key domain.MediaAlbumKey, msg *domain.Message) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.albums[key]
 	if !ok {
 		e = &entry{}
 	}
-	e.messageIDs = append(e.messageIDs, messageID)
+	e.messages = append(e.messages, msg)
 	e.lastReceived = time.Now()
 	s.albums[key] = e
 	return !ok
@@ -55,16 +55,16 @@ func (s *Service) LastReceivedAge(key domain.MediaAlbumKey) time.Duration {
 }
 
 // PopMessages извлекает и удаляет все сообщения альбома.
-func (s *Service) PopMessages(key domain.MediaAlbumKey) []domain.MessageID {
+func (s *Service) PopMessages(key domain.MediaAlbumKey) []*domain.Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.albums[key]
 	if !ok {
 		return nil
 	}
-	ids := e.messageIDs
+	msgs := e.messages
 	delete(s.albums, key)
-	return ids
+	return msgs
 }
 
 // MakeKey формирует ключ альбома из ID правила и ID медиа-группы.

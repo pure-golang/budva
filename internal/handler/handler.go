@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -64,9 +65,9 @@ type DedupTracker interface {
 type DedupFactory = func(destinations []domain.ChatID) DedupTracker
 
 type albumService interface {
-	AddMessage(key domain.MediaAlbumKey, messageID domain.MessageID) bool
+	AddMessage(key domain.MediaAlbumKey, msg *domain.Message) bool
 	LastReceivedAge(key domain.MediaAlbumKey) time.Duration
-	PopMessages(key domain.MediaAlbumKey) []domain.MessageID
+	PopMessages(key domain.MediaAlbumKey) []*domain.Message
 }
 
 type taskQueue interface {
@@ -165,7 +166,7 @@ func (h *Handler) OnNewMessage(ctx context.Context, msg *domain.Message) {
 		// Медиа-альбом
 		if msg.MediaAlbumID != 0 {
 			albumKey := fmt.Sprintf("%s:%d", ruleID, msg.MediaAlbumID)
-			isFirst := h.albumService.AddMessage(albumKey, msg.ID)
+			isFirst := h.albumService.AddMessage(albumKey, msg)
 			if isFirst {
 				h.processMediaAlbum(ctx, albumKey, rs, ruleID, msg, formattedText)
 			}
@@ -408,7 +409,7 @@ func (h *Handler) runNextLinkWorkflow(ctx context.Context, src *domain.Source, d
 	}
 }
 
-func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *domain.RuleSet, ruleID string, firstMsg *domain.Message, _ *domain.FormattedText) {
+func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *domain.RuleSet, ruleID string, firstMsg *domain.Message, formattedText *domain.FormattedText) {
 	h.taskQueue.Add(func() {
 		// Ожидаем пока все сообщения альбома придут (3 секунды после последнего)
 		for {
@@ -423,8 +424,8 @@ func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *do
 			}
 		}
 
-		messageIDs := h.albumService.PopMessages(albumKey)
-		if len(messageIDs) == 0 {
+		messages := h.albumService.PopMessages(albumKey)
+		if len(messages) == 0 {
 			return
 		}
 
@@ -433,13 +434,80 @@ func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *do
 			return
 		}
 
+		src := rs.Sources[firstMsg.ChatID]
+		tracker := h.newTracker(rule.To)
+
 		for _, dstChatID := range rule.To {
-			h.rateLimiter.WaitForForward(ctx, dstChatID)
-			if _, err := h.telegramRepo.ForwardMessages(ctx, firstMsg.ChatID, dstChatID, messageIDs); err != nil {
-				h.logger.Error("Failed to forward media album", slog.Any("err", err))
+			if !tracker.TryMark(dstChatID) {
+				continue
 			}
+			h.taskQueue.Add(func() {
+				h.forwardAlbum(ctx, rule, messages, src, rs.Destinations[dstChatID], dstChatID)
+			})
 		}
+
+		// Статистика
+		h.taskQueue.Add(func() {
+			date := time.Now().Format("2006-01-02")
+			for _, dstChatID := range rule.To {
+				if _, err := h.stateRepo.IncrementViewedMessages(dstChatID, date); err != nil {
+					h.logger.Error("Failed to increment viewed messages", slog.Any("err", err))
+				}
+				if _, err := h.stateRepo.IncrementForwardedMessages(dstChatID, date); err != nil {
+					h.logger.Error("Failed to increment forwarded messages", slog.Any("err", err))
+				}
+			}
+		})
 	})
+}
+
+func (h *Handler) forwardAlbum(ctx context.Context, rule *domain.ForwardRule, messages []*domain.Message, src *domain.Source, dst *domain.Destination, dstChatID domain.ChatID) {
+	// Сортируем по ID — albumService может хранить в произвольном порядке,
+	// а TDLib требует strictly increasing order для ForwardMessages
+	// и порядок контента определяет порядок фото в альбоме для SendMessageAlbum.
+	slices.SortFunc(messages, func(a, b *domain.Message) int {
+		return int(a.ID - b.ID)
+	})
+
+	h.rateLimiter.WaitForForward(ctx, dstChatID)
+
+	if !rule.SendCopy {
+		// Forward mode: пересылаем оригиналы с атрибуцией
+		ids := make([]domain.MessageID, 0, len(messages))
+		for _, m := range messages {
+			ids = append(ids, m.ID)
+		}
+		if _, err := h.telegramRepo.ForwardMessages(ctx, messages[0].ChatID, dstChatID, ids); err != nil {
+			h.logger.Error("Failed to forward media album", slog.Any("err", err))
+		}
+		return
+	}
+
+	// Copy mode: реконструируем контент и отправляем без атрибуции
+	contents := make([]domain.InputMessageContent, 0, len(messages))
+	for _, msg := range messages {
+		text := h.messageService.GetFormattedText(msg)
+		content := h.messageService.BuildInputContent(msg, text)
+		contents = append(contents, content)
+	}
+
+	tmpIDs, err := h.telegramRepo.SendMessageAlbum(ctx, dstChatID, contents)
+	if err != nil {
+		h.logger.Error("Failed to send media album copy", slog.Any("err", err))
+		return
+	}
+
+	// Сохраняем маппинг для edit/delete sync
+	ruleID := rule.ID
+	for i, tmpID := range tmpIDs {
+		if i >= len(messages) {
+			break
+		}
+		toChatMsgID := fmt.Sprintf("%s:%d:%d", ruleID, dstChatID, tmpID)
+		if err := h.stateRepo.SetCopiedMessageID(messages[i].ChatID, messages[i].ID, toChatMsgID); err != nil {
+			h.logger.Error("Failed to set copied message ID", slog.Any("err", err))
+		}
+	}
 }
 
 // editMessagesWithRetry обрабатывает редактирование с retry до 3 раз.

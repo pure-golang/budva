@@ -39,16 +39,16 @@ func (_m *AlbumService) EXPECT() *AlbumService_Expecter {
 }
 
 // AddMessage provides a mock function for the type AlbumService
-func (_mock *AlbumService) AddMessage(key domain.MediaAlbumKey, messageID domain.MessageID) bool {
-	ret := _mock.Called(key, messageID)
+func (_mock *AlbumService) AddMessage(key domain.MediaAlbumKey, msg *domain.Message) bool {
+	ret := _mock.Called(key, msg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AddMessage")
 	}
 
 	var r0 bool
-	if returnFunc, ok := ret.Get(0).(func(domain.MediaAlbumKey, domain.MessageID) bool); ok {
-		r0 = returnFunc(key, messageID)
+	if returnFunc, ok := ret.Get(0).(func(domain.MediaAlbumKey, *domain.Message) bool); ok {
+		r0 = returnFunc(key, msg)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
@@ -62,20 +62,20 @@ type AlbumService_AddMessage_Call struct {
 
 // AddMessage is a helper method to define mock.On call
 //   - key domain.MediaAlbumKey
-//   - messageID domain.MessageID
-func (_e *AlbumService_Expecter) AddMessage(key interface{}, messageID interface{}) *AlbumService_AddMessage_Call {
-	return &AlbumService_AddMessage_Call{Call: _e.mock.On("AddMessage", key, messageID)}
+//   - msg *domain.Message
+func (_e *AlbumService_Expecter) AddMessage(key interface{}, msg interface{}) *AlbumService_AddMessage_Call {
+	return &AlbumService_AddMessage_Call{Call: _e.mock.On("AddMessage", key, msg)}
 }
 
-func (_c *AlbumService_AddMessage_Call) Run(run func(key domain.MediaAlbumKey, messageID domain.MessageID)) *AlbumService_AddMessage_Call {
+func (_c *AlbumService_AddMessage_Call) Run(run func(key domain.MediaAlbumKey, msg *domain.Message)) *AlbumService_AddMessage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 domain.MediaAlbumKey
 		if args[0] != nil {
 			arg0 = args[0].(domain.MediaAlbumKey)
 		}
-		var arg1 domain.MessageID
+		var arg1 *domain.Message
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(*domain.Message)
 		}
 		run(
 			arg0,
@@ -90,7 +90,7 @@ func (_c *AlbumService_AddMessage_Call) Return(b bool) *AlbumService_AddMessage_
 	return _c
 }
 
-func (_c *AlbumService_AddMessage_Call) RunAndReturn(run func(key domain.MediaAlbumKey, messageID domain.MessageID) bool) *AlbumService_AddMessage_Call {
+func (_c *AlbumService_AddMessage_Call) RunAndReturn(run func(key domain.MediaAlbumKey, msg *domain.Message) bool) *AlbumService_AddMessage_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -147,19 +147,19 @@ func (_c *AlbumService_LastReceivedAge_Call) RunAndReturn(run func(key domain.Me
 }
 
 // PopMessages provides a mock function for the type AlbumService
-func (_mock *AlbumService) PopMessages(key domain.MediaAlbumKey) []domain.MessageID {
+func (_mock *AlbumService) PopMessages(key domain.MediaAlbumKey) []*domain.Message {
 	ret := _mock.Called(key)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PopMessages")
 	}
 
-	var r0 []domain.MessageID
-	if returnFunc, ok := ret.Get(0).(func(domain.MediaAlbumKey) []domain.MessageID); ok {
+	var r0 []*domain.Message
+	if returnFunc, ok := ret.Get(0).(func(domain.MediaAlbumKey) []*domain.Message); ok {
 		r0 = returnFunc(key)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]domain.MessageID)
+			r0 = ret.Get(0).([]*domain.Message)
 		}
 	}
 	return r0
@@ -189,12 +189,12 @@ func (_c *AlbumService_PopMessages_Call) Run(run func(key domain.MediaAlbumKey))
 	return _c
 }
 
-func (_c *AlbumService_PopMessages_Call) Return(vs []domain.MessageID) *AlbumService_PopMessages_Call {
-	_c.Call.Return(vs)
+func (_c *AlbumService_PopMessages_Call) Return(messages []*domain.Message) *AlbumService_PopMessages_Call {
+	_c.Call.Return(messages)
 	return _c
 }
 
-func (_c *AlbumService_PopMessages_Call) RunAndReturn(run func(key domain.MediaAlbumKey) []domain.MessageID) *AlbumService_PopMessages_Call {
+func (_c *AlbumService_PopMessages_Call) RunAndReturn(run func(key domain.MediaAlbumKey) []*domain.Message) *AlbumService_PopMessages_Call {
 	_c.Call.Return(run)
 	return _c
 }
