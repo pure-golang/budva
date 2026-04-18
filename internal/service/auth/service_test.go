@@ -71,6 +71,9 @@ func (f *fakeTelegramRepo) SubmitPassword(_ context.Context, password string) er
 	return nil
 }
 
+func (f *fakeTelegramRepo) LogOut(_ context.Context) error { return nil }
+func (f *fakeTelegramRepo) CleanUp()                       {}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 

@@ -70,14 +70,35 @@ func (s *LiveStack) Start() error {
 		return fmt.Errorf("telegram start: %w", err)
 	}
 
-	// Ждём авторизации (сессия должна быть закеширована после cmd/stand --up)
-	select {
-	case <-telegramRepo.ClientDone():
-	case <-time.After(30 * time.Second):
-		cancel()
-		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
-		return fmt.Errorf("authorization timeout: ensure .env is configured and session is cached")
+	// Ждём авторизации. Сессия должна быть закеширована после cmd/stand --up.
+	// Если TDLib запрашивает phone/code/password — fail-fast: интерактивная авторизация
+	// в тестах невозможна, нужен предварительный cmd/stand --up.
+	for {
+		select {
+		case <-telegramRepo.ClientDone():
+			goto authorized
+		case ev := <-telegramRepo.AuthStates():
+			switch ev.State {
+			case domain.AuthStateReady:
+				goto authorized
+			case domain.AuthStateWaitPhone, domain.AuthStateWaitCode, domain.AuthStateWaitPassword:
+				cancel()
+				telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+				return fmt.Errorf("TDLib requires interactive auth (%s): run cmd/stand --up first", ev.State)
+			case domain.AuthStateClosed:
+				cancel()
+				return fmt.Errorf("TDLib session closed unexpectedly")
+			}
+		case <-time.After(30 * time.Second):
+			cancel()
+			telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+			return fmt.Errorf("authorization timeout: ensure .env is configured and session is cached")
+		}
 	}
+authorized:
+
+	// Прогреваем кеш чатов — после чистого старта TDLib не знает про тестовые чаты
+	_ = telegramRepo.LoadChats(ctx, 100) //nolint:errcheck // TDLib возвращает ошибку когда чатов меньше limit
 
 	tmpDir, err := os.MkdirTemp("", "budva-bdd-*")
 	if err != nil {

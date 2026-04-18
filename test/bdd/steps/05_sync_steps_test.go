@@ -114,31 +114,37 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return fmt.Errorf("edit source message: %w", err)
 		}
 
-		// Ждём propagation UpdateMessageEdited через TDLib → processUpdates → handler queue
-		time.Sleep(2 * time.Second)
-		s.env.DrainQueue()
-
-		// Для версионирования (copy_once): ждём runNextLinkWorkflow горутину
-		if s.copyOnce {
-			deadline := time.After(15 * time.Second)
-			for {
-				select {
-				case <-deadline:
-					return fmt.Errorf("runNextLinkWorkflow did not complete within 15s")
-				case <-time.After(500 * time.Millisecond):
-					s.env.DrainQueue()
-					for _, targetID := range s.env.TargetIDs {
-						msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
-						if err != nil {
-							continue
-						}
-						if msg.Content.Text != nil && strings.Contains(msg.Content.Text.Text, "https://t.me") {
-							goto done
-						}
-					}
+		// Поллим: DrainQueue + проверяем target, пока edit не применится.
+		// Для copy_once (versioning): ждём появления ссылки в новой копии.
+		// Для обычного edit: ждём появления нового текста в существующей копии.
+		deadline := time.After(10 * time.Second)
+		expectLink := s.copyOnce
+	editPoll:
+		for {
+			s.env.DrainQueue()
+			for _, targetID := range s.env.TargetIDs {
+				msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+				if err != nil {
+					continue
+				}
+				if msg.Content.Text == nil {
+					continue
+				}
+				if expectLink && strings.Contains(msg.Content.Text.Text, "https://t.me") {
+					break editPoll
+				}
+				if !expectLink && strings.Contains(msg.Content.Text.Text, newText) {
+					break editPoll
 				}
 			}
-		done:
+			select {
+			case <-deadline:
+				if expectLink {
+					return fmt.Errorf("versioning: link not found in target within 10s")
+				}
+				break editPoll // Пусть Then step проверит результат
+			case <-time.After(200 * time.Millisecond):
+			}
 		}
 
 		s.messageText = newText

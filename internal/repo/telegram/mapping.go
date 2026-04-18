@@ -150,18 +150,18 @@ func mapMessageContent(content client.MessageContent) domain.MessageContent {
 }
 
 // mapForwardInfo конвертирует client.MessageForwardInfo → domain.MessageForwardInfo.
+// Для MessageOriginChannel заполняет OriginChatID/OriginMessageID.
+// Для остальных origin types (User, Chat, HiddenUser) — только факт пересылки.
 func mapForwardInfo(info *client.MessageForwardInfo) *domain.MessageForwardInfo {
-	if info == nil || info.Origin == nil {
+	if info == nil {
 		return nil
 	}
-	ch, ok := info.Origin.(*client.MessageOriginChannel)
-	if !ok {
-		return nil
+	fi := &domain.MessageForwardInfo{}
+	if ch, ok := info.Origin.(*client.MessageOriginChannel); ok {
+		fi.OriginChatID = ch.ChatId
+		fi.OriginMessageID = ch.MessageId
 	}
-	return &domain.MessageForwardInfo{
-		OriginChatID:    ch.ChatId,
-		OriginMessageID: ch.MessageId,
-	}
+	return fi
 }
 
 // mapReplyTo конвертирует client.MessageReplyTo → domain.MessageReplyTo.

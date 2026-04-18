@@ -1,3 +1,5 @@
+//go:build bdd
+
 package steps
 
 import (
@@ -19,6 +21,11 @@ func TestMain(m *testing.M) {
 func TestBDD(t *testing.T) {
 	if testing.Short() {
 		t.Skip("bdd test")
+	}
+
+	// Проверяем TDLib auth до запуска сценариев — fail-fast с понятным сообщением
+	if _, err := getOrCreateStack(); err != nil {
+		t.Fatalf("BDD stack init: %v", err)
 	}
 
 	suite := godog.TestSuite{

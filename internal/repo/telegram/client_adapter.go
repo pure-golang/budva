@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/zelenin/go-tdlib/client"
@@ -65,6 +66,28 @@ type clientAdapter interface {
 var _ clientAdapter = (*Repo)(nil)
 
 // --- Авторизация ---
+
+// LogOut завершает сессию TDLib.
+func (r *Repo) LogOut(_ context.Context) error {
+	if _, err := r.tdClient.LogOut(); err != nil {
+		return fmt.Errorf("log out: %w", err)
+	}
+	r.tdClient = nil
+	return nil
+}
+
+// CleanUp удаляет локальные данные TDLib (БД и файлы).
+// После logout БД остаётся в состоянии LoggingOut, которое go-tdlib
+// не умеет обрабатывать при следующем запуске. Удаление гарантирует
+// чистый старт с WaitPhoneNumber.
+func (r *Repo) CleanUp() {
+	if r.cfg.DatabaseDirectory != "" {
+		os.RemoveAll(r.cfg.DatabaseDirectory) //nolint:errcheck // Best-effort cleanup
+	}
+	if r.cfg.FilesDirectory != "" {
+		os.RemoveAll(r.cfg.FilesDirectory) //nolint:errcheck // Best-effort cleanup
+	}
+}
 
 // SubmitPhone отправляет номер телефона для авторизации.
 func (r *Repo) SubmitPhone(_ context.Context, phone string) error {

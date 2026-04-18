@@ -12,6 +12,7 @@ type authService interface {
 	Subscribe(listener func(state domain.AuthorizationState, extra any))
 	InputChan() chan<- string
 	State() domain.AuthorizationState
+	LogOut(ctx context.Context) error
 }
 
 type telegramRepo interface {
@@ -130,6 +131,7 @@ func (t *Transport) printStatus(ctx context.Context) {
 func (t *Transport) registerCommands() {
 	t.commands = []command{
 		{name: "help", description: "Show available commands", handler: t.handleHelp},
+		{name: "logout", description: "Log out from Telegram and exit", handler: t.handleLogout},
 		{name: "exit", description: "Exit the program", handler: t.handleExit},
 	}
 	t.commandMap = make(map[string]*command, len(t.commands))
@@ -159,6 +161,18 @@ func (t *Transport) handleHelp(_ []string) {
 	t.termIO.Println("Available commands:")
 	for _, cmd := range t.commands {
 		t.termIO.Printf("  %-15s - %s\n", cmd.name, cmd.description)
+	}
+}
+
+func (t *Transport) handleLogout(_ []string) {
+	t.termIO.Println("Logging out from Telegram...")
+	if err := t.authService.LogOut(context.Background()); err != nil {
+		t.termIO.Printf("Logout failed: %v\n", err)
+		return
+	}
+	t.termIO.Println("Logged out successfully")
+	if t.shutdown != nil {
+		t.shutdown()
 	}
 }
 

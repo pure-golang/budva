@@ -13,6 +13,8 @@ type telegramRepo interface {
 	SubmitPhone(ctx context.Context, phone string) error
 	SubmitCode(ctx context.Context, code string) error
 	SubmitPassword(ctx context.Context, password string) error
+	LogOut(ctx context.Context) error
+	CleanUp()
 }
 
 // StateListener получает уведомления об изменении состояния авторизации.
@@ -120,6 +122,18 @@ func (s *Service) State() domain.AuthorizationState {
 // InputChan возвращает канал для ввода данных авторизации (телефон, код, пароль).
 func (s *Service) InputChan() chan<- string {
 	return s.inputChan
+}
+
+// LogOut завершает сессию TDLib и удаляет локальную БД.
+// После logout БД остаётся в состоянии LoggingOut, которое go-tdlib
+// не умеет обрабатывать при следующем запуске. Удаление БД гарантирует
+// чистый старт с WaitPhoneNumber.
+func (s *Service) LogOut(ctx context.Context) error {
+	if err := s.telegramRepo.LogOut(ctx); err != nil {
+		return err
+	}
+	s.telegramRepo.CleanUp()
+	return nil
 }
 
 // Close останавливает сервис и закрывает канал ввода.

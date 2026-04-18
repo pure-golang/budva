@@ -24,6 +24,7 @@ func (f *fakeAuth) Subscribe(listener func(domain.AuthorizationState, any)) {
 }
 func (f *fakeAuth) InputChan() chan<- string         { return f.inputChan }
 func (f *fakeAuth) State() domain.AuthorizationState { return f.state }
+func (f *fakeAuth) LogOut(_ context.Context) error   { return nil }
 
 type fakeTelegram struct {
 	clientDone chan struct{}

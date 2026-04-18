@@ -15,14 +15,21 @@ import (
 const fixturesPath = ".config/stand.json"
 
 // sharedStack создаётся один раз для всех сценариев (TDLib не пересоздаётся).
-var sharedStack *support.LiveStack
+var (
+	sharedStack    *support.LiveStack
+	sharedStackErr error
+)
 
 func getOrCreateStack() (*support.LiveStack, error) {
 	if sharedStack != nil {
 		return sharedStack, nil
 	}
+	if sharedStackErr != nil {
+		return nil, sharedStackErr
+	}
 	stack := support.NewLiveStack(fixturesPath)
 	if err := stack.Start(); err != nil {
+		sharedStackErr = err
 		return nil, err
 	}
 	sharedStack = stack

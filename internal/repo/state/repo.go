@@ -23,6 +23,7 @@ type Repo struct {
 	logger *slog.Logger
 	cfg    config.StorageConfig
 	db     *badger.DB
+	stop   chan struct{}
 }
 
 // New создаёт новый экземпляр хранилища.
@@ -34,7 +35,7 @@ func New(cfg config.StorageConfig) *Repo {
 }
 
 // Start открывает базу данных и запускает фоновую сборку мусора.
-func (r *Repo) Start(ctx context.Context) error {
+func (r *Repo) Start(_ context.Context) error {
 	opts := badger.DefaultOptions(r.cfg.DatabaseDirectory)
 	opts.Logger = newBadgerLogger(r.logger)
 	db, err := badger.Open(opts)
@@ -42,13 +43,17 @@ func (r *Repo) Start(ctx context.Context) error {
 		return err
 	}
 	r.db = db
+	r.stop = make(chan struct{})
 
-	go r.runGC(ctx)
+	go r.runGC()
 	return nil
 }
 
-// Close закрывает базу данных.
+// Close останавливает GC и закрывает базу данных.
 func (r *Repo) Close() error {
+	if r.stop != nil {
+		close(r.stop)
+	}
 	if r.db != nil {
 		return r.db.Close()
 	}
@@ -144,12 +149,12 @@ func (r *Repo) Ping(_ context.Context) error {
 	return err
 }
 
-func (r *Repo) runGC(ctx context.Context) {
+func (r *Repo) runGC() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-r.stop:
 			return
 		case <-ticker.C:
 			for {
