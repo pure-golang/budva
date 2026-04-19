@@ -15,7 +15,7 @@
 
 **Структура тестов:**
 - `internal/**/*_test.go` — юнит-тесты рядом с исходниками, `t.Parallel()`
-- `test/bdd/steps/*_test.go` + `test/bdd/features/` — BDD-тесты через godog, `testing.Short()` skip
+- `test/bdd/NN_epic/bdd_test.go` + `test/bdd/NN_epic/*.feature` — BDD-тесты через godog, `testing.Short()` skip
 - `test/smoke/*_test.go` — смоук-тесты, build tag `smoke`
 
 **Тестовая инфраструктура BDD:**
