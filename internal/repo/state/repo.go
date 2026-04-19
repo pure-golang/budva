@@ -8,12 +8,9 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"go.opentelemetry.io/otel"
 
 	"github.com/pure-golang/budva-claude/internal/config"
 )
-
-var tracer = otel.Tracer("github.com/pure-golang/budva-claude/internal/repo/state") //nolint:unused // Подготовка к инструментированию операций
 
 // ErrKeyNotFound означает, что ключ не найден.
 var ErrKeyNotFound = errors.New("key not found")
