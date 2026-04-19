@@ -53,5 +53,5 @@ func TestQueryResolver_Status_error(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// Проверка реализации graph.ResolverRoot — ловит регрессию сигнатур при smene схемы.
+// Проверка реализации graph.ResolverRoot — ловит регрессию сигнатур при смене схемы.
 var _ graph.ResolverRoot = (*resolvers.Resolver)(nil)
