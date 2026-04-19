@@ -16,6 +16,10 @@ RUN cd /td && mkdir build && cd build && \
 # Stage 1: Go builder
 FROM dockerhub.timeweb.cloud/library/golang:1.25.9-bookworm AS builder
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl-dev zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=tdlib-builder /usr/local/include/td /usr/local/include/td/
 COPY --from=tdlib-builder /usr/local/lib/libtd* /usr/local/lib/
 RUN ldconfig
