@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/zelenin/go-tdlib/client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -16,17 +17,22 @@ import (
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
 )
 
+func textMessage(chatID, id int64, text string) *client.Message {
+	return &client.Message{
+		ChatId:  chatID,
+		Id:      id,
+		Content: &client.MessageText{Text: &client.FormattedText{Text: text}},
+	}
+}
+
 func TestGetMessages_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetMessages(mock.Anything, int64(100), []int64{1, 2}).
-		Return([]*domain.Message{
-			{ChatID: 100, ID: 1, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "hello"}}},
-			{ChatID: 100, ID: 2, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "world"}}},
-		}, nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessages(mock.Anything, int64(100), []int64{1, 2}).
+		Return([]*client.Message{textMessage(100, 1, "hello"), textMessage(100, 2, "world")}, nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.GetMessages(context.Background(), &pb.GetMessagesRequest{
@@ -44,10 +50,10 @@ func TestGetMessages_Error(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetMessages(mock.Anything, int64(100), []int64{1, 2}).
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessages(mock.Anything, int64(100), []int64{1, 2}).
 		Return(nil, errors.New("batch failed"))
-	tr := New(facade)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.GetMessages(context.Background(), &pb.GetMessagesRequest{
@@ -64,10 +70,9 @@ func TestSendMessage_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().SendMessage(mock.Anything, int64(100), "hello").
-		Return(nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().SendMessage(mock.Anything, int64(100), "hello").Return(nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.SendMessage(context.Background(), &pb.SendMessageRequest{
@@ -97,10 +102,9 @@ func TestSendMessage_FacadeError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().SendMessage(mock.Anything, int64(100), "hello").
-		Return(errors.New("send failed"))
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().SendMessage(mock.Anything, int64(100), "hello").Return(errors.New("send failed"))
+	tr := New(facadeMock)
 
 	// Act
 	_, err := tr.SendMessage(context.Background(), &pb.SendMessageRequest{
@@ -116,12 +120,12 @@ func TestSendMessageAlbum_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().SendMessageAlbum(mock.Anything, int64(100), []domain.AlbumItem{
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().SendMessageAlbum(mock.Anything, int64(100), []domain.AlbumItem{
 		{Text: "one"},
 		{Text: "two"},
 	}).Return(nil)
-	tr := New(facade)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.SendMessageAlbum(context.Background(), &pb.SendMessageAlbumRequest{
@@ -154,10 +158,9 @@ func TestForwardMessage_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().ForwardMessage(mock.Anything, int64(100), int64(1)).
-		Return(nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().ForwardMessage(mock.Anything, int64(100), int64(1)).Return(nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.ForwardMessage(context.Background(), &pb.ForwardMessageRequest{
@@ -173,14 +176,10 @@ func TestGetMessage_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetMessage(mock.Anything, int64(100), int64(1)).
-		Return(&domain.Message{
-			ChatID:  100,
-			ID:      1,
-			Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "result"}},
-		}, nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessage(mock.Anything, int64(100), int64(1)).
+		Return(textMessage(100, 1, "result"), nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.GetMessage(context.Background(), &pb.GetMessageRequest{ChatId: 100, MessageId: 1})
@@ -195,10 +194,9 @@ func TestUpdateMessage_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().UpdateMessage(mock.Anything, int64(100), int64(1), "updated").
-		Return(nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().UpdateMessage(mock.Anything, int64(100), int64(1), "updated").Return(nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.UpdateMessage(context.Background(), &pb.UpdateMessageRequest{
@@ -228,10 +226,9 @@ func TestDeleteMessages_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().DeleteMessages(mock.Anything, int64(100), []int64{1, 2, 3}).
-		Return(nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().DeleteMessages(mock.Anything, int64(100), []int64{1, 2, 3}).Return(nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.DeleteMessages(context.Background(), &pb.DeleteMessagesRequest{
@@ -247,10 +244,10 @@ func TestGetMessageLink_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetMessageLink(mock.Anything, int64(100), int64(1)).
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessageLink(mock.Anything, int64(100), int64(1)).
 		Return("https://t.me/c/100/1", nil)
-	tr := New(facade)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.GetMessageLink(context.Background(), &pb.GetMessageLinkRequest{ChatId: 100, MessageId: 1})
@@ -264,10 +261,10 @@ func TestGetMessageLinkInfo_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetMessageLinkInfo(mock.Anything, "https://t.me/c/100/1").
-		Return(&domain.MessageLinkInfo{ChatID: 100, MessageID: 1}, nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessageLinkInfo(mock.Anything, "https://t.me/c/100/1").
+		Return(&client.MessageLinkInfo{ChatId: 100, Message: &client.Message{Id: 1}}, nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.GetMessageLinkInfo(context.Background(), &pb.GetMessageLinkInfoRequest{Link: "https://t.me/c/100/1"})
@@ -282,13 +279,10 @@ func TestGetChatHistory_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetChatHistory(mock.Anything, int64(100), int64(0), int32(0), int32(10)).
-		Return([]*domain.Message{
-			{ChatID: 100, ID: 1, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "msg1"}}},
-			{ChatID: 100, ID: 2, Content: domain.MessageContent{Type: domain.ContentText, Text: &domain.FormattedText{Text: "msg2"}}},
-		}, nil)
-	tr := New(facade)
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetChatHistory(mock.Anything, int64(100), int64(0), int32(0), int32(10)).
+		Return([]*client.Message{textMessage(100, 1, "msg1"), textMessage(100, 2, "msg2")}, nil)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.GetChatHistory(context.Background(), &pb.GetChatHistoryRequest{
@@ -305,10 +299,10 @@ func TestGetChatHistory_Empty(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	facade := mocks.NewFacadeService(t)
-	facade.EXPECT().GetChatHistory(mock.Anything, int64(100), int64(0), int32(0), int32(10)).
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetChatHistory(mock.Anything, int64(100), int64(0), int32(0), int32(10)).
 		Return(nil, nil)
-	tr := New(facade)
+	tr := New(facadeMock)
 
 	// Act
 	resp, err := tr.GetChatHistory(context.Background(), &pb.GetChatHistoryRequest{
@@ -320,32 +314,20 @@ func TestGetChatHistory_Empty(t *testing.T) {
 	assert.Empty(t, resp.GetMessages())
 }
 
-func TestDomainToProto_Nil(t *testing.T) {
+func TestClientMessageToProto_Nil(t *testing.T) {
 	t.Parallel()
-
-	// Act
-	result := domainToProto(nil)
-
-	// Assert
-	assert.Nil(t, result)
+	assert.Nil(t, clientMessageToProto(nil))
 }
 
-func TestDomainToProto_WithForwardInfo(t *testing.T) {
+func TestClientMessageToProto_WithForwardInfo(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	msg := &domain.Message{
-		ChatID: 100,
-		ID:     1,
-		Content: domain.MessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: "hello"},
-		},
-		ForwardInfo: &domain.MessageForwardInfo{OriginChatID: 50},
-	}
+	msg := textMessage(100, 1, "hello")
+	msg.ForwardInfo = &client.MessageForwardInfo{}
 
 	// Act
-	result := domainToProto(msg)
+	result := clientMessageToProto(msg)
 
 	// Assert
 	assert.True(t, result.GetForward())

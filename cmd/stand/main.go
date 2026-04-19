@@ -15,6 +15,7 @@ import (
 
 	aenv "github.com/pure-golang/adapters/env"
 	"github.com/pure-golang/platform/monitoring"
+	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/repo/telegram"
@@ -193,28 +194,42 @@ func createChat(ctx context.Context, repo *telegram.Repo, spec chatSpec) (suppor
 	}
 
 	if spec.isBasic {
-		chatID, err := repo.CreateNewBasicGroupChat(ctx, spec.title, nil)
+		created, err := repo.CreateNewBasicGroupChat(&client.CreateNewBasicGroupChatRequest{
+			Title:   spec.title,
+			UserIds: nil,
+		})
 		if err != nil {
 			return fix, err
 		}
-		fix.ChatID = chatID
+		fix.ChatID = created.ChatId
 		fix.ChatType = "basicGroup"
 		return fix, nil
 	}
 
 	// В TDLib каналы и супергруппы — оба ChatTypeSupergroup
-	chatID, supergroupID, err := repo.CreateNewSupergroupChat(ctx, spec.title, spec.isChannel, "")
+	chat, err := repo.CreateNewSupergroupChat(&client.CreateNewSupergroupChatRequest{
+		Title:       spec.title,
+		IsChannel:   spec.isChannel,
+		Description: "",
+	})
 	if err != nil {
 		return fix, err
 	}
-	fix.ChatID = chatID
+	var supergroupID int64
+	if sg, ok := chat.Type.(*client.ChatTypeSupergroup); ok {
+		supergroupID = sg.SupergroupId
+	}
+	fix.ChatID = chat.Id
 	fix.SupergroupID = supergroupID
 	fix.ChatType = "supergroup"
 
 	// Username: SrcPubChl_<supergroupID>
 	if spec.isPublic && supergroupID != 0 {
 		username := fmt.Sprintf("%s_%d", spec.usernamePrefix, supergroupID)
-		if err := repo.SetSupergroupUsername(ctx, supergroupID, username); err != nil {
+		if _, err := repo.SetSupergroupUsername(&client.SetSupergroupUsernameRequest{
+			SupergroupId: supergroupID,
+			Username:     username,
+		}); err != nil {
 			return fix, fmt.Errorf("set username: %w", err)
 		}
 		fix.Username = username
@@ -236,7 +251,7 @@ func standDown(ctx context.Context, logger *slog.Logger, repo *telegram.Repo) er
 			time.Sleep(time.Duration(3+rand.IntN(6)) * time.Second) //nolint:gosec // Не криптографический контекст, рандом для jitter между API-вызовами
 		}
 
-		if err := repo.DeleteChat(ctx, chat.ChatID); err != nil {
+		if _, err := repo.DeleteChat(&client.DeleteChatRequest{ChatId: chat.ChatID}); err != nil {
 			logger.Warn("Failed to delete chat",
 				slog.String("name", chat.Name),
 				slog.Int64("chat_id", chat.ChatID),

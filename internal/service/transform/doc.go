@@ -3,7 +3,7 @@
 // Использование:
 //
 //	svc := transform.New(telegramRepo, stateRepo)
-//	text, err := svc.Transform(ctx, domain.TransformParams{...})
+//	text, err := svc.Transform(ctx, domain.TransformParams{Text: ft, Source: src, ...})
 //	updated := svc.AddNextLink(ctx, text, src, dstChatID, nextMessageID)
 //
 // Пакет не читает переменные окружения напрямую.

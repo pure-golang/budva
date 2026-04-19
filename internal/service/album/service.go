@@ -6,11 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zelenin/go-tdlib/client"
+
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 type entry struct {
-	messages     []*domain.Message
+	messages     []*client.Message
 	lastReceived time.Time
 }
 
@@ -31,7 +33,7 @@ func New() *Service {
 
 // AddMessage добавляет сообщение в альбом.
 // Возвращает true, если это первое сообщение в альбоме.
-func (s *Service) AddMessage(key domain.MediaAlbumKey, msg *domain.Message) bool {
+func (s *Service) AddMessage(key domain.MediaAlbumKey, msg *client.Message) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.albums[key]
@@ -55,7 +57,7 @@ func (s *Service) LastReceivedAge(key domain.MediaAlbumKey) time.Duration {
 }
 
 // PopMessages извлекает и удаляет все сообщения альбома.
-func (s *Service) PopMessages(key domain.MediaAlbumKey) []*domain.Message {
+func (s *Service) PopMessages(key domain.MediaAlbumKey) []*client.Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.albums[key]

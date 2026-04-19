@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/zelenin/go-tdlib/client"
 	"go.opentelemetry.io/otel"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
@@ -15,18 +16,19 @@ import (
 
 var tracer = otel.Tracer("github.com/pure-golang/budva-claude/internal/service/transform")
 
+// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// Содержит обёртки clientAdapter + то, что реально нужно transform-сервису.
 type telegramRepo interface {
-	TranslateText(ctx context.Context, text *domain.FormattedText, lang string) (*domain.FormattedText, error)
-	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error)
-	GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error)
-	GetCallbackQueryAnswer(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, data []byte) (string, error)
-	GetChatType(ctx context.Context, chatID domain.ChatID) (string, error)
-	ParseTextEntities(ctx context.Context, text string) (*domain.FormattedText, error)
+	TranslateText(*client.TranslateTextRequest) (*client.FormattedText, error)
+	GetMessageLink(*client.GetMessageLinkRequest) (*client.MessageLink, error)
+	GetMessageLinkInfo(*client.GetMessageLinkInfoRequest) (*client.MessageLinkInfo, error)
+	GetCallbackQueryAnswer(*client.GetCallbackQueryAnswerRequest) (*client.CallbackQueryAnswer, error)
+	GetChat(*client.GetChatRequest) (*client.Chat, error)
 }
 
 type stateRepo interface {
-	GetNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID) domain.MessageID
-	GetCopiedMessageIDs(chatID domain.ChatID, messageID domain.MessageID) []string
+	GetNewMessageID(chatID int64, tmpMessageID int64) int64
+	GetCopiedMessageIDs(chatID int64, messageID int64) []string
 }
 
 // Service применяет трансформации к тексту сообщения.
@@ -46,7 +48,7 @@ func New(telegramRepo telegramRepo, stateRepo stateRepo) *Service {
 }
 
 // Transform применяет все трансформации к тексту по конфигурации источника и получателя.
-func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*domain.FormattedText, error) {
+func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*client.FormattedText, error) {
 	ctx, span := tracer.Start(ctx, "Transform")
 	defer span.End()
 
@@ -54,7 +56,10 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 	// 1. Перевод
 	if p.Source.Translate != nil && containsChatID(p.Source.Translate.For, p.DstChatID) {
-		translated, err := s.telegramRepo.TranslateText(ctx, text, p.Source.Translate.Lang)
+		translated, err := s.telegramRepo.TranslateText(&client.TranslateTextRequest{
+			Text:           text,
+			ToLanguageCode: p.Source.Translate.Lang,
+		})
 		if err != nil {
 			s.logger.Error("Translation failed", slog.Any("err", err))
 		} else {
@@ -81,22 +86,31 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 	// 5. Подпись источника
 	if p.WithSources && p.Source.Sign != nil && containsChatID(p.Source.Sign.For, p.DstChatID) {
-		text = s.addText(ctx, text, "**"+p.Source.Sign.Title+"**")
+		// TDLib Markdown v2: bold — одиночный `*`, двойной `**` не парсится.
+		text = s.addText(ctx, text, "*"+p.Source.Sign.Title+"*")
 	}
 
 	// 6. Ссылка на источник
 	if p.WithSources && p.Source.Link != nil && containsChatID(p.Source.Link.For, p.DstChatID) {
-		link, err := s.telegramRepo.GetMessageLink(ctx, p.SrcChatID, p.SrcMessageID, p.ForAlbum)
-		if err == nil && link != "" {
-			text = s.addText(ctx, text, "["+p.Source.Link.Title+"]("+link+")")
+		link, err := s.telegramRepo.GetMessageLink(&client.GetMessageLinkRequest{
+			ChatId:    p.SrcChatID,
+			MessageId: p.SrcMessageID,
+			ForAlbum:  p.ForAlbum,
+		})
+		if err == nil && link != nil && link.Link != "" {
+			text = s.addText(ctx, text, "["+p.Source.Link.Title+"]("+link.Link+")")
 		}
 	}
 
 	// 7. Ссылка на предыдущую версию
 	if p.PrevMessageID != 0 && p.Source.Prev != nil && containsChatID(p.Source.Prev.For, p.DstChatID) {
-		link, err := s.telegramRepo.GetMessageLink(ctx, p.DstChatID, p.PrevMessageID, p.ForAlbum)
-		if err == nil && link != "" {
-			text = s.addText(ctx, text, "["+p.Source.Prev.Title+"]("+link+")")
+		link, err := s.telegramRepo.GetMessageLink(&client.GetMessageLinkRequest{
+			ChatId:    p.DstChatID,
+			MessageId: p.PrevMessageID,
+			ForAlbum:  p.ForAlbum,
+		})
+		if err == nil && link != nil && link.Link != "" {
+			text = s.addText(ctx, text, "["+p.Source.Prev.Title+"]("+link.Link+")")
 		}
 	}
 
@@ -105,110 +119,122 @@ func (s *Service) Transform(ctx context.Context, p domain.TransformParams) (*dom
 
 // AddNextLink добавляет ссылку на следующую версию к существующему сообщению.
 // Возвращает обновлённый текст для последующего EditMessage.
-func (s *Service) AddNextLink(ctx context.Context, text *domain.FormattedText, src *domain.Source, dstChatID domain.ChatID, nextMessageID domain.MessageID) *domain.FormattedText {
+func (s *Service) AddNextLink(ctx context.Context, text *client.FormattedText, src *domain.Source, dstChatID int64, nextMessageID int64) *client.FormattedText {
 	ctx, span := tracer.Start(ctx, "AddNextLink")
 	defer span.End()
 
 	if src.Next == nil || !containsChatID(src.Next.For, dstChatID) {
 		return text
 	}
-	link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, nextMessageID, false)
-	if err != nil || link == "" {
+	link, err := s.telegramRepo.GetMessageLink(&client.GetMessageLinkRequest{
+		ChatId:    dstChatID,
+		MessageId: nextMessageID,
+		ForAlbum:  false,
+	})
+	if err != nil || link == nil || link.Link == "" {
 		return text
 	}
-	return s.addText(ctx, text, "["+src.Next.Title+"]("+link+")")
+	return s.addText(ctx, text, "["+src.Next.Title+"]("+link.Link+")")
 }
 
 // addAutoAnswer добавляет текст ответа на callback-кнопку к сообщению.
-func (s *Service) addAutoAnswer(ctx context.Context, text *domain.FormattedText, srcChatID domain.ChatID, srcMessageID domain.MessageID, replyMarkup []byte) *domain.FormattedText {
-	answer, err := s.telegramRepo.GetCallbackQueryAnswer(ctx, srcChatID, srcMessageID, replyMarkup)
+func (s *Service) addAutoAnswer(ctx context.Context, text *client.FormattedText, srcChatID int64, srcMessageID int64, replyMarkup []byte) *client.FormattedText {
+	answer, err := s.telegramRepo.GetCallbackQueryAnswer(&client.GetCallbackQueryAnswerRequest{
+		ChatId:    srcChatID,
+		MessageId: srcMessageID,
+		Payload:   &client.CallbackQueryPayloadData{Data: replyMarkup},
+	})
 	if err != nil {
 		s.logger.Error("Failed to get callback query answer", slog.Any("err", err))
 		return text
 	}
-	if answer == "" {
+	if answer == nil || answer.Text == "" {
 		return text
 	}
-	return s.addText(ctx, text, answer)
+	return s.addText(ctx, text, answer.Text)
 }
 
 // replaceMyselfLinks заменяет ссылки на сообщения в исходном чате ссылками на копии.
-func (s *Service) replaceMyselfLinks(ctx context.Context, text *domain.FormattedText, srcChatID, dstChatID domain.ChatID, dst *domain.Destination) *domain.FormattedText {
+func (s *Service) replaceMyselfLinks(ctx context.Context, text *client.FormattedText, srcChatID, dstChatID int64, dst *domain.Destination) *client.FormattedText {
 	if text == nil || len(text.Entities) == 0 {
 		return text
 	}
 
-	// Проверяем тип чата — basic groups не поддерживают ссылки на сообщения
-	chatType, err := s.telegramRepo.GetChatType(ctx, srcChatID)
+	// Проверяем тип чата — basic groups не поддерживают ссылки на сообщения.
+	chat, err := s.telegramRepo.GetChat(&client.GetChatRequest{ChatId: srcChatID})
 	if err != nil {
-		s.logger.Error("Failed to get chat type", slog.Any("err", err))
+		s.logger.Error("Failed to get chat", slog.Any("err", err))
 		return text
 	}
-	if chatType == "basicGroup" {
+	if _, isBasic := chat.Type.(*client.ChatTypeBasicGroup); isBasic {
 		return text
 	}
 
-	result := text.DeepCopy()
+	result := deepCopyFormattedText(text)
 	type replacement struct {
-		offset  int32
-		length  int32
-		newText string
-		entity  *domain.TextEntity
+		offset      int32
+		length      int32
+		newText     string
+		entityIndex int // -1 если не надо править конкретное entity
 	}
 	var replacements []replacement
 
 	for i, ent := range result.Entities {
-		if ent.Type != domain.TextEntityURL && ent.Type != domain.TextEntityTextURL {
+		if !isURLEntity(ent) {
 			continue
 		}
 
-		var url string
-		if ent.Type == domain.TextEntityURL {
-			url = extractSubstring(result.Text, ent.Offset, ent.Length)
-		} else {
-			url = ent.URL
+		url := entityURL(result.Text, ent)
+		if url == "" {
+			continue
 		}
 
-		linkInfo, err := s.telegramRepo.GetMessageLinkInfo(ctx, url)
+		linkInfo, err := s.telegramRepo.GetMessageLinkInfo(&client.GetMessageLinkInfoRequest{Url: url})
 		if err != nil || linkInfo == nil {
 			continue
 		}
 
-		// Проверяем, что ссылка ведёт на сообщение в исходном чате
-		if linkInfo.ChatID != srcChatID {
+		// Проверяем, что ссылка ведёт на сообщение в исходном чате.
+		if linkInfo.ChatId != srcChatID {
 			if dst.ReplaceMyselfLinks.DeleteExternal {
 				replacements = append(replacements, replacement{
-					offset:  ent.Offset,
-					length:  ent.Length,
-					newText: domain.DeletedLink,
-					entity:  &result.Entities[i],
+					offset:      ent.Offset,
+					length:      ent.Length,
+					newText:     domain.DeletedLink,
+					entityIndex: i,
 				})
 			}
 			continue
 		}
 
-		// Находим копию сообщения в целевом чате
-		copyLink := s.findCopyLink(ctx, linkInfo.ChatID, linkInfo.MessageID, dstChatID)
-		if copyLink != "" {
-			if ent.Type == domain.TextEntityTextURL {
-				result.Entities[i].URL = copyLink
-			} else {
-				replacements = append(replacements, replacement{
-					offset:  ent.Offset,
-					length:  ent.Length,
-					newText: copyLink,
-				})
-			}
+		// Находим копию сообщения в целевом чате.
+		var srcMessageID int64
+		if linkInfo.Message != nil {
+			srcMessageID = linkInfo.Message.Id
+		}
+		copyLink := s.findCopyLink(ctx, linkInfo.ChatId, srcMessageID, dstChatID)
+		if copyLink == "" {
+			continue
+		}
+		if _, isTextURL := ent.Type.(*client.TextEntityTypeTextUrl); isTextURL {
+			result.Entities[i].Type = &client.TextEntityTypeTextUrl{Url: copyLink}
+		} else {
+			replacements = append(replacements, replacement{
+				offset:      ent.Offset,
+				length:      ent.Length,
+				newText:     copyLink,
+				entityIndex: -1,
+			})
 		}
 	}
 
-	// Применяем замены справа налево
+	// Применяем замены справа налево, чтобы смещения ранее обработанных
+	// entities оставались валидными.
 	for i := len(replacements) - 1; i >= 0; i-- {
 		r := replacements[i]
 		result = applyReplacement(result, r.offset, r.length, r.newText)
-		if r.entity != nil && r.entity.Type == domain.TextEntityTextURL {
-			r.entity.Type = domain.TextEntityStrikethrough
-			r.entity.URL = ""
+		if r.entityIndex >= 0 {
+			result.Entities[r.entityIndex].Type = &client.TextEntityTypeStrikethrough{}
 		}
 	}
 
@@ -216,38 +242,51 @@ func (s *Service) replaceMyselfLinks(ctx context.Context, text *domain.Formatted
 }
 
 // findCopyLink ищет ссылку на копию сообщения в целевом чате.
-func (s *Service) findCopyLink(ctx context.Context, srcChatID domain.ChatID, srcMessageID domain.MessageID, dstChatID domain.ChatID) string {
+func (s *Service) findCopyLink(ctx context.Context, srcChatID int64, srcMessageID int64, dstChatID int64) string {
+	_ = ctx
 	copies := s.stateRepo.GetCopiedMessageIDs(srcChatID, srcMessageID)
 	dstPrefix := formatDstPrefix(dstChatID)
-	for _, copy := range copies {
-		if strings.HasPrefix(copy, dstPrefix) {
-			parts := strings.Split(copy, ":")
-			if len(parts) >= 3 {
-				tmpID := parseMessageID(parts[len(parts)-1])
-				newID := s.stateRepo.GetNewMessageID(dstChatID, tmpID)
-				if newID != 0 {
-					link, err := s.telegramRepo.GetMessageLink(ctx, dstChatID, newID, false)
-					if err == nil {
-						return link
-					}
-				}
-			}
+	for _, c := range copies {
+		if !strings.HasPrefix(c, dstPrefix) {
+			continue
+		}
+		parts := strings.Split(c, ":")
+		if len(parts) < 3 {
+			continue
+		}
+		tmpID := parseMessageID(parts[len(parts)-1])
+		newID := s.stateRepo.GetNewMessageID(dstChatID, tmpID)
+		if newID == 0 {
+			continue
+		}
+		link, err := s.telegramRepo.GetMessageLink(&client.GetMessageLinkRequest{
+			ChatId:    dstChatID,
+			MessageId: newID,
+			ForAlbum:  false,
+		})
+		if err == nil && link != nil {
+			return link.Link
 		}
 	}
 	return ""
 }
 
 // addText добавляет форматированный текст (Markdown v2) в конец сообщения.
-func (s *Service) addText(ctx context.Context, text *domain.FormattedText, markdown string) *domain.FormattedText {
-	parsed, err := s.telegramRepo.ParseTextEntities(ctx, markdown)
+// ParseTextEntities — статическая функция go-tdlib, вызывается напрямую
+// (не метод *client.Client, в clientAdapter не входит).
+func (s *Service) addText(_ context.Context, text *client.FormattedText, markdown string) *client.FormattedText {
+	parsed, err := client.ParseTextEntities(&client.ParseTextEntitiesRequest{
+		Text:      markdown,
+		ParseMode: &client.TextParseModeMarkdown{Version: 2},
+	})
 	if err != nil {
-		// Fallback: добавляем как plain text
-		result := text.DeepCopy()
+		// Fallback: добавляем как plain text.
+		result := deepCopyFormattedText(text)
 		result.Text += "\n\n" + markdown
 		return result
 	}
 
-	result := text.DeepCopy()
+	result := deepCopyFormattedText(text)
 	offset := int32(len(encodeUTF16(result.Text + "\n\n"))) //nolint:gosec // UTF-16 offset всегда < 2^31
 	result.Text += "\n\n" + parsed.Text
 
@@ -259,16 +298,16 @@ func (s *Service) addText(ctx context.Context, text *domain.FormattedText, markd
 	return result
 }
 
-func replaceFragment(text *domain.FormattedText, fragment *domain.ReplaceFragment) *domain.FormattedText {
+func replaceFragment(text *client.FormattedText, fragment *domain.ReplaceFragment) *client.FormattedText {
 	if text == nil || !strings.Contains(text.Text, fragment.From) {
 		return text
 	}
-	result := text.DeepCopy()
+	result := deepCopyFormattedText(text)
 	result.Text = strings.ReplaceAll(result.Text, fragment.From, fragment.To)
 	return result
 }
 
-func containsChatID(ids []domain.ChatID, target domain.ChatID) bool {
+func containsChatID(ids []int64, target int64) bool {
 	return slices.Contains(ids, target)
 }
 
@@ -280,12 +319,12 @@ func extractSubstring(text string, offset, length int32) string {
 	return decodeUTF16(utf16[offset : offset+length])
 }
 
-func applyReplacement(text *domain.FormattedText, offset, length int32, newText string) *domain.FormattedText {
+func applyReplacement(text *client.FormattedText, offset, length int32, newText string) *client.FormattedText {
 	utf16 := encodeUTF16(text.Text)
 	newUTF16 := encodeUTF16(newText)
 	diff := int32(len(newUTF16)) - length //nolint:gosec // UTF-16 длина всегда < 2^31
 
-	// Заменяем в UTF-16 массиве
+	// Заменяем в UTF-16 массиве.
 	result := make([]uint16, 0, len(utf16)+int(diff))
 	result = append(result, utf16[:offset]...)
 	result = append(result, newUTF16...)
@@ -293,7 +332,7 @@ func applyReplacement(text *domain.FormattedText, offset, length int32, newText 
 
 	text.Text = decodeUTF16(result)
 
-	// Сдвигаем entities после замены
+	// Сдвигаем entities после замены.
 	for i := range text.Entities {
 		if text.Entities[i].Offset > offset {
 			text.Entities[i].Offset += diff
@@ -305,48 +344,17 @@ func applyReplacement(text *domain.FormattedText, offset, length int32, newText 
 	return text
 }
 
-func formatDstPrefix(dstChatID domain.ChatID) string {
-	// Формат copiedMessageID: "ruleID:dstChatID:tmpMsgID"
+func formatDstPrefix(dstChatID int64) string {
+	// Формат copiedMessageID: "ruleID:dstChatID:tmpMsgID".
 	s := fmt.Sprintf("%d", dstChatID)
 	s = strings.ReplaceAll(s, "-", "")
 	return ":" + s
 }
 
-func parseMessageID(s string) domain.MessageID {
+func parseMessageID(s string) int64 {
 	id, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return 0
 	}
 	return id
-}
-
-// encodeUTF16 конвертирует строку в UTF-16 массив.
-//
-//nolint:gosec // Конвертация rune → uint16 безопасна для BMP и surrogate pairs
-func encodeUTF16(s string) []uint16 {
-	var result []uint16
-	for _, r := range s {
-		if r >= 0x10000 {
-			r -= 0x10000
-			result = append(result, uint16(0xD800+(r>>10)), uint16(0xDC00+(r&0x3FF)))
-		} else {
-			result = append(result, uint16(r))
-		}
-	}
-	return result
-}
-
-// decodeUTF16 конвертирует UTF-16 массив в строку.
-func decodeUTF16(u []uint16) string {
-	var runes []rune
-	for i := 0; i < len(u); i++ {
-		if u[i] >= 0xD800 && u[i] <= 0xDBFF && i+1 < len(u) && u[i+1] >= 0xDC00 && u[i+1] <= 0xDFFF {
-			r := rune((int(u[i])-0xD800)<<10 + int(u[i+1]) - 0xDC00 + 0x10000)
-			runes = append(runes, r)
-			i++
-		} else {
-			runes = append(runes, rune(u[i]))
-		}
-	}
-	return string(runes)
 }

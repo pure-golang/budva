@@ -12,6 +12,9 @@
 //
 // Ограничения:
 //
-//   - Работает с domain.Message и domain.FormattedText.
-//   - Определяет тип контента (текст, фото, видео и т.д.).
+//   - Работает напрямую с raw-TDLib типами (`*client.Message`, `*client.FormattedText`,
+//     `client.InputMessageContent`). Доменных дублей не создаётся (см. x-tdlib).
+//   - Type-switch по `client.MessageContent` разделяет поддерживаемые типы контента
+//     (text, photo, video, document, audio, animation, voice note); остальные
+//     (sticker, location, chat events) считаются системными и игнорируются.
 package message

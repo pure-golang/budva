@@ -4,8 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 func TestGetFormattedText(t *testing.T) {
@@ -14,40 +13,38 @@ func TestGetFormattedText(t *testing.T) {
 
 	tests := []struct {
 		name string
-		msg  *domain.Message
-		want *domain.FormattedText
+		msg  *client.Message
+		want *client.FormattedText
 	}{
 		{
 			name: "text message returns formatted text",
-			msg: &domain.Message{
-				Content: domain.MessageContent{
-					Type: domain.ContentText,
-					Text: &domain.FormattedText{Text: "hello"},
+			msg: &client.Message{
+				Content: &client.MessageText{
+					Text: &client.FormattedText{Text: "hello"},
 				},
 			},
-			want: &domain.FormattedText{Text: "hello"},
+			want: &client.FormattedText{Text: "hello"},
 		},
 		{
 			name: "photo message returns caption",
-			msg: &domain.Message{
-				Content: domain.MessageContent{
-					Type: domain.ContentPhoto,
-					Text: &domain.FormattedText{Text: "caption"},
+			msg: &client.Message{
+				Content: &client.MessagePhoto{
+					Caption: &client.FormattedText{Text: "caption"},
 				},
 			},
-			want: &domain.FormattedText{Text: "caption"},
+			want: &client.FormattedText{Text: "caption"},
 		},
 		{
-			name: "system message returns nil",
-			msg: &domain.Message{
-				Content: domain.MessageContent{Type: domain.ContentSystem},
+			name: "system message (chat join) returns nil",
+			msg: &client.Message{
+				Content: &client.MessageChatJoinByLink{},
 			},
 			want: nil,
 		},
 		{
-			name: "unknown content returns nil",
-			msg: &domain.Message{
-				Content: domain.MessageContent{Type: domain.ContentUnknown},
+			name: "sticker returns nil",
+			msg: &client.Message{
+				Content: &client.MessageSticker{},
 			},
 			want: nil,
 		},
@@ -61,12 +58,7 @@ func TestGetFormattedText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Act
-			got := svc.GetFormattedText(tt.msg)
-
-			// Assert
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, svc.GetFormattedText(tt.msg))
 		})
 	}
 }
@@ -77,21 +69,31 @@ func TestIsSystemMessage(t *testing.T) {
 
 	tests := []struct {
 		name string
-		msg  *domain.Message
+		msg  *client.Message
 		want bool
 	}{
 		{
-			name: "system message returns true",
-			msg:  &domain.Message{Content: domain.MessageContent{Type: domain.ContentSystem}},
+			name: "chat join is system",
+			msg:  &client.Message{Content: &client.MessageChatJoinByLink{}},
 			want: true,
 		},
 		{
-			name: "text message returns false",
-			msg:  &domain.Message{Content: domain.MessageContent{Type: domain.ContentText}},
+			name: "sticker is system",
+			msg:  &client.Message{Content: &client.MessageSticker{}},
+			want: true,
+		},
+		{
+			name: "text is not system",
+			msg:  &client.Message{Content: &client.MessageText{}},
 			want: false,
 		},
 		{
-			name: "nil message returns false",
+			name: "photo is not system",
+			msg:  &client.Message{Content: &client.MessagePhoto{}},
+			want: false,
+		},
+		{
+			name: "nil message is not system",
 			msg:  nil,
 			want: false,
 		},
@@ -100,8 +102,6 @@ func TestIsSystemMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Act + Assert
 			assert.Equal(t, tt.want, svc.IsSystemMessage(tt.msg))
 		})
 	}
@@ -111,223 +111,224 @@ func TestGetReplyMarkupData(t *testing.T) {
 	t.Parallel()
 	svc := New()
 
+	withCallback := &client.Message{
+		ReplyMarkup: &client.ReplyMarkupInlineKeyboard{
+			Rows: [][]*client.InlineKeyboardButton{{
+				{
+					Text: "click",
+					Type: &client.InlineKeyboardButtonTypeCallback{Data: []byte("data")},
+				},
+			}},
+		},
+	}
+	withURLOnly := &client.Message{
+		ReplyMarkup: &client.ReplyMarkupInlineKeyboard{
+			Rows: [][]*client.InlineKeyboardButton{{
+				{
+					Text: "open",
+					Type: &client.InlineKeyboardButtonTypeUrl{Url: "https://example.com"},
+				},
+			}},
+		},
+	}
+
 	tests := []struct {
 		name string
-		msg  *domain.Message
+		msg  *client.Message
 		want []byte
 	}{
-		{
-			name: "message with callback data",
-			msg: &domain.Message{
-				ReplyMarkup: &domain.ReplyMarkup{CallbackData: []byte("data")},
-			},
-			want: []byte("data"),
-		},
-		{
-			name: "message without reply markup",
-			msg:  &domain.Message{},
-			want: nil,
-		},
-		{
-			name: "nil message",
-			msg:  nil,
-			want: nil,
-		},
+		{name: "callback button returns data", msg: withCallback, want: []byte("data")},
+		{name: "url-only keyboard returns nil", msg: withURLOnly, want: nil},
+		{name: "no reply markup returns nil", msg: &client.Message{}, want: nil},
+		{name: "nil message returns nil", msg: nil, want: nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Act + Assert
 			assert.Equal(t, tt.want, svc.GetReplyMarkupData(tt.msg))
 		})
 	}
 }
 
-func TestBuildInputContent_Photo(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	svc := New()
-	msg := &domain.Message{
-		Content: domain.MessageContent{
-			Type:            domain.ContentPhoto,
-			FileID:          "file123",
-			ThumbnailFileID: "thumb456",
-			Width:           800,
-			Height:          600,
-		},
-	}
-	text := &domain.FormattedText{Text: "caption"}
-
-	// Act
-	got := svc.BuildInputContent(msg, text)
-
-	// Assert
-	assert.Equal(t, domain.ContentPhoto, got.Type)
-	assert.Equal(t, text, got.Text)
-	assert.Equal(t, "file123", got.FileID)
-	assert.Equal(t, "thumb456", got.ThumbnailFileID)
-	assert.Equal(t, int32(800), got.Width)
-	assert.Equal(t, int32(600), got.Height)
-	assert.Empty(t, got.FileName)
-	assert.Empty(t, got.MimeType)
-}
-
 func TestBuildInputContent_Text_InvertsLinkPreview(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
 	svc := New()
-	msg := &domain.Message{
-		Content: domain.MessageContent{
-			Type:               domain.ContentText,
-			DisableLinkPreview: false,
+	msg := &client.Message{
+		Content: &client.MessageText{
+			Text:               &client.FormattedText{Text: "hello"},
+			LinkPreviewOptions: &client.LinkPreviewOptions{IsDisabled: false},
 		},
 	}
-	text := &domain.FormattedText{Text: "hello"}
+	text := &client.FormattedText{Text: "hello"}
 
-	// Act
 	got := svc.BuildInputContent(msg, text)
 
-	// Assert
-	assert.True(t, got.DisableLinkPreview)
+	in, ok := got.(*client.InputMessageText)
+	assert.True(t, ok)
+	assert.Equal(t, text, in.Text)
+	assert.True(t, in.LinkPreviewOptions.IsDisabled)
 }
 
-func TestBuildInputContent_Document(t *testing.T) {
+func TestBuildInputContent_Photo(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
 	svc := New()
-	msg := &domain.Message{
-		Content: domain.MessageContent{
-			Type:     domain.ContentDocument,
-			FileID:   "doc123",
-			FileName: "report.pdf",
-			MimeType: "application/pdf",
+	msg := &client.Message{
+		Content: &client.MessagePhoto{
+			Photo: &client.Photo{
+				Sizes: []*client.PhotoSize{
+					{Photo: &client.File{Id: 10}, Width: 100, Height: 60},
+					{Photo: &client.File{Id: 20}, Width: 800, Height: 600},
+				},
+			},
 		},
 	}
-	text := &domain.FormattedText{Text: "doc"}
+	text := &client.FormattedText{Text: "caption"}
 
-	// Act
 	got := svc.BuildInputContent(msg, text)
 
-	// Assert
-	assert.Equal(t, "doc123", got.FileID)
-	assert.Equal(t, "report.pdf", got.FileName)
-	assert.Equal(t, "application/pdf", got.MimeType)
-	assert.Zero(t, got.Width)
-}
-
-func TestBuildInputContent_VoiceNote(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	svc := New()
-	msg := &domain.Message{
-		Content: domain.MessageContent{
-			Type:     domain.ContentVoiceNote,
-			Duration: 30,
-			FileID:   "voice123",
-		},
-	}
-	text := &domain.FormattedText{Text: "voice"}
-
-	// Act
-	got := svc.BuildInputContent(msg, text)
-
-	// Assert
-	assert.Equal(t, int32(30), got.Duration)
-	assert.Empty(t, got.FileID)
+	in, ok := got.(*client.InputMessagePhoto)
+	assert.True(t, ok)
+	assert.Equal(t, text, in.Caption)
+	assert.Equal(t, int32(800), in.Width)
+	assert.Equal(t, int32(600), in.Height)
+	photoFile, ok := in.Photo.(*client.InputFileId)
+	assert.True(t, ok)
+	assert.Equal(t, int32(20), photoFile.Id)
 }
 
 func TestBuildInputContent_Video(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
 	svc := New()
-	msg := &domain.Message{
-		Content: domain.MessageContent{
-			Type:            domain.ContentVideo,
-			FileID:          "vid123",
-			ThumbnailFileID: "thumb789",
-			Width:           1920,
-			Height:          1080,
-			Duration:        120,
+	msg := &client.Message{
+		Content: &client.MessageVideo{
+			Video: &client.Video{
+				Video:    &client.File{Id: 50},
+				Duration: 120,
+				Width:    1920,
+				Height:   1080,
+			},
 		},
 	}
-	text := &domain.FormattedText{Text: "video caption"}
+	text := &client.FormattedText{Text: "video caption"}
 
-	// Act
 	got := svc.BuildInputContent(msg, text)
 
-	// Assert
-	assert.Equal(t, domain.ContentVideo, got.Type)
-	assert.Equal(t, text, got.Text)
-	assert.Equal(t, "vid123", got.FileID)
-	assert.Equal(t, "thumb789", got.ThumbnailFileID)
-	assert.Equal(t, int32(1920), got.Width)
-	assert.Equal(t, int32(1080), got.Height)
-	assert.Equal(t, int32(120), got.Duration)
+	in, ok := got.(*client.InputMessageVideo)
+	assert.True(t, ok)
+	assert.Equal(t, int32(1920), in.Width)
+	assert.Equal(t, int32(1080), in.Height)
+	assert.Equal(t, int32(120), in.Duration)
+	videoFile, ok := in.Video.(*client.InputFileId)
+	assert.True(t, ok)
+	assert.Equal(t, int32(50), videoFile.Id)
+	assert.Equal(t, text, in.Caption)
 }
 
-func TestBuildInputContent_Animation(t *testing.T) {
+func TestBuildInputContent_Document(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
 	svc := New()
-	msg := &domain.Message{
-		Content: domain.MessageContent{
-			Type:            domain.ContentAnimation,
-			FileID:          "anim123",
-			ThumbnailFileID: "athumb456",
-			Width:           320,
-			Height:          240,
-			Duration:        5,
+	msg := &client.Message{
+		Content: &client.MessageDocument{
+			Document: &client.Document{
+				Document: &client.File{Id: 77},
+			},
 		},
 	}
-	text := &domain.FormattedText{Text: "gif"}
+	text := &client.FormattedText{Text: "doc"}
 
-	// Act
 	got := svc.BuildInputContent(msg, text)
 
-	// Assert
-	assert.Equal(t, domain.ContentAnimation, got.Type)
-	assert.Equal(t, "anim123", got.FileID)
-	assert.Equal(t, "athumb456", got.ThumbnailFileID)
-	assert.Equal(t, int32(320), got.Width)
-	assert.Equal(t, int32(240), got.Height)
-	assert.Equal(t, int32(5), got.Duration)
-	assert.Empty(t, got.FileName)
+	in, ok := got.(*client.InputMessageDocument)
+	assert.True(t, ok)
+	docFile, ok := in.Document.(*client.InputFileId)
+	assert.True(t, ok)
+	assert.Equal(t, int32(77), docFile.Id)
+	assert.Equal(t, text, in.Caption)
 }
 
 func TestBuildInputContent_Audio(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
 	svc := New()
-	msg := &domain.Message{
-		Content: domain.MessageContent{
-			Type:            domain.ContentAudio,
-			FileID:          "audio123",
-			ThumbnailFileID: "cover456",
-			Duration:        240,
-			FileName:        "track.mp3",
-			MimeType:        "audio/mpeg",
+	msg := &client.Message{
+		Content: &client.MessageAudio{
+			Audio: &client.Audio{
+				Audio:     &client.File{Id: 33},
+				Duration:  240,
+				Title:     "track",
+				Performer: "artist",
+			},
 		},
 	}
-	text := &domain.FormattedText{Text: "audio"}
+	text := &client.FormattedText{Text: "audio"}
 
-	// Act
 	got := svc.BuildInputContent(msg, text)
 
-	// Assert
-	assert.Equal(t, domain.ContentAudio, got.Type)
-	assert.Equal(t, "audio123", got.FileID)
-	assert.Equal(t, "cover456", got.ThumbnailFileID)
-	assert.Equal(t, int32(240), got.Duration)
-	assert.Equal(t, "track.mp3", got.FileName)
-	assert.Equal(t, "audio/mpeg", got.MimeType)
-	assert.Zero(t, got.Width)
+	in, ok := got.(*client.InputMessageAudio)
+	assert.True(t, ok)
+	audioFile, ok := in.Audio.(*client.InputFileId)
+	assert.True(t, ok)
+	assert.Equal(t, int32(33), audioFile.Id)
+	assert.Equal(t, int32(240), in.Duration)
+	assert.Equal(t, "track", in.Title)
+	assert.Equal(t, "artist", in.Performer)
+}
+
+func TestBuildInputContent_Animation(t *testing.T) {
+	t.Parallel()
+
+	svc := New()
+	msg := &client.Message{
+		Content: &client.MessageAnimation{
+			Animation: &client.Animation{
+				Animation: &client.File{Id: 42},
+				Duration:  5,
+				Width:     320,
+				Height:    240,
+			},
+		},
+	}
+	text := &client.FormattedText{Text: "gif"}
+
+	got := svc.BuildInputContent(msg, text)
+
+	in, ok := got.(*client.InputMessageAnimation)
+	assert.True(t, ok)
+	animFile, ok := in.Animation.(*client.InputFileId)
+	assert.True(t, ok)
+	assert.Equal(t, int32(42), animFile.Id)
+	assert.Equal(t, int32(320), in.Width)
+	assert.Equal(t, int32(240), in.Height)
+	assert.Equal(t, int32(5), in.Duration)
+}
+
+func TestBuildInputContent_VoiceNote(t *testing.T) {
+	t.Parallel()
+
+	svc := New()
+	msg := &client.Message{
+		Content: &client.MessageVoiceNote{
+			VoiceNote: &client.VoiceNote{
+				Voice:    &client.File{Id: 99},
+				Duration: 30,
+				Waveform: []byte{1, 2, 3},
+			},
+		},
+	}
+	text := &client.FormattedText{Text: "voice"}
+
+	got := svc.BuildInputContent(msg, text)
+
+	in, ok := got.(*client.InputMessageVoiceNote)
+	assert.True(t, ok)
+	voiceFile, ok := in.VoiceNote.(*client.InputFileId)
+	assert.True(t, ok)
+	assert.Equal(t, int32(99), voiceFile.Id)
+	assert.Equal(t, int32(30), in.Duration)
+	assert.Equal(t, []byte{1, 2, 3}, in.Waveform)
 }

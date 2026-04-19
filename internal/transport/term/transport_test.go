@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
@@ -31,10 +32,9 @@ type fakeTelegram struct {
 }
 
 func (f *fakeTelegram) ClientDone() <-chan struct{} { return f.clientDone }
-func (f *fakeTelegram) GetOption(_ context.Context, _ string) (string, error) {
-	return "1.0.0", nil
+func (f *fakeTelegram) GetMe() (*client.User, error) {
+	return &client.User{Id: 123}, nil
 }
-func (f *fakeTelegram) GetMe(_ context.Context) (int64, error) { return 123, nil }
 
 type fakeTerm struct {
 	readLineFn     func() (string, error)

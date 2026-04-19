@@ -5,12 +5,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/zelenin/go-tdlib/client"
 )
 
-func msg(id domain.MessageID) *domain.Message {
-	return &domain.Message{ID: id}
+func msg(id int64) *client.Message {
+	return &client.Message{Id: id}
 }
 
 func TestAddMessage_FirstReturnsTrue(t *testing.T) {
@@ -65,9 +64,9 @@ func TestPopMessages(t *testing.T) {
 
 	// Assert
 	assert.Len(t, msgs, 3)
-	assert.Equal(t, domain.MessageID(100), msgs[0].ID)
-	assert.Equal(t, domain.MessageID(101), msgs[1].ID)
-	assert.Equal(t, domain.MessageID(102), msgs[2].ID)
+	assert.Equal(t, int64(100), msgs[0].Id)
+	assert.Equal(t, int64(101), msgs[1].Id)
+	assert.Equal(t, int64(102), msgs[2].Id)
 }
 
 func TestPopMessages_RemovesAlbum(t *testing.T) {

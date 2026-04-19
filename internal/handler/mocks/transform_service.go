@@ -9,6 +9,7 @@ import (
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 // NewTransformService creates a new instance of TransformService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -39,19 +40,19 @@ func (_m *TransformService) EXPECT() *TransformService_Expecter {
 }
 
 // AddNextLink provides a mock function for the type TransformService
-func (_mock *TransformService) AddNextLink(ctx context.Context, text *domain.FormattedText, src *domain.Source, dstChatID domain.ChatID, nextMessageID domain.MessageID) *domain.FormattedText {
+func (_mock *TransformService) AddNextLink(ctx context.Context, text *client.FormattedText, src *domain.Source, dstChatID int64, nextMessageID int64) *client.FormattedText {
 	ret := _mock.Called(ctx, text, src, dstChatID, nextMessageID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AddNextLink")
 	}
 
-	var r0 *domain.FormattedText
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *domain.FormattedText, *domain.Source, domain.ChatID, domain.MessageID) *domain.FormattedText); ok {
+	var r0 *client.FormattedText
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *client.FormattedText, *domain.Source, int64, int64) *client.FormattedText); ok {
 		r0 = returnFunc(ctx, text, src, dstChatID, nextMessageID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.FormattedText)
+			r0 = ret.Get(0).(*client.FormattedText)
 		}
 	}
 	return r0
@@ -64,35 +65,35 @@ type TransformService_AddNextLink_Call struct {
 
 // AddNextLink is a helper method to define mock.On call
 //   - ctx context.Context
-//   - text *domain.FormattedText
+//   - text *client.FormattedText
 //   - src *domain.Source
-//   - dstChatID domain.ChatID
-//   - nextMessageID domain.MessageID
+//   - dstChatID int64
+//   - nextMessageID int64
 func (_e *TransformService_Expecter) AddNextLink(ctx interface{}, text interface{}, src interface{}, dstChatID interface{}, nextMessageID interface{}) *TransformService_AddNextLink_Call {
 	return &TransformService_AddNextLink_Call{Call: _e.mock.On("AddNextLink", ctx, text, src, dstChatID, nextMessageID)}
 }
 
-func (_c *TransformService_AddNextLink_Call) Run(run func(ctx context.Context, text *domain.FormattedText, src *domain.Source, dstChatID domain.ChatID, nextMessageID domain.MessageID)) *TransformService_AddNextLink_Call {
+func (_c *TransformService_AddNextLink_Call) Run(run func(ctx context.Context, text *client.FormattedText, src *domain.Source, dstChatID int64, nextMessageID int64)) *TransformService_AddNextLink_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 *domain.FormattedText
+		var arg1 *client.FormattedText
 		if args[1] != nil {
-			arg1 = args[1].(*domain.FormattedText)
+			arg1 = args[1].(*client.FormattedText)
 		}
 		var arg2 *domain.Source
 		if args[2] != nil {
 			arg2 = args[2].(*domain.Source)
 		}
-		var arg3 domain.ChatID
+		var arg3 int64
 		if args[3] != nil {
-			arg3 = args[3].(domain.ChatID)
+			arg3 = args[3].(int64)
 		}
-		var arg4 domain.MessageID
+		var arg4 int64
 		if args[4] != nil {
-			arg4 = args[4].(domain.MessageID)
+			arg4 = args[4].(int64)
 		}
 		run(
 			arg0,
@@ -105,34 +106,34 @@ func (_c *TransformService_AddNextLink_Call) Run(run func(ctx context.Context, t
 	return _c
 }
 
-func (_c *TransformService_AddNextLink_Call) Return(formattedText *domain.FormattedText) *TransformService_AddNextLink_Call {
+func (_c *TransformService_AddNextLink_Call) Return(formattedText *client.FormattedText) *TransformService_AddNextLink_Call {
 	_c.Call.Return(formattedText)
 	return _c
 }
 
-func (_c *TransformService_AddNextLink_Call) RunAndReturn(run func(ctx context.Context, text *domain.FormattedText, src *domain.Source, dstChatID domain.ChatID, nextMessageID domain.MessageID) *domain.FormattedText) *TransformService_AddNextLink_Call {
+func (_c *TransformService_AddNextLink_Call) RunAndReturn(run func(ctx context.Context, text *client.FormattedText, src *domain.Source, dstChatID int64, nextMessageID int64) *client.FormattedText) *TransformService_AddNextLink_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Transform provides a mock function for the type TransformService
-func (_mock *TransformService) Transform(ctx context.Context, params domain.TransformParams) (*domain.FormattedText, error) {
+func (_mock *TransformService) Transform(ctx context.Context, params domain.TransformParams) (*client.FormattedText, error) {
 	ret := _mock.Called(ctx, params)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Transform")
 	}
 
-	var r0 *domain.FormattedText
+	var r0 *client.FormattedText
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.TransformParams) (*domain.FormattedText, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.TransformParams) (*client.FormattedText, error)); ok {
 		return returnFunc(ctx, params)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.TransformParams) *domain.FormattedText); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.TransformParams) *client.FormattedText); ok {
 		r0 = returnFunc(ctx, params)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.FormattedText)
+			r0 = ret.Get(0).(*client.FormattedText)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.TransformParams) error); ok {
@@ -173,12 +174,12 @@ func (_c *TransformService_Transform_Call) Run(run func(ctx context.Context, par
 	return _c
 }
 
-func (_c *TransformService_Transform_Call) Return(formattedText *domain.FormattedText, err error) *TransformService_Transform_Call {
+func (_c *TransformService_Transform_Call) Return(formattedText *client.FormattedText, err error) *TransformService_Transform_Call {
 	_c.Call.Return(formattedText, err)
 	return _c
 }
 
-func (_c *TransformService_Transform_Call) RunAndReturn(run func(ctx context.Context, params domain.TransformParams) (*domain.FormattedText, error)) *TransformService_Transform_Call {
+func (_c *TransformService_Transform_Call) RunAndReturn(run func(ctx context.Context, params domain.TransformParams) (*client.FormattedText, error)) *TransformService_Transform_Call {
 	_c.Call.Return(run)
 	return _c
 }

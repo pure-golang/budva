@@ -5,7 +5,6 @@
 package mocks
 
 import (
-	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -37,7 +36,7 @@ func (_m *StateRepo) EXPECT() *StateRepo_Expecter {
 }
 
 // GetCopiedMessageIDs provides a mock function for the type StateRepo
-func (_mock *StateRepo) GetCopiedMessageIDs(chatID domain.ChatID, messageID domain.MessageID) []string {
+func (_mock *StateRepo) GetCopiedMessageIDs(chatID int64, messageID int64) []string {
 	ret := _mock.Called(chatID, messageID)
 
 	if len(ret) == 0 {
@@ -45,7 +44,7 @@ func (_mock *StateRepo) GetCopiedMessageIDs(chatID domain.ChatID, messageID doma
 	}
 
 	var r0 []string
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) []string); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) []string); ok {
 		r0 = returnFunc(chatID, messageID)
 	} else {
 		if ret.Get(0) != nil {
@@ -61,21 +60,21 @@ type StateRepo_GetCopiedMessageIDs_Call struct {
 }
 
 // GetCopiedMessageIDs is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 func (_e *StateRepo_Expecter) GetCopiedMessageIDs(chatID interface{}, messageID interface{}) *StateRepo_GetCopiedMessageIDs_Call {
 	return &StateRepo_GetCopiedMessageIDs_Call{Call: _e.mock.On("GetCopiedMessageIDs", chatID, messageID)}
 }
 
-func (_c *StateRepo_GetCopiedMessageIDs_Call) Run(run func(chatID domain.ChatID, messageID domain.MessageID)) *StateRepo_GetCopiedMessageIDs_Call {
+func (_c *StateRepo_GetCopiedMessageIDs_Call) Run(run func(chatID int64, messageID int64)) *StateRepo_GetCopiedMessageIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -90,24 +89,24 @@ func (_c *StateRepo_GetCopiedMessageIDs_Call) Return(strings []string) *StateRep
 	return _c
 }
 
-func (_c *StateRepo_GetCopiedMessageIDs_Call) RunAndReturn(run func(chatID domain.ChatID, messageID domain.MessageID) []string) *StateRepo_GetCopiedMessageIDs_Call {
+func (_c *StateRepo_GetCopiedMessageIDs_Call) RunAndReturn(run func(chatID int64, messageID int64) []string) *StateRepo_GetCopiedMessageIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetNewMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) GetNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID) domain.MessageID {
+func (_mock *StateRepo) GetNewMessageID(chatID int64, tmpMessageID int64) int64 {
 	ret := _mock.Called(chatID, tmpMessageID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetNewMessageID")
 	}
 
-	var r0 domain.MessageID
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) domain.MessageID); ok {
+	var r0 int64
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) int64); ok {
 		r0 = returnFunc(chatID, tmpMessageID)
 	} else {
-		r0 = ret.Get(0).(domain.MessageID)
+		r0 = ret.Get(0).(int64)
 	}
 	return r0
 }
@@ -118,21 +117,21 @@ type StateRepo_GetNewMessageID_Call struct {
 }
 
 // GetNewMessageID is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - tmpMessageID domain.MessageID
+//   - chatID int64
+//   - tmpMessageID int64
 func (_e *StateRepo_Expecter) GetNewMessageID(chatID interface{}, tmpMessageID interface{}) *StateRepo_GetNewMessageID_Call {
 	return &StateRepo_GetNewMessageID_Call{Call: _e.mock.On("GetNewMessageID", chatID, tmpMessageID)}
 }
 
-func (_c *StateRepo_GetNewMessageID_Call) Run(run func(chatID domain.ChatID, tmpMessageID domain.MessageID)) *StateRepo_GetNewMessageID_Call {
+func (_c *StateRepo_GetNewMessageID_Call) Run(run func(chatID int64, tmpMessageID int64)) *StateRepo_GetNewMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -142,12 +141,12 @@ func (_c *StateRepo_GetNewMessageID_Call) Run(run func(chatID domain.ChatID, tmp
 	return _c
 }
 
-func (_c *StateRepo_GetNewMessageID_Call) Return(v domain.MessageID) *StateRepo_GetNewMessageID_Call {
-	_c.Call.Return(v)
+func (_c *StateRepo_GetNewMessageID_Call) Return(n int64) *StateRepo_GetNewMessageID_Call {
+	_c.Call.Return(n)
 	return _c
 }
 
-func (_c *StateRepo_GetNewMessageID_Call) RunAndReturn(run func(chatID domain.ChatID, tmpMessageID domain.MessageID) domain.MessageID) *StateRepo_GetNewMessageID_Call {
+func (_c *StateRepo_GetNewMessageID_Call) RunAndReturn(run func(chatID int64, tmpMessageID int64) int64) *StateRepo_GetNewMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }

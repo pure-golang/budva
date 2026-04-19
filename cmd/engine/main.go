@@ -11,9 +11,9 @@ import (
 
 	aenv "github.com/pure-golang/adapters/env"
 	"github.com/pure-golang/platform/monitoring"
+	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/config"
-	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/handler"
 	"github.com/pure-golang/budva-claude/internal/repo/queue"
 	"github.com/pure-golang/budva-claude/internal/repo/ruleset"
@@ -112,7 +112,7 @@ func run() error {
 		albumService,
 		queueRepo,
 		limiterService,
-		func(dsts []domain.ChatID) handler.DedupTracker {
+		func(dsts []int64) handler.DedupTracker {
 			return dedup.NewTracker(dsts)
 		},
 	)
@@ -154,15 +154,31 @@ func run() error {
 				if !ok {
 					return
 				}
-				switch update.Type {
-				case domain.UpdateNewMessage:
-					h.OnNewMessage(ctx, update.Message)
-				case domain.UpdateMessageEdited:
-					h.OnEditedMessage(ctx, update.Message)
-				case domain.UpdateDeleteMessages:
-					h.OnDeletedMessages(ctx, update.ChatID, update.MessageIDs, update.IsPermanent)
-				case domain.UpdateMessageSendSucceeded:
-					h.OnMessageSendSucceeded(update.Message.ChatID, update.OldMessageID, update.Message.ID)
+				switch u := update.(type) {
+				case *client.UpdateNewMessage:
+					h.OnNewMessage(ctx, u.Message)
+				case *client.UpdateMessageEdited:
+					// Resolve в отдельной горутине: синхронный GetMessage внутри dispatcher-а
+					// блокирует приём updates, что приводит к зависанию других listener-ов TDLib.
+					go func(chatID, msgID int64) {
+						msg, err := telegramRepo.GetMessage(&client.GetMessageRequest{
+							ChatId:    chatID,
+							MessageId: msgID,
+						})
+						if err != nil {
+							logger.Warn("Failed to get edited message",
+								slog.Int64("chat_id", chatID),
+								slog.Int64("message_id", msgID),
+								slog.Any("err", err),
+							)
+							return
+						}
+						h.OnEditedMessage(ctx, msg)
+					}(u.ChatId, u.MessageId)
+				case *client.UpdateDeleteMessages:
+					h.OnDeletedMessages(ctx, u.ChatId, u.MessageIds, u.IsPermanent)
+				case *client.UpdateMessageSendSucceeded:
+					h.OnMessageSendSucceeded(u.Message.ChatId, u.OldMessageId, u.Message.Id)
 				}
 			}
 		}

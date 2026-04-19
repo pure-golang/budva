@@ -7,7 +7,6 @@ package mocks
 import (
 	"context"
 
-	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -39,7 +38,7 @@ func (_m *RateLimiter) EXPECT() *RateLimiter_Expecter {
 }
 
 // WaitForForward provides a mock function for the type RateLimiter
-func (_mock *RateLimiter) WaitForForward(ctx context.Context, dstChatID domain.ChatID) {
+func (_mock *RateLimiter) WaitForForward(ctx context.Context, dstChatID int64) {
 	_mock.Called(ctx, dstChatID)
 	return
 }
@@ -51,20 +50,20 @@ type RateLimiter_WaitForForward_Call struct {
 
 // WaitForForward is a helper method to define mock.On call
 //   - ctx context.Context
-//   - dstChatID domain.ChatID
+//   - dstChatID int64
 func (_e *RateLimiter_Expecter) WaitForForward(ctx interface{}, dstChatID interface{}) *RateLimiter_WaitForForward_Call {
 	return &RateLimiter_WaitForForward_Call{Call: _e.mock.On("WaitForForward", ctx, dstChatID)}
 }
 
-func (_c *RateLimiter_WaitForForward_Call) Run(run func(ctx context.Context, dstChatID domain.ChatID)) *RateLimiter_WaitForForward_Call {
+func (_c *RateLimiter_WaitForForward_Call) Run(run func(ctx context.Context, dstChatID int64)) *RateLimiter_WaitForForward_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -79,7 +78,7 @@ func (_c *RateLimiter_WaitForForward_Call) Return() *RateLimiter_WaitForForward_
 	return _c
 }
 
-func (_c *RateLimiter_WaitForForward_Call) RunAndReturn(run func(ctx context.Context, dstChatID domain.ChatID)) *RateLimiter_WaitForForward_Call {
+func (_c *RateLimiter_WaitForForward_Call) RunAndReturn(run func(ctx context.Context, dstChatID int64)) *RateLimiter_WaitForForward_Call {
 	_c.Run(run)
 	return _c
 }

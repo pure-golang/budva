@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	alogger "github.com/pure-golang/adapters/logger"
+	"github.com/zelenin/go-tdlib/client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -12,17 +13,19 @@ import (
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
 )
 
+// facadeService — частично применяемый интерфейс к service/facade.
+// Все методы вернут raw-TDLib типы, которые gRPC-слой сворачивает в свой proto-DTO.
 type facadeService interface {
-	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
-	GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)
-	GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error)
-	SendMessage(ctx context.Context, chatID domain.ChatID, text string) error
-	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem) error
-	ForwardMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) error
-	UpdateMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text string) error
-	DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) error
-	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error)
-	GetMessageLinkInfo(ctx context.Context, link string) (*domain.MessageLinkInfo, error)
+	GetMessage(ctx context.Context, chatID int64, messageID int64) (*client.Message, error)
+	GetMessages(ctx context.Context, chatID int64, messageIDs []int64) ([]*client.Message, error)
+	GetChatHistory(ctx context.Context, chatID int64, fromMessageID int64, offset, limit int32) ([]*client.Message, error)
+	SendMessage(ctx context.Context, chatID int64, text string) error
+	SendMessageAlbum(ctx context.Context, chatID int64, items []domain.AlbumItem) error
+	ForwardMessage(ctx context.Context, chatID int64, messageID int64) error
+	UpdateMessage(ctx context.Context, chatID int64, messageID int64, text string) error
+	DeleteMessages(ctx context.Context, chatID int64, messageIDs []int64) error
+	GetMessageLink(ctx context.Context, chatID int64, messageID int64) (string, error)
+	GetMessageLinkInfo(ctx context.Context, link string) (*client.MessageLinkInfo, error)
 }
 
 // Transport реализует gRPC-сервер FacadeGRPC.
@@ -33,9 +36,7 @@ type Transport struct {
 
 // New создаёт новый экземпляр gRPC-транспорта.
 func New(facadeService facadeService) *Transport {
-	return &Transport{
-		facadeService: facadeService,
-	}
+	return &Transport{facadeService: facadeService}
 }
 
 // GetMessages возвращает сообщения по списку ID (batch).
@@ -48,7 +49,7 @@ func (t *Transport) GetMessages(ctx context.Context, req *pb.GetMessagesRequest)
 	var messages []*pb.Message
 	for _, msg := range msgs {
 		if msg != nil {
-			messages = append(messages, domainToProto(msg))
+			messages = append(messages, clientMessageToProto(msg))
 		}
 	}
 	return &pb.MessagesResponse{Messages: messages}, nil
@@ -63,7 +64,7 @@ func (t *Transport) GetChatHistory(ctx context.Context, req *pb.GetChatHistoryRe
 	}
 	var messages []*pb.Message
 	for _, msg := range msgs {
-		messages = append(messages, domainToProto(msg))
+		messages = append(messages, clientMessageToProto(msg))
 	}
 	return &pb.MessagesResponse{Messages: messages}, nil
 }
@@ -118,7 +119,7 @@ func (t *Transport) GetMessage(ctx context.Context, req *pb.GetMessageRequest) (
 		alogger.FromContext(ctx).Error("Failed to get message", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return &pb.MessageResponse{Message: domainToProto(msg)}, nil
+	return &pb.MessageResponse{Message: clientMessageToProto(msg)}, nil
 }
 
 // UpdateMessage обновляет текст сообщения.
@@ -160,27 +161,50 @@ func (t *Transport) GetMessageLinkInfo(ctx context.Context, req *pb.GetMessageLi
 		alogger.FromContext(ctx).Error("Failed to get message link info", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+	var messageID int64
+	if info != nil && info.Message != nil {
+		messageID = info.Message.Id
+	}
+	var chatID int64
+	if info != nil {
+		chatID = info.ChatId
+	}
 	return &pb.MessageResponse{
 		Message: &pb.Message{
-			Id:     info.MessageID,
-			ChatId: info.ChatID,
+			Id:     messageID,
+			ChatId: chatID,
 		},
 	}, nil
 }
 
-func domainToProto(msg *domain.Message) *pb.Message {
+// clientMessageToProto маппит *client.Message (raw TDLib) в pb.Message.
+func clientMessageToProto(msg *client.Message) *pb.Message {
 	if msg == nil {
 		return nil
 	}
-	text := ""
-	if msg.Content.Text != nil {
-		text = msg.Content.Text.Text
+	var text string
+	switch c := msg.Content.(type) {
+	case *client.MessageText:
+		if c.Text != nil {
+			text = c.Text.Text
+		}
+	case *client.MessagePhoto:
+		if c.Caption != nil {
+			text = c.Caption.Text
+		}
+	case *client.MessageVideo:
+		if c.Caption != nil {
+			text = c.Caption.Text
+		}
+	case *client.MessageDocument:
+		if c.Caption != nil {
+			text = c.Caption.Text
+		}
 	}
-	forward := msg.ForwardInfo != nil
 	return &pb.Message{
-		Id:      msg.ID,
-		ChatId:  msg.ChatID,
+		Id:      msg.Id,
+		ChatId:  msg.ChatId,
 		Text:    text,
-		Forward: forward,
+		Forward: msg.ForwardInfo != nil,
 	}
 }

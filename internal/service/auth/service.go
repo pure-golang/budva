@@ -5,15 +5,20 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/zelenin/go-tdlib/client"
+
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
+// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// Composit-методы Repo (AuthStates, SubmitPhone/Code/Password, CleanUp)
+// живут рядом с raw-обёрткой LogOut — см. x-tdlib.
 type telegramRepo interface {
 	AuthStates() <-chan domain.AuthStateEvent
 	SubmitPhone(ctx context.Context, phone string) error
 	SubmitCode(ctx context.Context, code string) error
 	SubmitPassword(ctx context.Context, password string) error
-	LogOut(ctx context.Context) error
+	LogOut() (*client.Ok, error)
 	CleanUp()
 }
 
@@ -128,8 +133,8 @@ func (s *Service) InputChan() chan<- string {
 // После logout БД остаётся в состоянии LoggingOut, которое go-tdlib
 // не умеет обрабатывать при следующем запуске. Удаление БД гарантирует
 // чистый старт с WaitPhoneNumber.
-func (s *Service) LogOut(ctx context.Context) error {
-	if err := s.telegramRepo.LogOut(ctx); err != nil {
+func (s *Service) LogOut(_ context.Context) error {
+	if _, err := s.telegramRepo.LogOut(); err != nil {
 		return err
 	}
 	s.telegramRepo.CleanUp()

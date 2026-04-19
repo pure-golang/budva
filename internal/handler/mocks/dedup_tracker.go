@@ -5,7 +5,6 @@
 package mocks
 
 import (
-	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -37,7 +36,7 @@ func (_m *DedupTracker) EXPECT() *DedupTracker_Expecter {
 }
 
 // TryMark provides a mock function for the type DedupTracker
-func (_mock *DedupTracker) TryMark(chatID domain.ChatID) bool {
+func (_mock *DedupTracker) TryMark(chatID int64) bool {
 	ret := _mock.Called(chatID)
 
 	if len(ret) == 0 {
@@ -45,7 +44,7 @@ func (_mock *DedupTracker) TryMark(chatID domain.ChatID) bool {
 	}
 
 	var r0 bool
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID) bool); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64) bool); ok {
 		r0 = returnFunc(chatID)
 	} else {
 		r0 = ret.Get(0).(bool)
@@ -59,16 +58,16 @@ type DedupTracker_TryMark_Call struct {
 }
 
 // TryMark is a helper method to define mock.On call
-//   - chatID domain.ChatID
+//   - chatID int64
 func (_e *DedupTracker_Expecter) TryMark(chatID interface{}) *DedupTracker_TryMark_Call {
 	return &DedupTracker_TryMark_Call{Call: _e.mock.On("TryMark", chatID)}
 }
 
-func (_c *DedupTracker_TryMark_Call) Run(run func(chatID domain.ChatID)) *DedupTracker_TryMark_Call {
+func (_c *DedupTracker_TryMark_Call) Run(run func(chatID int64)) *DedupTracker_TryMark_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
 		run(
 			arg0,
@@ -82,7 +81,7 @@ func (_c *DedupTracker_TryMark_Call) Return(b bool) *DedupTracker_TryMark_Call {
 	return _c
 }
 
-func (_c *DedupTracker_TryMark_Call) RunAndReturn(run func(chatID domain.ChatID) bool) *DedupTracker_TryMark_Call {
+func (_c *DedupTracker_TryMark_Call) RunAndReturn(run func(chatID int64) bool) *DedupTracker_TryMark_Call {
 	_c.Call.Return(run)
 	return _c
 }

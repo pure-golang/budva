@@ -3,8 +3,8 @@
 // Использование:
 //
 //	svc := album.New()
-//	isFirst := svc.AddMessage(key, messageID)
-//	ids := svc.PopMessages(key)
+//	isFirst := svc.AddMessage(key, msg)   // msg *client.Message
+//	msgs := svc.PopMessages(key)          // []*client.Message
 //
 // Пакет не читает переменные окружения напрямую.
 //

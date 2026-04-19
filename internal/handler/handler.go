@@ -10,41 +10,45 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zelenin/go-tdlib/client"
+
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
+// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// Обёртки clientAdapter: raw go-tdlib сигнатуры, без ctx и без domain-типов.
 type telegramRepo interface {
-	DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID, revoke bool) error
-	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
-	EditMessageText(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text *domain.FormattedText) error
-	EditMessageCaption(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text *domain.FormattedText) error
-	SendMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error)
-	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, contents []domain.InputMessageContent) ([]domain.MessageID, error)
-	ForwardMessages(ctx context.Context, fromChatID domain.ChatID, toChatID domain.ChatID, messageIDs []domain.MessageID) ([]domain.MessageID, error)
-	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error)
+	DeleteMessages(*client.DeleteMessagesRequest) (*client.Ok, error)
+	GetMessage(*client.GetMessageRequest) (*client.Message, error)
+	EditMessageText(*client.EditMessageTextRequest) (*client.Message, error)
+	EditMessageCaption(*client.EditMessageCaptionRequest) (*client.Message, error)
+	SendMessage(*client.SendMessageRequest) (*client.Message, error)
+	SendMessageAlbum(*client.SendMessageAlbumRequest) (*client.Messages, error)
+	ForwardMessages(*client.ForwardMessagesRequest) (*client.Messages, error)
+	GetMessageLink(*client.GetMessageLinkRequest) (*client.MessageLink, error)
 }
 
 type stateRepo interface {
-	SetCopiedMessageID(chatID domain.ChatID, messageID domain.MessageID, toChatMessageID string) error
-	GetCopiedMessageIDs(chatID domain.ChatID, messageID domain.MessageID) []string
-	DeleteCopiedMessageIDs(chatID domain.ChatID, messageID domain.MessageID) error
-	SetNewMessageID(chatID domain.ChatID, tmpMessageID, newMessageID domain.MessageID) error
-	GetNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID) domain.MessageID
-	DeleteNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID) error
-	SetTmpMessageID(chatID domain.ChatID, newMessageID, tmpMessageID domain.MessageID) error
-	DeleteTmpMessageID(chatID domain.ChatID, newMessageID domain.MessageID) error
-	SetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.MessageID, srcChatID domain.ChatID, srcMessageID domain.MessageID) error
-	GetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.MessageID) string
-	DeleteAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.MessageID) error
-	IncrementViewedMessages(toChatID domain.ChatID, date string) (uint64, error)
-	IncrementForwardedMessages(toChatID domain.ChatID, date string) (uint64, error)
+	SetCopiedMessageID(chatID int64, messageID int64, toChatMessageID string) error
+	GetCopiedMessageIDs(chatID int64, messageID int64) []string
+	DeleteCopiedMessageIDs(chatID int64, messageID int64) error
+	SetNewMessageID(chatID int64, tmpMessageID, newMessageID int64) error
+	GetNewMessageID(chatID int64, tmpMessageID int64) int64
+	DeleteNewMessageID(chatID int64, tmpMessageID int64) error
+	SetTmpMessageID(chatID int64, newMessageID, tmpMessageID int64) error
+	DeleteTmpMessageID(chatID int64, newMessageID int64) error
+	SetAnswerMessageID(dstChatID int64, tmpMessageID int64, srcChatID int64, srcMessageID int64) error
+	GetAnswerMessageID(dstChatID int64, tmpMessageID int64) string
+	DeleteAnswerMessageID(dstChatID int64, tmpMessageID int64) error
+	IncrementViewedMessages(toChatID int64, date string) (uint64, error)
+	IncrementForwardedMessages(toChatID int64, date string) (uint64, error)
 }
 
 type messageService interface {
-	GetFormattedText(msg *domain.Message) *domain.FormattedText
-	IsSystemMessage(msg *domain.Message) bool
-	GetReplyMarkupData(msg *domain.Message) []byte
-	BuildInputContent(msg *domain.Message, text *domain.FormattedText) domain.InputMessageContent
+	GetFormattedText(msg *client.Message) *client.FormattedText
+	IsSystemMessage(msg *client.Message) bool
+	GetReplyMarkupData(msg *client.Message) []byte
+	BuildInputContent(msg *client.Message, text *client.FormattedText) client.InputMessageContent
 }
 
 type filterService interface {
@@ -52,22 +56,22 @@ type filterService interface {
 }
 
 type transformService interface {
-	Transform(ctx context.Context, params domain.TransformParams) (*domain.FormattedText, error)
-	AddNextLink(ctx context.Context, text *domain.FormattedText, src *domain.Source, dstChatID domain.ChatID, nextMessageID domain.MessageID) *domain.FormattedText
+	Transform(ctx context.Context, params domain.TransformParams) (*client.FormattedText, error)
+	AddNextLink(ctx context.Context, text *client.FormattedText, src *domain.Source, dstChatID int64, nextMessageID int64) *client.FormattedText
 }
 
 // DedupTracker отслеживает дедупликацию доставки.
 type DedupTracker interface {
-	TryMark(chatID domain.ChatID) bool
+	TryMark(chatID int64) bool
 }
 
 // DedupFactory создаёт новый трекер дедупликации для набора целевых чатов.
-type DedupFactory = func(destinations []domain.ChatID) DedupTracker
+type DedupFactory = func(destinations []int64) DedupTracker
 
 type albumService interface {
-	AddMessage(key domain.MediaAlbumKey, msg *domain.Message) bool
+	AddMessage(key domain.MediaAlbumKey, msg *client.Message) bool
 	LastReceivedAge(key domain.MediaAlbumKey) time.Duration
-	PopMessages(key domain.MediaAlbumKey) []*domain.Message
+	PopMessages(key domain.MediaAlbumKey) []*client.Message
 }
 
 type taskQueue interface {
@@ -75,7 +79,7 @@ type taskQueue interface {
 }
 
 type rateLimiter interface {
-	WaitForForward(ctx context.Context, dstChatID domain.ChatID)
+	WaitForForward(ctx context.Context, dstChatID int64)
 }
 
 // Handler обрабатывает обновления Telegram.
@@ -125,22 +129,26 @@ func (h *Handler) SetRuleSet(rs *domain.RuleSet) {
 }
 
 // OnNewMessage обрабатывает новое сообщение.
-func (h *Handler) OnNewMessage(ctx context.Context, msg *domain.Message) {
+func (h *Handler) OnNewMessage(ctx context.Context, msg *client.Message) {
 	rs := h.ruleset.Load()
 	if rs == nil {
 		return
 	}
-	srcChatID := msg.ChatID
+	srcChatID := msg.ChatId
 	if _, ok := rs.UniqueSources[srcChatID]; !ok {
 		return
 	}
 
-	// Удаление системных сообщений
+	// Удаление системных сообщений.
 	src := rs.Sources[srcChatID]
 	if h.messageService.IsSystemMessage(msg) {
 		if src != nil && src.DeleteSystemMessages {
 			h.taskQueue.Add(func() {
-				if err := h.telegramRepo.DeleteMessages(ctx, srcChatID, []domain.MessageID{msg.ID}, true); err != nil {
+				if _, err := h.telegramRepo.DeleteMessages(&client.DeleteMessagesRequest{
+					ChatId:     srcChatID,
+					MessageIds: []int64{msg.Id},
+					Revoke:     true,
+				}); err != nil {
 					h.logger.Error("Failed to delete system message", slog.Any("err", err))
 				}
 			})
@@ -153,7 +161,7 @@ func (h *Handler) OnNewMessage(ctx context.Context, msg *domain.Message) {
 		return
 	}
 
-	// Обработка по каждому правилу
+	// Обработка по каждому правилу.
 	for _, ruleID := range rs.OrderedForwardRules {
 		rule := rs.ForwardRules[ruleID]
 		if rule.From != srcChatID {
@@ -163,9 +171,9 @@ func (h *Handler) OnNewMessage(ctx context.Context, msg *domain.Message) {
 			continue
 		}
 
-		// Медиа-альбом
-		if msg.MediaAlbumID != 0 {
-			albumKey := fmt.Sprintf("%s:%d", ruleID, msg.MediaAlbumID)
+		// Медиа-альбом.
+		if msg.MediaAlbumId != 0 {
+			albumKey := fmt.Sprintf("%s:%d", ruleID, int64(msg.MediaAlbumId))
 			isFirst := h.albumService.AddMessage(albumKey, msg)
 			if isFirst {
 				h.processMediaAlbum(ctx, albumKey, rs, ruleID, msg, formattedText)
@@ -173,18 +181,18 @@ func (h *Handler) OnNewMessage(ctx context.Context, msg *domain.Message) {
 			continue
 		}
 
-		// Одиночное сообщение
+		// Одиночное сообщение.
 		h.processMessage(ctx, rs, ruleID, rule, msg, formattedText)
 	}
 }
 
 // OnEditedMessage обрабатывает отредактированное сообщение.
-func (h *Handler) OnEditedMessage(ctx context.Context, msg *domain.Message) {
+func (h *Handler) OnEditedMessage(ctx context.Context, msg *client.Message) {
 	rs := h.ruleset.Load()
 	if rs == nil {
 		return
 	}
-	if _, ok := rs.UniqueSources[msg.ChatID]; !ok {
+	if _, ok := rs.UniqueSources[msg.ChatId]; !ok {
 		return
 	}
 
@@ -194,7 +202,7 @@ func (h *Handler) OnEditedMessage(ctx context.Context, msg *domain.Message) {
 }
 
 // OnDeletedMessages обрабатывает удаление сообщений.
-func (h *Handler) OnDeletedMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID, isPermanent bool) {
+func (h *Handler) OnDeletedMessages(ctx context.Context, chatID int64, messageIDs []int64, isPermanent bool) {
 	if !isPermanent {
 		return
 	}
@@ -212,7 +220,7 @@ func (h *Handler) OnDeletedMessages(ctx context.Context, chatID domain.ChatID, m
 }
 
 // OnMessageSendSucceeded обрабатывает подтверждение отправки.
-func (h *Handler) OnMessageSendSucceeded(chatID domain.ChatID, oldMessageID, newMessageID domain.MessageID) {
+func (h *Handler) OnMessageSendSucceeded(chatID int64, oldMessageID, newMessageID int64) {
 	h.taskQueue.Add(func() {
 		if err := h.stateRepo.SetNewMessageID(chatID, oldMessageID, newMessageID); err != nil {
 			h.logger.Error("Failed to set new message ID", slog.Any("err", err))
@@ -223,9 +231,9 @@ func (h *Handler) OnMessageSendSucceeded(chatID domain.ChatID, oldMessageID, new
 	})
 }
 
-func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID string, rule *domain.ForwardRule, msg *domain.Message, text *domain.FormattedText) {
+func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID string, rule *domain.ForwardRule, msg *client.Message, text *client.FormattedText) {
 	mode := h.filterService.Evaluate(text.Text, rule)
-	src := rs.Sources[msg.ChatID]
+	src := rs.Sources[msg.ChatId]
 
 	tracker := h.newTracker(rule.To)
 
@@ -247,7 +255,11 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 		if rule.Check != 0 {
 			h.taskQueue.Add(func() {
 				h.rateLimiter.WaitForForward(ctx, rule.Check)
-				if _, err := h.telegramRepo.ForwardMessages(ctx, msg.ChatID, rule.Check, []domain.MessageID{msg.ID}); err != nil {
+				if _, err := h.telegramRepo.ForwardMessages(&client.ForwardMessagesRequest{
+					ChatId:     rule.Check,
+					FromChatId: msg.ChatId,
+					MessageIds: []int64{msg.Id},
+				}); err != nil {
 					h.logger.Error("Failed to forward to check chat", slog.Any("err", err))
 				}
 			})
@@ -256,14 +268,18 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 		if rule.Other != 0 {
 			h.taskQueue.Add(func() {
 				h.rateLimiter.WaitForForward(ctx, rule.Other)
-				if _, err := h.telegramRepo.ForwardMessages(ctx, msg.ChatID, rule.Other, []domain.MessageID{msg.ID}); err != nil {
+				if _, err := h.telegramRepo.ForwardMessages(&client.ForwardMessagesRequest{
+					ChatId:     rule.Other,
+					FromChatId: msg.ChatId,
+					MessageIds: []int64{msg.Id},
+				}); err != nil {
 					h.logger.Error("Failed to forward to other chat", slog.Any("err", err))
 				}
 			})
 		}
 	}
 
-	// Статистика
+	// Статистика.
 	h.taskQueue.Add(func() {
 		date := time.Now().Format("2006-01-02")
 		for _, dstChatID := range rule.To {
@@ -281,26 +297,30 @@ func (h *Handler) processMessage(ctx context.Context, rs *domain.RuleSet, ruleID
 	})
 }
 
-func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domain.ForwardRule, msg *domain.Message, text *domain.FormattedText, src *domain.Source, dst *domain.Destination, dstChatID domain.ChatID, prevMessageID domain.MessageID, withSources bool) {
+func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domain.ForwardRule, msg *client.Message, text *client.FormattedText, src *domain.Source, dst *domain.Destination, dstChatID int64, prevMessageID int64, withSources bool) {
 	h.rateLimiter.WaitForForward(ctx, dstChatID)
 
 	if !rule.SendCopy {
-		if _, err := h.telegramRepo.ForwardMessages(ctx, msg.ChatID, dstChatID, []domain.MessageID{msg.ID}); err != nil {
+		if _, err := h.telegramRepo.ForwardMessages(&client.ForwardMessagesRequest{
+			ChatId:     dstChatID,
+			FromChatId: msg.ChatId,
+			MessageIds: []int64{msg.Id},
+		}); err != nil {
 			h.logger.Error("Failed to forward message", slog.Any("err", err))
 		}
 		return
 	}
 
-	// Разворачивание origin для forwarded-from-channel
-	originMsg := h.getOriginMessage(ctx, msg)
+	// Разворачивание origin для forwarded-from-channel.
+	originMsg := h.getOriginMessage(msg)
 
 	transformed, err := h.transformService.Transform(ctx, domain.TransformParams{
-		Text:          text.DeepCopy(),
+		Text:          text,
 		Source:        src,
 		Destination:   dst,
 		DstChatID:     dstChatID,
-		SrcChatID:     msg.ChatID,
-		SrcMessageID:  msg.ID,
+		SrcChatID:     msg.ChatId,
+		SrcMessageID:  msg.Id,
 		PrevMessageID: prevMessageID,
 		WithSources:   withSources,
 		ReplyMarkup:   h.messageService.GetReplyMarkupData(msg),
@@ -310,51 +330,61 @@ func (h *Handler) forwardMessage(ctx context.Context, ruleID string, rule *domai
 		return
 	}
 
-	// Используем origin для BuildInputContent если доступен
+	// Используем origin для BuildInputContent если доступен.
 	contentMsg := msg
 	if originMsg != nil {
 		contentMsg = originMsg
 	}
 	content := h.messageService.BuildInputContent(contentMsg, transformed)
+	replyTo := h.resolveReplyTo(msg, dstChatID)
 
-	// Сохранение reply chain
-	content.ReplyToMessageID = h.resolveReplyTo(msg, dstChatID)
-
-	tmpMsgID, err := h.telegramRepo.SendMessage(ctx, dstChatID, content)
+	sent, err := h.telegramRepo.SendMessage(&client.SendMessageRequest{
+		ChatId:              dstChatID,
+		ReplyTo:             replyTo,
+		InputMessageContent: content,
+	})
 	if err != nil {
 		h.logger.Error("Failed to send message", slog.Any("err", err), slog.Int64("dst_chat_id", dstChatID))
 		return
 	}
+	tmpMsgID := sent.Id
 
 	toChatMsgID := fmt.Sprintf("%s:%d:%d", ruleID, dstChatID, tmpMsgID)
-	if err := h.stateRepo.SetCopiedMessageID(msg.ChatID, msg.ID, toChatMsgID); err != nil {
+	if err := h.stateRepo.SetCopiedMessageID(msg.ChatId, msg.Id, toChatMsgID); err != nil {
 		h.logger.Error("Failed to set copied message ID", slog.Any("err", err))
 	}
 
-	// Reply markup tracking
+	// Reply markup tracking.
 	replyData := h.messageService.GetReplyMarkupData(msg)
 	if len(replyData) > 0 {
-		if err := h.stateRepo.SetAnswerMessageID(dstChatID, tmpMsgID, msg.ChatID, msg.ID); err != nil {
+		if err := h.stateRepo.SetAnswerMessageID(dstChatID, tmpMsgID, msg.ChatId, msg.Id); err != nil {
 			h.logger.Error("Failed to set answer message ID", slog.Any("err", err))
 		}
 	}
 
-	// Next link workflow
+	// Next link workflow.
 	if prevMessageID != 0 && rule.CopyOnce {
 		go h.runNextLinkWorkflow(ctx, src, dstChatID, prevMessageID, tmpMsgID)
 	}
 }
 
 // getOriginMessage разворачивает forwarded-from-channel сообщение до оригинала.
-func (h *Handler) getOriginMessage(ctx context.Context, msg *domain.Message) *domain.Message {
-	if msg.ForwardInfo == nil || msg.ForwardInfo.OriginChatID == 0 {
+func (h *Handler) getOriginMessage(msg *client.Message) *client.Message {
+	if msg.ForwardInfo == nil {
 		return nil
 	}
-	origin, err := h.telegramRepo.GetMessage(ctx, msg.ForwardInfo.OriginChatID, msg.ForwardInfo.OriginMessageID)
+	channel, ok := msg.ForwardInfo.Origin.(*client.MessageOriginChannel)
+	if !ok || channel.ChatId == 0 {
+		return nil
+	}
+	origin, err := h.telegramRepo.GetMessage(&client.GetMessageRequest{
+		ChatId:    channel.ChatId,
+		MessageId: channel.MessageId,
+	})
 	if err != nil {
 		return nil
 	}
-	// Валидация: текст оригинала должен совпадать с forwarded
+	// Валидация: текст оригинала должен совпадать с forwarded.
 	originText := h.messageService.GetFormattedText(origin)
 	msgText := h.messageService.GetFormattedText(msg)
 	if originText == nil || msgText == nil || originText.Text != msgText.Text {
@@ -364,25 +394,30 @@ func (h *Handler) getOriginMessage(ctx context.Context, msg *domain.Message) *do
 }
 
 // resolveReplyTo находит копию replied-to сообщения в целевом чате.
-func (h *Handler) resolveReplyTo(msg *domain.Message, dstChatID domain.ChatID) domain.MessageID {
-	if msg.ReplyTo == nil || msg.ReplyTo.ChatID != msg.ChatID {
-		return 0
+// Возвращает InputMessageReplyToMessage для SendMessageRequest.ReplyTo или nil.
+func (h *Handler) resolveReplyTo(msg *client.Message, dstChatID int64) *client.InputMessageReplyToMessage {
+	reply, ok := msg.ReplyTo.(*client.MessageReplyToMessage)
+	if !ok {
+		return nil
 	}
-	copies := h.stateRepo.GetCopiedMessageIDs(msg.ReplyTo.ChatID, msg.ReplyTo.MessageID)
-	for _, copy := range copies {
-		ref, ok := parseCopyRef(copy)
+	if reply.ChatId != msg.ChatId {
+		return nil
+	}
+	copies := h.stateRepo.GetCopiedMessageIDs(reply.ChatId, reply.MessageId)
+	for _, c := range copies {
+		ref, ok := parseCopyRef(c)
 		if !ok || ref.dstChatID != dstChatID {
 			continue
 		}
 		newID := h.stateRepo.GetNewMessageID(dstChatID, ref.tmpMsgID)
 		if newID != 0 {
-			return newID
+			return &client.InputMessageReplyToMessage{MessageId: newID}
 		}
 	}
-	return 0
+	return nil
 }
 
-func (h *Handler) runNextLinkWorkflow(ctx context.Context, src *domain.Source, dstChatID domain.ChatID, prevMessageID, tmpMessageID domain.MessageID) {
+func (h *Handler) runNextLinkWorkflow(ctx context.Context, src *domain.Source, dstChatID int64, prevMessageID, tmpMessageID int64) {
 	for i := 0; i < 10; i++ {
 		select {
 		case <-ctx.Done():
@@ -393,7 +428,10 @@ func (h *Handler) runNextLinkWorkflow(ctx context.Context, src *domain.Source, d
 		if newID == 0 {
 			continue
 		}
-		prevMsg, err := h.telegramRepo.GetMessage(ctx, dstChatID, prevMessageID)
+		prevMsg, err := h.telegramRepo.GetMessage(&client.GetMessageRequest{
+			ChatId:    dstChatID,
+			MessageId: prevMessageID,
+		})
 		if err != nil {
 			return
 		}
@@ -402,16 +440,21 @@ func (h *Handler) runNextLinkWorkflow(ctx context.Context, src *domain.Source, d
 			return
 		}
 		updated := h.transformService.AddNextLink(ctx, text, src, dstChatID, newID)
-		if err := h.telegramRepo.EditMessageText(ctx, dstChatID, prevMessageID, updated); err != nil {
+		if _, err := h.telegramRepo.EditMessageText(&client.EditMessageTextRequest{
+			ChatId:              dstChatID,
+			MessageId:           prevMessageID,
+			InputMessageContent: &client.InputMessageText{Text: updated},
+		}); err != nil {
 			h.logger.Error("Failed to edit message with next link", slog.Any("err", err))
 		}
 		return
 	}
 }
 
-func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *domain.RuleSet, ruleID string, firstMsg *domain.Message, formattedText *domain.FormattedText) {
+func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *domain.RuleSet, ruleID string, firstMsg *client.Message, formattedText *client.FormattedText) {
+	_ = formattedText // оставлен для симметрии API, текст для каждого сообщения берётся по месту
 	h.taskQueue.Add(func() {
-		// Ожидаем пока все сообщения альбома придут (3 секунды после последнего)
+		// Ожидаем пока все сообщения альбома придут (3 секунды после последнего).
 		for {
 			age := h.albumService.LastReceivedAge(albumKey)
 			if age >= 3*time.Second {
@@ -434,7 +477,7 @@ func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *do
 			return
 		}
 
-		src := rs.Sources[firstMsg.ChatID]
+		src := rs.Sources[firstMsg.ChatId]
 		tracker := h.newTracker(rule.To)
 
 		for _, dstChatID := range rule.To {
@@ -446,7 +489,7 @@ func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *do
 			})
 		}
 
-		// Статистика
+		// Статистика.
 		h.taskQueue.Add(func() {
 			date := time.Now().Format("2006-01-02")
 			for _, dstChatID := range rule.To {
@@ -461,57 +504,69 @@ func (h *Handler) processMediaAlbum(ctx context.Context, albumKey string, rs *do
 	})
 }
 
-func (h *Handler) forwardAlbum(ctx context.Context, rule *domain.ForwardRule, messages []*domain.Message, src *domain.Source, dst *domain.Destination, dstChatID domain.ChatID) {
+// forwardAlbum пересылает/копирует медиа-альбом целевому чату.
+// src/dst сохранены в сигнатуре для симметрии с forwardMessage и на случай
+// будущей интеграции transform-правил для альбомов.
+func (h *Handler) forwardAlbum(ctx context.Context, rule *domain.ForwardRule, messages []*client.Message, src *domain.Source, dst *domain.Destination, dstChatID int64) {
+	_ = src
+	_ = dst
 	// Сортируем по ID — albumService может хранить в произвольном порядке,
 	// а TDLib требует strictly increasing order для ForwardMessages
 	// и порядок контента определяет порядок фото в альбоме для SendMessageAlbum.
-	slices.SortFunc(messages, func(a, b *domain.Message) int {
-		return int(a.ID - b.ID)
+	slices.SortFunc(messages, func(a, b *client.Message) int {
+		return int(a.Id - b.Id)
 	})
 
 	h.rateLimiter.WaitForForward(ctx, dstChatID)
 
 	if !rule.SendCopy {
-		// Forward mode: пересылаем оригиналы с атрибуцией
-		ids := make([]domain.MessageID, 0, len(messages))
+		// Forward mode: пересылаем оригиналы с атрибуцией.
+		ids := make([]int64, 0, len(messages))
 		for _, m := range messages {
-			ids = append(ids, m.ID)
+			ids = append(ids, m.Id)
 		}
-		if _, err := h.telegramRepo.ForwardMessages(ctx, messages[0].ChatID, dstChatID, ids); err != nil {
+		if _, err := h.telegramRepo.ForwardMessages(&client.ForwardMessagesRequest{
+			ChatId:     dstChatID,
+			FromChatId: messages[0].ChatId,
+			MessageIds: ids,
+		}); err != nil {
 			h.logger.Error("Failed to forward media album", slog.Any("err", err))
 		}
 		return
 	}
 
-	// Copy mode: реконструируем контент и отправляем без атрибуции
-	contents := make([]domain.InputMessageContent, 0, len(messages))
+	// Copy mode: реконструируем контент и отправляем без атрибуции.
+	contents := make([]client.InputMessageContent, 0, len(messages))
 	for _, msg := range messages {
 		text := h.messageService.GetFormattedText(msg)
 		content := h.messageService.BuildInputContent(msg, text)
 		contents = append(contents, content)
 	}
 
-	tmpIDs, err := h.telegramRepo.SendMessageAlbum(ctx, dstChatID, contents)
+	sent, err := h.telegramRepo.SendMessageAlbum(&client.SendMessageAlbumRequest{
+		ChatId:               dstChatID,
+		InputMessageContents: contents,
+	})
 	if err != nil {
 		h.logger.Error("Failed to send media album copy", slog.Any("err", err))
 		return
 	}
 
-	// Сохраняем маппинг для edit/delete sync
+	// Сохраняем маппинг для edit/delete sync.
 	ruleID := rule.ID
-	for i, tmpID := range tmpIDs {
-		if i >= len(messages) {
+	for i, m := range sent.Messages {
+		if i >= len(messages) || m == nil {
 			break
 		}
-		toChatMsgID := fmt.Sprintf("%s:%d:%d", ruleID, dstChatID, tmpID)
-		if err := h.stateRepo.SetCopiedMessageID(messages[i].ChatID, messages[i].ID, toChatMsgID); err != nil {
+		toChatMsgID := fmt.Sprintf("%s:%d:%d", ruleID, dstChatID, m.Id)
+		if err := h.stateRepo.SetCopiedMessageID(messages[i].ChatId, messages[i].Id, toChatMsgID); err != nil {
 			h.logger.Error("Failed to set copied message ID", slog.Any("err", err))
 		}
 	}
 }
 
 // editMessagesWithRetry обрабатывает редактирование с retry до 3 раз.
-func (h *Handler) editMessagesWithRetry(ctx context.Context, rs *domain.RuleSet, msg *domain.Message, attempt int) {
+func (h *Handler) editMessagesWithRetry(ctx context.Context, rs *domain.RuleSet, msg *client.Message, attempt int) {
 	needRetry := h.editMessages(ctx, rs, msg)
 	if needRetry && attempt < 3 {
 		h.taskQueue.Add(func() {
@@ -521,22 +576,24 @@ func (h *Handler) editMessagesWithRetry(ctx context.Context, rs *domain.RuleSet,
 }
 
 // editMessages возвращает true если нужен retry (permanent ID ещё не в storage).
-func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *domain.Message) bool {
-	copies := h.stateRepo.GetCopiedMessageIDs(msg.ChatID, msg.ID)
+func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *client.Message) bool {
+	copies := h.stateRepo.GetCopiedMessageIDs(msg.ChatId, msg.Id)
 	if len(copies) == 0 {
 		return false
 	}
 
-	src := rs.Sources[msg.ChatID]
+	src := rs.Sources[msg.ChatId]
 	text := h.messageService.GetFormattedText(msg)
 	if text == nil {
 		return false
 	}
 
+	_, isText := msg.Content.(*client.MessageText)
+
 	needRetry := false
 
-	for _, copy := range copies {
-		ref, ok := parseCopyRef(copy)
+	for _, c := range copies {
+		ref, ok := parseCopyRef(c)
 		if !ok {
 			continue
 		}
@@ -555,44 +612,53 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 		dst := rs.Destinations[ref.dstChatID]
 
 		if rule.CopyOnce {
-			// Версионирование: отправляем новую копию
+			// Версионирование: отправляем новую копию.
 			h.forwardMessage(ctx, ref.ruleID, rule, msg, text, src, dst, ref.dstChatID, newMsgID, true)
-		} else {
-			// Обновляем существующую копию
-			transformed, err := h.transformService.Transform(ctx, domain.TransformParams{
-				Text:         text.DeepCopy(),
-				Source:       src,
-				Destination:  dst,
-				DstChatID:    ref.dstChatID,
-				SrcChatID:    msg.ChatID,
-				SrcMessageID: msg.ID,
-				WithSources:  true,
-				ReplyMarkup:  h.messageService.GetReplyMarkupData(msg),
-			})
-			if err != nil {
-				h.logger.Error("Failed to transform edited message", slog.Any("err", err))
-				continue
-			}
-			if msg.Content.Type == domain.ContentText {
-				if err := h.telegramRepo.EditMessageText(ctx, ref.dstChatID, newMsgID, transformed); err != nil {
-					h.logger.Error("Failed to edit message text", slog.Any("err", err))
-				}
-			} else {
-				if err := h.telegramRepo.EditMessageCaption(ctx, ref.dstChatID, newMsgID, transformed); err != nil {
-					h.logger.Error("Failed to edit message caption", slog.Any("err", err))
-				}
-			}
+			continue
+		}
 
-			// Reply markup sync
-			replyData := h.messageService.GetReplyMarkupData(msg)
-			if len(replyData) > 0 {
-				if err := h.stateRepo.SetAnswerMessageID(ref.dstChatID, ref.tmpMsgID, msg.ChatID, msg.ID); err != nil {
-					h.logger.Error("Failed to set answer message ID", slog.Any("err", err))
-				}
-			} else {
-				if err := h.stateRepo.DeleteAnswerMessageID(ref.dstChatID, ref.tmpMsgID); err != nil {
-					h.logger.Error("Failed to delete answer message ID", slog.Any("err", err))
-				}
+		// Обновляем существующую копию.
+		transformed, err := h.transformService.Transform(ctx, domain.TransformParams{
+			Text:         text,
+			Source:       src,
+			Destination:  dst,
+			DstChatID:    ref.dstChatID,
+			SrcChatID:    msg.ChatId,
+			SrcMessageID: msg.Id,
+			WithSources:  true,
+			ReplyMarkup:  h.messageService.GetReplyMarkupData(msg),
+		})
+		if err != nil {
+			h.logger.Error("Failed to transform edited message", slog.Any("err", err))
+			continue
+		}
+		if isText {
+			if _, err := h.telegramRepo.EditMessageText(&client.EditMessageTextRequest{
+				ChatId:              ref.dstChatID,
+				MessageId:           newMsgID,
+				InputMessageContent: &client.InputMessageText{Text: transformed},
+			}); err != nil {
+				h.logger.Error("Failed to edit message text", slog.Any("err", err))
+			}
+		} else {
+			if _, err := h.telegramRepo.EditMessageCaption(&client.EditMessageCaptionRequest{
+				ChatId:    ref.dstChatID,
+				MessageId: newMsgID,
+				Caption:   transformed,
+			}); err != nil {
+				h.logger.Error("Failed to edit message caption", slog.Any("err", err))
+			}
+		}
+
+		// Reply markup sync.
+		replyData := h.messageService.GetReplyMarkupData(msg)
+		if len(replyData) > 0 {
+			if err := h.stateRepo.SetAnswerMessageID(ref.dstChatID, ref.tmpMsgID, msg.ChatId, msg.Id); err != nil {
+				h.logger.Error("Failed to set answer message ID", slog.Any("err", err))
+			}
+		} else {
+			if err := h.stateRepo.DeleteAnswerMessageID(ref.dstChatID, ref.tmpMsgID); err != nil {
+				h.logger.Error("Failed to delete answer message ID", slog.Any("err", err))
 			}
 		}
 	}
@@ -601,7 +667,7 @@ func (h *Handler) editMessages(ctx context.Context, rs *domain.RuleSet, msg *dom
 }
 
 // deleteMessagesWithRetry обрабатывает удаление с retry до 3 раз.
-func (h *Handler) deleteMessagesWithRetry(ctx context.Context, rs *domain.RuleSet, chatID domain.ChatID, messageIDs []domain.MessageID, attempt int) {
+func (h *Handler) deleteMessagesWithRetry(ctx context.Context, rs *domain.RuleSet, chatID int64, messageIDs []int64, attempt int) {
 	needRetry := h.deleteMessages(ctx, rs, chatID, messageIDs)
 	if needRetry && attempt < 3 {
 		h.taskQueue.Add(func() {
@@ -611,7 +677,7 @@ func (h *Handler) deleteMessagesWithRetry(ctx context.Context, rs *domain.RuleSe
 }
 
 // deleteMessages возвращает true если нужен retry.
-func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID domain.ChatID, messageIDs []domain.MessageID) bool {
+func (h *Handler) deleteMessages(_ context.Context, rs *domain.RuleSet, chatID int64, messageIDs []int64) bool {
 	needRetry := false
 
 	for _, msgID := range messageIDs {
@@ -620,8 +686,8 @@ func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID
 			continue
 		}
 
-		for _, copy := range copies {
-			ref, ok := parseCopyRef(copy)
+		for _, c := range copies {
+			ref, ok := parseCopyRef(c)
 			if !ok {
 				continue
 			}
@@ -637,7 +703,11 @@ func (h *Handler) deleteMessages(ctx context.Context, rs *domain.RuleSet, chatID
 				continue
 			}
 
-			if err := h.telegramRepo.DeleteMessages(ctx, ref.dstChatID, []domain.MessageID{newMsgID}, true); err != nil {
+			if _, err := h.telegramRepo.DeleteMessages(&client.DeleteMessagesRequest{
+				ChatId:     ref.dstChatID,
+				MessageIds: []int64{newMsgID},
+				Revoke:     true,
+			}); err != nil {
 				h.logger.Error("Failed to delete copied message", slog.Any("err", err))
 			}
 			if err := h.stateRepo.DeleteNewMessageID(ref.dstChatID, ref.tmpMsgID); err != nil {

@@ -5,7 +5,6 @@
 package mocks
 
 import (
-	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -37,7 +36,7 @@ func (_m *StateRepo) EXPECT() *StateRepo_Expecter {
 }
 
 // DeleteAnswerMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) DeleteAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.MessageID) error {
+func (_mock *StateRepo) DeleteAnswerMessageID(dstChatID int64, tmpMessageID int64) error {
 	ret := _mock.Called(dstChatID, tmpMessageID)
 
 	if len(ret) == 0 {
@@ -45,7 +44,7 @@ func (_mock *StateRepo) DeleteAnswerMessageID(dstChatID domain.ChatID, tmpMessag
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) error); ok {
 		r0 = returnFunc(dstChatID, tmpMessageID)
 	} else {
 		r0 = ret.Error(0)
@@ -59,21 +58,21 @@ type StateRepo_DeleteAnswerMessageID_Call struct {
 }
 
 // DeleteAnswerMessageID is a helper method to define mock.On call
-//   - dstChatID domain.ChatID
-//   - tmpMessageID domain.MessageID
+//   - dstChatID int64
+//   - tmpMessageID int64
 func (_e *StateRepo_Expecter) DeleteAnswerMessageID(dstChatID interface{}, tmpMessageID interface{}) *StateRepo_DeleteAnswerMessageID_Call {
 	return &StateRepo_DeleteAnswerMessageID_Call{Call: _e.mock.On("DeleteAnswerMessageID", dstChatID, tmpMessageID)}
 }
 
-func (_c *StateRepo_DeleteAnswerMessageID_Call) Run(run func(dstChatID domain.ChatID, tmpMessageID domain.MessageID)) *StateRepo_DeleteAnswerMessageID_Call {
+func (_c *StateRepo_DeleteAnswerMessageID_Call) Run(run func(dstChatID int64, tmpMessageID int64)) *StateRepo_DeleteAnswerMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -88,13 +87,13 @@ func (_c *StateRepo_DeleteAnswerMessageID_Call) Return(err error) *StateRepo_Del
 	return _c
 }
 
-func (_c *StateRepo_DeleteAnswerMessageID_Call) RunAndReturn(run func(dstChatID domain.ChatID, tmpMessageID domain.MessageID) error) *StateRepo_DeleteAnswerMessageID_Call {
+func (_c *StateRepo_DeleteAnswerMessageID_Call) RunAndReturn(run func(dstChatID int64, tmpMessageID int64) error) *StateRepo_DeleteAnswerMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteCopiedMessageIDs provides a mock function for the type StateRepo
-func (_mock *StateRepo) DeleteCopiedMessageIDs(chatID domain.ChatID, messageID domain.MessageID) error {
+func (_mock *StateRepo) DeleteCopiedMessageIDs(chatID int64, messageID int64) error {
 	ret := _mock.Called(chatID, messageID)
 
 	if len(ret) == 0 {
@@ -102,7 +101,7 @@ func (_mock *StateRepo) DeleteCopiedMessageIDs(chatID domain.ChatID, messageID d
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) error); ok {
 		r0 = returnFunc(chatID, messageID)
 	} else {
 		r0 = ret.Error(0)
@@ -116,21 +115,21 @@ type StateRepo_DeleteCopiedMessageIDs_Call struct {
 }
 
 // DeleteCopiedMessageIDs is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 func (_e *StateRepo_Expecter) DeleteCopiedMessageIDs(chatID interface{}, messageID interface{}) *StateRepo_DeleteCopiedMessageIDs_Call {
 	return &StateRepo_DeleteCopiedMessageIDs_Call{Call: _e.mock.On("DeleteCopiedMessageIDs", chatID, messageID)}
 }
 
-func (_c *StateRepo_DeleteCopiedMessageIDs_Call) Run(run func(chatID domain.ChatID, messageID domain.MessageID)) *StateRepo_DeleteCopiedMessageIDs_Call {
+func (_c *StateRepo_DeleteCopiedMessageIDs_Call) Run(run func(chatID int64, messageID int64)) *StateRepo_DeleteCopiedMessageIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -145,13 +144,13 @@ func (_c *StateRepo_DeleteCopiedMessageIDs_Call) Return(err error) *StateRepo_De
 	return _c
 }
 
-func (_c *StateRepo_DeleteCopiedMessageIDs_Call) RunAndReturn(run func(chatID domain.ChatID, messageID domain.MessageID) error) *StateRepo_DeleteCopiedMessageIDs_Call {
+func (_c *StateRepo_DeleteCopiedMessageIDs_Call) RunAndReturn(run func(chatID int64, messageID int64) error) *StateRepo_DeleteCopiedMessageIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteNewMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) DeleteNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID) error {
+func (_mock *StateRepo) DeleteNewMessageID(chatID int64, tmpMessageID int64) error {
 	ret := _mock.Called(chatID, tmpMessageID)
 
 	if len(ret) == 0 {
@@ -159,7 +158,7 @@ func (_mock *StateRepo) DeleteNewMessageID(chatID domain.ChatID, tmpMessageID do
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) error); ok {
 		r0 = returnFunc(chatID, tmpMessageID)
 	} else {
 		r0 = ret.Error(0)
@@ -173,21 +172,21 @@ type StateRepo_DeleteNewMessageID_Call struct {
 }
 
 // DeleteNewMessageID is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - tmpMessageID domain.MessageID
+//   - chatID int64
+//   - tmpMessageID int64
 func (_e *StateRepo_Expecter) DeleteNewMessageID(chatID interface{}, tmpMessageID interface{}) *StateRepo_DeleteNewMessageID_Call {
 	return &StateRepo_DeleteNewMessageID_Call{Call: _e.mock.On("DeleteNewMessageID", chatID, tmpMessageID)}
 }
 
-func (_c *StateRepo_DeleteNewMessageID_Call) Run(run func(chatID domain.ChatID, tmpMessageID domain.MessageID)) *StateRepo_DeleteNewMessageID_Call {
+func (_c *StateRepo_DeleteNewMessageID_Call) Run(run func(chatID int64, tmpMessageID int64)) *StateRepo_DeleteNewMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -202,13 +201,13 @@ func (_c *StateRepo_DeleteNewMessageID_Call) Return(err error) *StateRepo_Delete
 	return _c
 }
 
-func (_c *StateRepo_DeleteNewMessageID_Call) RunAndReturn(run func(chatID domain.ChatID, tmpMessageID domain.MessageID) error) *StateRepo_DeleteNewMessageID_Call {
+func (_c *StateRepo_DeleteNewMessageID_Call) RunAndReturn(run func(chatID int64, tmpMessageID int64) error) *StateRepo_DeleteNewMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteTmpMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) DeleteTmpMessageID(chatID domain.ChatID, newMessageID domain.MessageID) error {
+func (_mock *StateRepo) DeleteTmpMessageID(chatID int64, newMessageID int64) error {
 	ret := _mock.Called(chatID, newMessageID)
 
 	if len(ret) == 0 {
@@ -216,7 +215,7 @@ func (_mock *StateRepo) DeleteTmpMessageID(chatID domain.ChatID, newMessageID do
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) error); ok {
 		r0 = returnFunc(chatID, newMessageID)
 	} else {
 		r0 = ret.Error(0)
@@ -230,21 +229,21 @@ type StateRepo_DeleteTmpMessageID_Call struct {
 }
 
 // DeleteTmpMessageID is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - newMessageID domain.MessageID
+//   - chatID int64
+//   - newMessageID int64
 func (_e *StateRepo_Expecter) DeleteTmpMessageID(chatID interface{}, newMessageID interface{}) *StateRepo_DeleteTmpMessageID_Call {
 	return &StateRepo_DeleteTmpMessageID_Call{Call: _e.mock.On("DeleteTmpMessageID", chatID, newMessageID)}
 }
 
-func (_c *StateRepo_DeleteTmpMessageID_Call) Run(run func(chatID domain.ChatID, newMessageID domain.MessageID)) *StateRepo_DeleteTmpMessageID_Call {
+func (_c *StateRepo_DeleteTmpMessageID_Call) Run(run func(chatID int64, newMessageID int64)) *StateRepo_DeleteTmpMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -259,13 +258,13 @@ func (_c *StateRepo_DeleteTmpMessageID_Call) Return(err error) *StateRepo_Delete
 	return _c
 }
 
-func (_c *StateRepo_DeleteTmpMessageID_Call) RunAndReturn(run func(chatID domain.ChatID, newMessageID domain.MessageID) error) *StateRepo_DeleteTmpMessageID_Call {
+func (_c *StateRepo_DeleteTmpMessageID_Call) RunAndReturn(run func(chatID int64, newMessageID int64) error) *StateRepo_DeleteTmpMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetAnswerMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) GetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.MessageID) string {
+func (_mock *StateRepo) GetAnswerMessageID(dstChatID int64, tmpMessageID int64) string {
 	ret := _mock.Called(dstChatID, tmpMessageID)
 
 	if len(ret) == 0 {
@@ -273,7 +272,7 @@ func (_mock *StateRepo) GetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID
 	}
 
 	var r0 string
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) string); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) string); ok {
 		r0 = returnFunc(dstChatID, tmpMessageID)
 	} else {
 		r0 = ret.Get(0).(string)
@@ -287,21 +286,21 @@ type StateRepo_GetAnswerMessageID_Call struct {
 }
 
 // GetAnswerMessageID is a helper method to define mock.On call
-//   - dstChatID domain.ChatID
-//   - tmpMessageID domain.MessageID
+//   - dstChatID int64
+//   - tmpMessageID int64
 func (_e *StateRepo_Expecter) GetAnswerMessageID(dstChatID interface{}, tmpMessageID interface{}) *StateRepo_GetAnswerMessageID_Call {
 	return &StateRepo_GetAnswerMessageID_Call{Call: _e.mock.On("GetAnswerMessageID", dstChatID, tmpMessageID)}
 }
 
-func (_c *StateRepo_GetAnswerMessageID_Call) Run(run func(dstChatID domain.ChatID, tmpMessageID domain.MessageID)) *StateRepo_GetAnswerMessageID_Call {
+func (_c *StateRepo_GetAnswerMessageID_Call) Run(run func(dstChatID int64, tmpMessageID int64)) *StateRepo_GetAnswerMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -316,13 +315,13 @@ func (_c *StateRepo_GetAnswerMessageID_Call) Return(s string) *StateRepo_GetAnsw
 	return _c
 }
 
-func (_c *StateRepo_GetAnswerMessageID_Call) RunAndReturn(run func(dstChatID domain.ChatID, tmpMessageID domain.MessageID) string) *StateRepo_GetAnswerMessageID_Call {
+func (_c *StateRepo_GetAnswerMessageID_Call) RunAndReturn(run func(dstChatID int64, tmpMessageID int64) string) *StateRepo_GetAnswerMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetCopiedMessageIDs provides a mock function for the type StateRepo
-func (_mock *StateRepo) GetCopiedMessageIDs(chatID domain.ChatID, messageID domain.MessageID) []string {
+func (_mock *StateRepo) GetCopiedMessageIDs(chatID int64, messageID int64) []string {
 	ret := _mock.Called(chatID, messageID)
 
 	if len(ret) == 0 {
@@ -330,7 +329,7 @@ func (_mock *StateRepo) GetCopiedMessageIDs(chatID domain.ChatID, messageID doma
 	}
 
 	var r0 []string
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) []string); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) []string); ok {
 		r0 = returnFunc(chatID, messageID)
 	} else {
 		if ret.Get(0) != nil {
@@ -346,21 +345,21 @@ type StateRepo_GetCopiedMessageIDs_Call struct {
 }
 
 // GetCopiedMessageIDs is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 func (_e *StateRepo_Expecter) GetCopiedMessageIDs(chatID interface{}, messageID interface{}) *StateRepo_GetCopiedMessageIDs_Call {
 	return &StateRepo_GetCopiedMessageIDs_Call{Call: _e.mock.On("GetCopiedMessageIDs", chatID, messageID)}
 }
 
-func (_c *StateRepo_GetCopiedMessageIDs_Call) Run(run func(chatID domain.ChatID, messageID domain.MessageID)) *StateRepo_GetCopiedMessageIDs_Call {
+func (_c *StateRepo_GetCopiedMessageIDs_Call) Run(run func(chatID int64, messageID int64)) *StateRepo_GetCopiedMessageIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -375,24 +374,24 @@ func (_c *StateRepo_GetCopiedMessageIDs_Call) Return(strings []string) *StateRep
 	return _c
 }
 
-func (_c *StateRepo_GetCopiedMessageIDs_Call) RunAndReturn(run func(chatID domain.ChatID, messageID domain.MessageID) []string) *StateRepo_GetCopiedMessageIDs_Call {
+func (_c *StateRepo_GetCopiedMessageIDs_Call) RunAndReturn(run func(chatID int64, messageID int64) []string) *StateRepo_GetCopiedMessageIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetNewMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) GetNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID) domain.MessageID {
+func (_mock *StateRepo) GetNewMessageID(chatID int64, tmpMessageID int64) int64 {
 	ret := _mock.Called(chatID, tmpMessageID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetNewMessageID")
 	}
 
-	var r0 domain.MessageID
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID) domain.MessageID); ok {
+	var r0 int64
+	if returnFunc, ok := ret.Get(0).(func(int64, int64) int64); ok {
 		r0 = returnFunc(chatID, tmpMessageID)
 	} else {
-		r0 = ret.Get(0).(domain.MessageID)
+		r0 = ret.Get(0).(int64)
 	}
 	return r0
 }
@@ -403,21 +402,21 @@ type StateRepo_GetNewMessageID_Call struct {
 }
 
 // GetNewMessageID is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - tmpMessageID domain.MessageID
+//   - chatID int64
+//   - tmpMessageID int64
 func (_e *StateRepo_Expecter) GetNewMessageID(chatID interface{}, tmpMessageID interface{}) *StateRepo_GetNewMessageID_Call {
 	return &StateRepo_GetNewMessageID_Call{Call: _e.mock.On("GetNewMessageID", chatID, tmpMessageID)}
 }
 
-func (_c *StateRepo_GetNewMessageID_Call) Run(run func(chatID domain.ChatID, tmpMessageID domain.MessageID)) *StateRepo_GetNewMessageID_Call {
+func (_c *StateRepo_GetNewMessageID_Call) Run(run func(chatID int64, tmpMessageID int64)) *StateRepo_GetNewMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		run(
 			arg0,
@@ -427,18 +426,18 @@ func (_c *StateRepo_GetNewMessageID_Call) Run(run func(chatID domain.ChatID, tmp
 	return _c
 }
 
-func (_c *StateRepo_GetNewMessageID_Call) Return(v domain.MessageID) *StateRepo_GetNewMessageID_Call {
-	_c.Call.Return(v)
+func (_c *StateRepo_GetNewMessageID_Call) Return(n int64) *StateRepo_GetNewMessageID_Call {
+	_c.Call.Return(n)
 	return _c
 }
 
-func (_c *StateRepo_GetNewMessageID_Call) RunAndReturn(run func(chatID domain.ChatID, tmpMessageID domain.MessageID) domain.MessageID) *StateRepo_GetNewMessageID_Call {
+func (_c *StateRepo_GetNewMessageID_Call) RunAndReturn(run func(chatID int64, tmpMessageID int64) int64) *StateRepo_GetNewMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // IncrementForwardedMessages provides a mock function for the type StateRepo
-func (_mock *StateRepo) IncrementForwardedMessages(toChatID domain.ChatID, date string) (uint64, error) {
+func (_mock *StateRepo) IncrementForwardedMessages(toChatID int64, date string) (uint64, error) {
 	ret := _mock.Called(toChatID, date)
 
 	if len(ret) == 0 {
@@ -447,15 +446,15 @@ func (_mock *StateRepo) IncrementForwardedMessages(toChatID domain.ChatID, date 
 
 	var r0 uint64
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, string) (uint64, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, string) (uint64, error)); ok {
 		return returnFunc(toChatID, date)
 	}
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, string) uint64); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, string) uint64); ok {
 		r0 = returnFunc(toChatID, date)
 	} else {
 		r0 = ret.Get(0).(uint64)
 	}
-	if returnFunc, ok := ret.Get(1).(func(domain.ChatID, string) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(int64, string) error); ok {
 		r1 = returnFunc(toChatID, date)
 	} else {
 		r1 = ret.Error(1)
@@ -469,17 +468,17 @@ type StateRepo_IncrementForwardedMessages_Call struct {
 }
 
 // IncrementForwardedMessages is a helper method to define mock.On call
-//   - toChatID domain.ChatID
+//   - toChatID int64
 //   - date string
 func (_e *StateRepo_Expecter) IncrementForwardedMessages(toChatID interface{}, date interface{}) *StateRepo_IncrementForwardedMessages_Call {
 	return &StateRepo_IncrementForwardedMessages_Call{Call: _e.mock.On("IncrementForwardedMessages", toChatID, date)}
 }
 
-func (_c *StateRepo_IncrementForwardedMessages_Call) Run(run func(toChatID domain.ChatID, date string)) *StateRepo_IncrementForwardedMessages_Call {
+func (_c *StateRepo_IncrementForwardedMessages_Call) Run(run func(toChatID int64, date string)) *StateRepo_IncrementForwardedMessages_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
 		var arg1 string
 		if args[1] != nil {
@@ -498,13 +497,13 @@ func (_c *StateRepo_IncrementForwardedMessages_Call) Return(v uint64, err error)
 	return _c
 }
 
-func (_c *StateRepo_IncrementForwardedMessages_Call) RunAndReturn(run func(toChatID domain.ChatID, date string) (uint64, error)) *StateRepo_IncrementForwardedMessages_Call {
+func (_c *StateRepo_IncrementForwardedMessages_Call) RunAndReturn(run func(toChatID int64, date string) (uint64, error)) *StateRepo_IncrementForwardedMessages_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // IncrementViewedMessages provides a mock function for the type StateRepo
-func (_mock *StateRepo) IncrementViewedMessages(toChatID domain.ChatID, date string) (uint64, error) {
+func (_mock *StateRepo) IncrementViewedMessages(toChatID int64, date string) (uint64, error) {
 	ret := _mock.Called(toChatID, date)
 
 	if len(ret) == 0 {
@@ -513,15 +512,15 @@ func (_mock *StateRepo) IncrementViewedMessages(toChatID domain.ChatID, date str
 
 	var r0 uint64
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, string) (uint64, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, string) (uint64, error)); ok {
 		return returnFunc(toChatID, date)
 	}
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, string) uint64); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, string) uint64); ok {
 		r0 = returnFunc(toChatID, date)
 	} else {
 		r0 = ret.Get(0).(uint64)
 	}
-	if returnFunc, ok := ret.Get(1).(func(domain.ChatID, string) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(int64, string) error); ok {
 		r1 = returnFunc(toChatID, date)
 	} else {
 		r1 = ret.Error(1)
@@ -535,17 +534,17 @@ type StateRepo_IncrementViewedMessages_Call struct {
 }
 
 // IncrementViewedMessages is a helper method to define mock.On call
-//   - toChatID domain.ChatID
+//   - toChatID int64
 //   - date string
 func (_e *StateRepo_Expecter) IncrementViewedMessages(toChatID interface{}, date interface{}) *StateRepo_IncrementViewedMessages_Call {
 	return &StateRepo_IncrementViewedMessages_Call{Call: _e.mock.On("IncrementViewedMessages", toChatID, date)}
 }
 
-func (_c *StateRepo_IncrementViewedMessages_Call) Run(run func(toChatID domain.ChatID, date string)) *StateRepo_IncrementViewedMessages_Call {
+func (_c *StateRepo_IncrementViewedMessages_Call) Run(run func(toChatID int64, date string)) *StateRepo_IncrementViewedMessages_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
 		var arg1 string
 		if args[1] != nil {
@@ -564,13 +563,13 @@ func (_c *StateRepo_IncrementViewedMessages_Call) Return(v uint64, err error) *S
 	return _c
 }
 
-func (_c *StateRepo_IncrementViewedMessages_Call) RunAndReturn(run func(toChatID domain.ChatID, date string) (uint64, error)) *StateRepo_IncrementViewedMessages_Call {
+func (_c *StateRepo_IncrementViewedMessages_Call) RunAndReturn(run func(toChatID int64, date string) (uint64, error)) *StateRepo_IncrementViewedMessages_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SetAnswerMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) SetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID domain.MessageID, srcChatID domain.ChatID, srcMessageID domain.MessageID) error {
+func (_mock *StateRepo) SetAnswerMessageID(dstChatID int64, tmpMessageID int64, srcChatID int64, srcMessageID int64) error {
 	ret := _mock.Called(dstChatID, tmpMessageID, srcChatID, srcMessageID)
 
 	if len(ret) == 0 {
@@ -578,7 +577,7 @@ func (_mock *StateRepo) SetAnswerMessageID(dstChatID domain.ChatID, tmpMessageID
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID, domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64, int64, int64) error); ok {
 		r0 = returnFunc(dstChatID, tmpMessageID, srcChatID, srcMessageID)
 	} else {
 		r0 = ret.Error(0)
@@ -592,31 +591,31 @@ type StateRepo_SetAnswerMessageID_Call struct {
 }
 
 // SetAnswerMessageID is a helper method to define mock.On call
-//   - dstChatID domain.ChatID
-//   - tmpMessageID domain.MessageID
-//   - srcChatID domain.ChatID
-//   - srcMessageID domain.MessageID
+//   - dstChatID int64
+//   - tmpMessageID int64
+//   - srcChatID int64
+//   - srcMessageID int64
 func (_e *StateRepo_Expecter) SetAnswerMessageID(dstChatID interface{}, tmpMessageID interface{}, srcChatID interface{}, srcMessageID interface{}) *StateRepo_SetAnswerMessageID_Call {
 	return &StateRepo_SetAnswerMessageID_Call{Call: _e.mock.On("SetAnswerMessageID", dstChatID, tmpMessageID, srcChatID, srcMessageID)}
 }
 
-func (_c *StateRepo_SetAnswerMessageID_Call) Run(run func(dstChatID domain.ChatID, tmpMessageID domain.MessageID, srcChatID domain.ChatID, srcMessageID domain.MessageID)) *StateRepo_SetAnswerMessageID_Call {
+func (_c *StateRepo_SetAnswerMessageID_Call) Run(run func(dstChatID int64, tmpMessageID int64, srcChatID int64, srcMessageID int64)) *StateRepo_SetAnswerMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.ChatID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.ChatID)
+			arg2 = args[2].(int64)
 		}
-		var arg3 domain.MessageID
+		var arg3 int64
 		if args[3] != nil {
-			arg3 = args[3].(domain.MessageID)
+			arg3 = args[3].(int64)
 		}
 		run(
 			arg0,
@@ -633,13 +632,13 @@ func (_c *StateRepo_SetAnswerMessageID_Call) Return(err error) *StateRepo_SetAns
 	return _c
 }
 
-func (_c *StateRepo_SetAnswerMessageID_Call) RunAndReturn(run func(dstChatID domain.ChatID, tmpMessageID domain.MessageID, srcChatID domain.ChatID, srcMessageID domain.MessageID) error) *StateRepo_SetAnswerMessageID_Call {
+func (_c *StateRepo_SetAnswerMessageID_Call) RunAndReturn(run func(dstChatID int64, tmpMessageID int64, srcChatID int64, srcMessageID int64) error) *StateRepo_SetAnswerMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SetCopiedMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) SetCopiedMessageID(chatID domain.ChatID, messageID domain.MessageID, toChatMessageID string) error {
+func (_mock *StateRepo) SetCopiedMessageID(chatID int64, messageID int64, toChatMessageID string) error {
 	ret := _mock.Called(chatID, messageID, toChatMessageID)
 
 	if len(ret) == 0 {
@@ -647,7 +646,7 @@ func (_mock *StateRepo) SetCopiedMessageID(chatID domain.ChatID, messageID domai
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID, string) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64, string) error); ok {
 		r0 = returnFunc(chatID, messageID, toChatMessageID)
 	} else {
 		r0 = ret.Error(0)
@@ -661,22 +660,22 @@ type StateRepo_SetCopiedMessageID_Call struct {
 }
 
 // SetCopiedMessageID is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 //   - toChatMessageID string
 func (_e *StateRepo_Expecter) SetCopiedMessageID(chatID interface{}, messageID interface{}, toChatMessageID interface{}) *StateRepo_SetCopiedMessageID_Call {
 	return &StateRepo_SetCopiedMessageID_Call{Call: _e.mock.On("SetCopiedMessageID", chatID, messageID, toChatMessageID)}
 }
 
-func (_c *StateRepo_SetCopiedMessageID_Call) Run(run func(chatID domain.ChatID, messageID domain.MessageID, toChatMessageID string)) *StateRepo_SetCopiedMessageID_Call {
+func (_c *StateRepo_SetCopiedMessageID_Call) Run(run func(chatID int64, messageID int64, toChatMessageID string)) *StateRepo_SetCopiedMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
 		var arg2 string
 		if args[2] != nil {
@@ -696,13 +695,13 @@ func (_c *StateRepo_SetCopiedMessageID_Call) Return(err error) *StateRepo_SetCop
 	return _c
 }
 
-func (_c *StateRepo_SetCopiedMessageID_Call) RunAndReturn(run func(chatID domain.ChatID, messageID domain.MessageID, toChatMessageID string) error) *StateRepo_SetCopiedMessageID_Call {
+func (_c *StateRepo_SetCopiedMessageID_Call) RunAndReturn(run func(chatID int64, messageID int64, toChatMessageID string) error) *StateRepo_SetCopiedMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SetNewMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) SetNewMessageID(chatID domain.ChatID, tmpMessageID domain.MessageID, newMessageID domain.MessageID) error {
+func (_mock *StateRepo) SetNewMessageID(chatID int64, tmpMessageID int64, newMessageID int64) error {
 	ret := _mock.Called(chatID, tmpMessageID, newMessageID)
 
 	if len(ret) == 0 {
@@ -710,7 +709,7 @@ func (_mock *StateRepo) SetNewMessageID(chatID domain.ChatID, tmpMessageID domai
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64, int64) error); ok {
 		r0 = returnFunc(chatID, tmpMessageID, newMessageID)
 	} else {
 		r0 = ret.Error(0)
@@ -724,26 +723,26 @@ type StateRepo_SetNewMessageID_Call struct {
 }
 
 // SetNewMessageID is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - tmpMessageID domain.MessageID
-//   - newMessageID domain.MessageID
+//   - chatID int64
+//   - tmpMessageID int64
+//   - newMessageID int64
 func (_e *StateRepo_Expecter) SetNewMessageID(chatID interface{}, tmpMessageID interface{}, newMessageID interface{}) *StateRepo_SetNewMessageID_Call {
 	return &StateRepo_SetNewMessageID_Call{Call: _e.mock.On("SetNewMessageID", chatID, tmpMessageID, newMessageID)}
 }
 
-func (_c *StateRepo_SetNewMessageID_Call) Run(run func(chatID domain.ChatID, tmpMessageID domain.MessageID, newMessageID domain.MessageID)) *StateRepo_SetNewMessageID_Call {
+func (_c *StateRepo_SetNewMessageID_Call) Run(run func(chatID int64, tmpMessageID int64, newMessageID int64)) *StateRepo_SetNewMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.MessageID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
+			arg2 = args[2].(int64)
 		}
 		run(
 			arg0,
@@ -759,13 +758,13 @@ func (_c *StateRepo_SetNewMessageID_Call) Return(err error) *StateRepo_SetNewMes
 	return _c
 }
 
-func (_c *StateRepo_SetNewMessageID_Call) RunAndReturn(run func(chatID domain.ChatID, tmpMessageID domain.MessageID, newMessageID domain.MessageID) error) *StateRepo_SetNewMessageID_Call {
+func (_c *StateRepo_SetNewMessageID_Call) RunAndReturn(run func(chatID int64, tmpMessageID int64, newMessageID int64) error) *StateRepo_SetNewMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SetTmpMessageID provides a mock function for the type StateRepo
-func (_mock *StateRepo) SetTmpMessageID(chatID domain.ChatID, newMessageID domain.MessageID, tmpMessageID domain.MessageID) error {
+func (_mock *StateRepo) SetTmpMessageID(chatID int64, newMessageID int64, tmpMessageID int64) error {
 	ret := _mock.Called(chatID, newMessageID, tmpMessageID)
 
 	if len(ret) == 0 {
@@ -773,7 +772,7 @@ func (_mock *StateRepo) SetTmpMessageID(chatID domain.ChatID, newMessageID domai
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(domain.ChatID, domain.MessageID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(int64, int64, int64) error); ok {
 		r0 = returnFunc(chatID, newMessageID, tmpMessageID)
 	} else {
 		r0 = ret.Error(0)
@@ -787,26 +786,26 @@ type StateRepo_SetTmpMessageID_Call struct {
 }
 
 // SetTmpMessageID is a helper method to define mock.On call
-//   - chatID domain.ChatID
-//   - newMessageID domain.MessageID
-//   - tmpMessageID domain.MessageID
+//   - chatID int64
+//   - newMessageID int64
+//   - tmpMessageID int64
 func (_e *StateRepo_Expecter) SetTmpMessageID(chatID interface{}, newMessageID interface{}, tmpMessageID interface{}) *StateRepo_SetTmpMessageID_Call {
 	return &StateRepo_SetTmpMessageID_Call{Call: _e.mock.On("SetTmpMessageID", chatID, newMessageID, tmpMessageID)}
 }
 
-func (_c *StateRepo_SetTmpMessageID_Call) Run(run func(chatID domain.ChatID, newMessageID domain.MessageID, tmpMessageID domain.MessageID)) *StateRepo_SetTmpMessageID_Call {
+func (_c *StateRepo_SetTmpMessageID_Call) Run(run func(chatID int64, newMessageID int64, tmpMessageID int64)) *StateRepo_SetTmpMessageID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.ChatID
+		var arg0 int64
 		if args[0] != nil {
-			arg0 = args[0].(domain.ChatID)
+			arg0 = args[0].(int64)
 		}
-		var arg1 domain.MessageID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.MessageID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.MessageID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
+			arg2 = args[2].(int64)
 		}
 		run(
 			arg0,
@@ -822,7 +821,7 @@ func (_c *StateRepo_SetTmpMessageID_Call) Return(err error) *StateRepo_SetTmpMes
 	return _c
 }
 
-func (_c *StateRepo_SetTmpMessageID_Call) RunAndReturn(run func(chatID domain.ChatID, newMessageID domain.MessageID, tmpMessageID domain.MessageID) error) *StateRepo_SetTmpMessageID_Call {
+func (_c *StateRepo_SetTmpMessageID_Call) RunAndReturn(run func(chatID int64, newMessageID int64, tmpMessageID int64) error) *StateRepo_SetTmpMessageID_Call {
 	_c.Call.Return(run)
 	return _c
 }

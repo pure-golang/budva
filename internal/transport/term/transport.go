@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/zelenin/go-tdlib/client"
+
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
@@ -15,10 +17,13 @@ type authService interface {
 	LogOut(ctx context.Context) error
 }
 
+// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// ClientDone — собственный метод Repo (канал lifecycle); GetMe — обёртка clientAdapter.
+// GetOption в TDLib — статическая функция (не метод *client.Client),
+// поэтому в интерфейс не входит и вызывается напрямую в printStatus.
 type telegramRepo interface {
 	ClientDone() <-chan struct{}
-	GetOption(ctx context.Context, name string) (string, error)
-	GetMe(ctx context.Context) (int64, error)
+	GetMe() (*client.User, error)
 }
 
 type termIO interface {
@@ -116,14 +121,20 @@ func (t *Transport) runInputLoop(ctx context.Context) {
 	}
 }
 
-func (t *Transport) printStatus(ctx context.Context) {
-	version, err := t.telegramRepo.GetOption(ctx, "version")
+func (t *Transport) printStatus(_ context.Context) {
+	var version string
+	opt, err := client.GetOption(&client.GetOptionRequest{Name: "version"})
 	if err != nil {
 		t.logger.Error("Failed to get TDLib version", slog.Any("err", err))
+	} else if v, ok := opt.(*client.OptionValueString); ok {
+		version = v.Value
 	}
-	userID, err := t.telegramRepo.GetMe(ctx)
+	var userID int64
+	user, err := t.telegramRepo.GetMe()
 	if err != nil {
 		t.logger.Error("Failed to get user ID", slog.Any("err", err))
+	} else if user != nil {
+		userID = user.Id
 	}
 	t.termIO.Printf("TDLib version: %s, User ID: %d\n", version, userID)
 }

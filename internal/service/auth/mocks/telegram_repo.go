@@ -9,6 +9,7 @@ import (
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 // NewTelegramRepo creates a new instance of TelegramRepo. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -118,20 +119,31 @@ func (_c *TelegramRepo_CleanUp_Call) RunAndReturn(run func()) *TelegramRepo_Clea
 }
 
 // LogOut provides a mock function for the type TelegramRepo
-func (_mock *TelegramRepo) LogOut(ctx context.Context) error {
-	ret := _mock.Called(ctx)
+func (_mock *TelegramRepo) LogOut() (*client.Ok, error) {
+	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for LogOut")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) error); ok {
-		r0 = returnFunc(ctx)
-	} else {
-		r0 = ret.Error(0)
+	var r0 *client.Ok
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func() (*client.Ok, error)); ok {
+		return returnFunc()
 	}
-	return r0
+	if returnFunc, ok := ret.Get(0).(func() *client.Ok); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*client.Ok)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func() error); ok {
+		r1 = returnFunc()
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // TelegramRepo_LogOut_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LogOut'
@@ -140,30 +152,23 @@ type TelegramRepo_LogOut_Call struct {
 }
 
 // LogOut is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *TelegramRepo_Expecter) LogOut(ctx interface{}) *TelegramRepo_LogOut_Call {
-	return &TelegramRepo_LogOut_Call{Call: _e.mock.On("LogOut", ctx)}
+func (_e *TelegramRepo_Expecter) LogOut() *TelegramRepo_LogOut_Call {
+	return &TelegramRepo_LogOut_Call{Call: _e.mock.On("LogOut")}
 }
 
-func (_c *TelegramRepo_LogOut_Call) Run(run func(ctx context.Context)) *TelegramRepo_LogOut_Call {
+func (_c *TelegramRepo_LogOut_Call) Run(run func()) *TelegramRepo_LogOut_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		run(
-			arg0,
-		)
+		run()
 	})
 	return _c
 }
 
-func (_c *TelegramRepo_LogOut_Call) Return(err error) *TelegramRepo_LogOut_Call {
-	_c.Call.Return(err)
+func (_c *TelegramRepo_LogOut_Call) Return(ok *client.Ok, err error) *TelegramRepo_LogOut_Call {
+	_c.Call.Return(ok, err)
 	return _c
 }
 
-func (_c *TelegramRepo_LogOut_Call) RunAndReturn(run func(ctx context.Context) error) *TelegramRepo_LogOut_Call {
+func (_c *TelegramRepo_LogOut_Call) RunAndReturn(run func() (*client.Ok, error)) *TelegramRepo_LogOut_Call {
 	_c.Call.Return(run)
 	return _c
 }

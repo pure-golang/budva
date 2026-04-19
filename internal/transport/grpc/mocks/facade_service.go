@@ -9,6 +9,7 @@ import (
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 // NewFacadeService creates a new instance of FacadeService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -39,7 +40,7 @@ func (_m *FacadeService) EXPECT() *FacadeService_Expecter {
 }
 
 // DeleteMessages provides a mock function for the type FacadeService
-func (_mock *FacadeService) DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) error {
+func (_mock *FacadeService) DeleteMessages(ctx context.Context, chatID int64, messageIDs []int64) error {
 	ret := _mock.Called(ctx, chatID, messageIDs)
 
 	if len(ret) == 0 {
@@ -47,7 +48,7 @@ func (_mock *FacadeService) DeleteMessages(ctx context.Context, chatID domain.Ch
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, []domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, []int64) error); ok {
 		r0 = returnFunc(ctx, chatID, messageIDs)
 	} else {
 		r0 = ret.Error(0)
@@ -62,25 +63,25 @@ type FacadeService_DeleteMessages_Call struct {
 
 // DeleteMessages is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageIDs []domain.MessageID
+//   - chatID int64
+//   - messageIDs []int64
 func (_e *FacadeService_Expecter) DeleteMessages(ctx interface{}, chatID interface{}, messageIDs interface{}) *FacadeService_DeleteMessages_Call {
 	return &FacadeService_DeleteMessages_Call{Call: _e.mock.On("DeleteMessages", ctx, chatID, messageIDs)}
 }
 
-func (_c *FacadeService_DeleteMessages_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID)) *FacadeService_DeleteMessages_Call {
+func (_c *FacadeService_DeleteMessages_Call) Run(run func(ctx context.Context, chatID int64, messageIDs []int64)) *FacadeService_DeleteMessages_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 []domain.MessageID
+		var arg2 []int64
 		if args[2] != nil {
-			arg2 = args[2].([]domain.MessageID)
+			arg2 = args[2].([]int64)
 		}
 		run(
 			arg0,
@@ -96,13 +97,13 @@ func (_c *FacadeService_DeleteMessages_Call) Return(err error) *FacadeService_De
 	return _c
 }
 
-func (_c *FacadeService_DeleteMessages_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) error) *FacadeService_DeleteMessages_Call {
+func (_c *FacadeService_DeleteMessages_Call) RunAndReturn(run func(ctx context.Context, chatID int64, messageIDs []int64) error) *FacadeService_DeleteMessages_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ForwardMessage provides a mock function for the type FacadeService
-func (_mock *FacadeService) ForwardMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) error {
+func (_mock *FacadeService) ForwardMessage(ctx context.Context, chatID int64, messageID int64) error {
 	ret := _mock.Called(ctx, chatID, messageID)
 
 	if len(ret) == 0 {
@@ -110,7 +111,7 @@ func (_mock *FacadeService) ForwardMessage(ctx context.Context, chatID domain.Ch
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
 		r0 = returnFunc(ctx, chatID, messageID)
 	} else {
 		r0 = ret.Error(0)
@@ -125,25 +126,25 @@ type FacadeService_ForwardMessage_Call struct {
 
 // ForwardMessage is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 func (_e *FacadeService_Expecter) ForwardMessage(ctx interface{}, chatID interface{}, messageID interface{}) *FacadeService_ForwardMessage_Call {
 	return &FacadeService_ForwardMessage_Call{Call: _e.mock.On("ForwardMessage", ctx, chatID, messageID)}
 }
 
-func (_c *FacadeService_ForwardMessage_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID)) *FacadeService_ForwardMessage_Call {
+func (_c *FacadeService_ForwardMessage_Call) Run(run func(ctx context.Context, chatID int64, messageID int64)) *FacadeService_ForwardMessage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.MessageID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
+			arg2 = args[2].(int64)
 		}
 		run(
 			arg0,
@@ -159,32 +160,32 @@ func (_c *FacadeService_ForwardMessage_Call) Return(err error) *FacadeService_Fo
 	return _c
 }
 
-func (_c *FacadeService_ForwardMessage_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) error) *FacadeService_ForwardMessage_Call {
+func (_c *FacadeService_ForwardMessage_Call) RunAndReturn(run func(ctx context.Context, chatID int64, messageID int64) error) *FacadeService_ForwardMessage_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetChatHistory provides a mock function for the type FacadeService
-func (_mock *FacadeService) GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error) {
+func (_mock *FacadeService) GetChatHistory(ctx context.Context, chatID int64, fromMessageID int64, offset int32, limit int32) ([]*client.Message, error) {
 	ret := _mock.Called(ctx, chatID, fromMessageID, offset, limit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetChatHistory")
 	}
 
-	var r0 []*domain.Message
+	var r0 []*client.Message
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID, int32, int32) ([]*domain.Message, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, int32, int32) ([]*client.Message, error)); ok {
 		return returnFunc(ctx, chatID, fromMessageID, offset, limit)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID, int32, int32) []*domain.Message); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, int32, int32) []*client.Message); ok {
 		r0 = returnFunc(ctx, chatID, fromMessageID, offset, limit)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*domain.Message)
+			r0 = ret.Get(0).([]*client.Message)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID, domain.MessageID, int32, int32) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64, int32, int32) error); ok {
 		r1 = returnFunc(ctx, chatID, fromMessageID, offset, limit)
 	} else {
 		r1 = ret.Error(1)
@@ -199,27 +200,27 @@ type FacadeService_GetChatHistory_Call struct {
 
 // GetChatHistory is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
-//   - fromMessageID domain.MessageID
+//   - chatID int64
+//   - fromMessageID int64
 //   - offset int32
 //   - limit int32
 func (_e *FacadeService_Expecter) GetChatHistory(ctx interface{}, chatID interface{}, fromMessageID interface{}, offset interface{}, limit interface{}) *FacadeService_GetChatHistory_Call {
 	return &FacadeService_GetChatHistory_Call{Call: _e.mock.On("GetChatHistory", ctx, chatID, fromMessageID, offset, limit)}
 }
 
-func (_c *FacadeService_GetChatHistory_Call) Run(run func(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32)) *FacadeService_GetChatHistory_Call {
+func (_c *FacadeService_GetChatHistory_Call) Run(run func(ctx context.Context, chatID int64, fromMessageID int64, offset int32, limit int32)) *FacadeService_GetChatHistory_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.MessageID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
+			arg2 = args[2].(int64)
 		}
 		var arg3 int32
 		if args[3] != nil {
@@ -240,37 +241,37 @@ func (_c *FacadeService_GetChatHistory_Call) Run(run func(ctx context.Context, c
 	return _c
 }
 
-func (_c *FacadeService_GetChatHistory_Call) Return(messages []*domain.Message, err error) *FacadeService_GetChatHistory_Call {
+func (_c *FacadeService_GetChatHistory_Call) Return(messages []*client.Message, err error) *FacadeService_GetChatHistory_Call {
 	_c.Call.Return(messages, err)
 	return _c
 }
 
-func (_c *FacadeService_GetChatHistory_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error)) *FacadeService_GetChatHistory_Call {
+func (_c *FacadeService_GetChatHistory_Call) RunAndReturn(run func(ctx context.Context, chatID int64, fromMessageID int64, offset int32, limit int32) ([]*client.Message, error)) *FacadeService_GetChatHistory_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetMessage provides a mock function for the type FacadeService
-func (_mock *FacadeService) GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error) {
+func (_mock *FacadeService) GetMessage(ctx context.Context, chatID int64, messageID int64) (*client.Message, error) {
 	ret := _mock.Called(ctx, chatID, messageID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetMessage")
 	}
 
-	var r0 *domain.Message
+	var r0 *client.Message
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID) (*domain.Message, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) (*client.Message, error)); ok {
 		return returnFunc(ctx, chatID, messageID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID) *domain.Message); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) *client.Message); ok {
 		r0 = returnFunc(ctx, chatID, messageID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.Message)
+			r0 = ret.Get(0).(*client.Message)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
 		r1 = returnFunc(ctx, chatID, messageID)
 	} else {
 		r1 = ret.Error(1)
@@ -285,25 +286,25 @@ type FacadeService_GetMessage_Call struct {
 
 // GetMessage is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 func (_e *FacadeService_Expecter) GetMessage(ctx interface{}, chatID interface{}, messageID interface{}) *FacadeService_GetMessage_Call {
 	return &FacadeService_GetMessage_Call{Call: _e.mock.On("GetMessage", ctx, chatID, messageID)}
 }
 
-func (_c *FacadeService_GetMessage_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID)) *FacadeService_GetMessage_Call {
+func (_c *FacadeService_GetMessage_Call) Run(run func(ctx context.Context, chatID int64, messageID int64)) *FacadeService_GetMessage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.MessageID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
+			arg2 = args[2].(int64)
 		}
 		run(
 			arg0,
@@ -314,18 +315,18 @@ func (_c *FacadeService_GetMessage_Call) Run(run func(ctx context.Context, chatI
 	return _c
 }
 
-func (_c *FacadeService_GetMessage_Call) Return(message *domain.Message, err error) *FacadeService_GetMessage_Call {
+func (_c *FacadeService_GetMessage_Call) Return(message *client.Message, err error) *FacadeService_GetMessage_Call {
 	_c.Call.Return(message, err)
 	return _c
 }
 
-func (_c *FacadeService_GetMessage_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)) *FacadeService_GetMessage_Call {
+func (_c *FacadeService_GetMessage_Call) RunAndReturn(run func(ctx context.Context, chatID int64, messageID int64) (*client.Message, error)) *FacadeService_GetMessage_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetMessageLink provides a mock function for the type FacadeService
-func (_mock *FacadeService) GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error) {
+func (_mock *FacadeService) GetMessageLink(ctx context.Context, chatID int64, messageID int64) (string, error) {
 	ret := _mock.Called(ctx, chatID, messageID)
 
 	if len(ret) == 0 {
@@ -334,15 +335,15 @@ func (_mock *FacadeService) GetMessageLink(ctx context.Context, chatID domain.Ch
 
 	var r0 string
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID) (string, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) (string, error)); ok {
 		return returnFunc(ctx, chatID, messageID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID) string); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) string); ok {
 		r0 = returnFunc(ctx, chatID, messageID)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID, domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
 		r1 = returnFunc(ctx, chatID, messageID)
 	} else {
 		r1 = ret.Error(1)
@@ -357,25 +358,25 @@ type FacadeService_GetMessageLink_Call struct {
 
 // GetMessageLink is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 func (_e *FacadeService_Expecter) GetMessageLink(ctx interface{}, chatID interface{}, messageID interface{}) *FacadeService_GetMessageLink_Call {
 	return &FacadeService_GetMessageLink_Call{Call: _e.mock.On("GetMessageLink", ctx, chatID, messageID)}
 }
 
-func (_c *FacadeService_GetMessageLink_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID)) *FacadeService_GetMessageLink_Call {
+func (_c *FacadeService_GetMessageLink_Call) Run(run func(ctx context.Context, chatID int64, messageID int64)) *FacadeService_GetMessageLink_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.MessageID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
+			arg2 = args[2].(int64)
 		}
 		run(
 			arg0,
@@ -391,29 +392,29 @@ func (_c *FacadeService_GetMessageLink_Call) Return(s string, err error) *Facade
 	return _c
 }
 
-func (_c *FacadeService_GetMessageLink_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error)) *FacadeService_GetMessageLink_Call {
+func (_c *FacadeService_GetMessageLink_Call) RunAndReturn(run func(ctx context.Context, chatID int64, messageID int64) (string, error)) *FacadeService_GetMessageLink_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetMessageLinkInfo provides a mock function for the type FacadeService
-func (_mock *FacadeService) GetMessageLinkInfo(ctx context.Context, link string) (*domain.MessageLinkInfo, error) {
+func (_mock *FacadeService) GetMessageLinkInfo(ctx context.Context, link string) (*client.MessageLinkInfo, error) {
 	ret := _mock.Called(ctx, link)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetMessageLinkInfo")
 	}
 
-	var r0 *domain.MessageLinkInfo
+	var r0 *client.MessageLinkInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*domain.MessageLinkInfo, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*client.MessageLinkInfo, error)); ok {
 		return returnFunc(ctx, link)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *domain.MessageLinkInfo); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *client.MessageLinkInfo); ok {
 		r0 = returnFunc(ctx, link)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.MessageLinkInfo)
+			r0 = ret.Get(0).(*client.MessageLinkInfo)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
@@ -454,37 +455,37 @@ func (_c *FacadeService_GetMessageLinkInfo_Call) Run(run func(ctx context.Contex
 	return _c
 }
 
-func (_c *FacadeService_GetMessageLinkInfo_Call) Return(messageLinkInfo *domain.MessageLinkInfo, err error) *FacadeService_GetMessageLinkInfo_Call {
+func (_c *FacadeService_GetMessageLinkInfo_Call) Return(messageLinkInfo *client.MessageLinkInfo, err error) *FacadeService_GetMessageLinkInfo_Call {
 	_c.Call.Return(messageLinkInfo, err)
 	return _c
 }
 
-func (_c *FacadeService_GetMessageLinkInfo_Call) RunAndReturn(run func(ctx context.Context, link string) (*domain.MessageLinkInfo, error)) *FacadeService_GetMessageLinkInfo_Call {
+func (_c *FacadeService_GetMessageLinkInfo_Call) RunAndReturn(run func(ctx context.Context, link string) (*client.MessageLinkInfo, error)) *FacadeService_GetMessageLinkInfo_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetMessages provides a mock function for the type FacadeService
-func (_mock *FacadeService) GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error) {
+func (_mock *FacadeService) GetMessages(ctx context.Context, chatID int64, messageIDs []int64) ([]*client.Message, error) {
 	ret := _mock.Called(ctx, chatID, messageIDs)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetMessages")
 	}
 
-	var r0 []*domain.Message
+	var r0 []*client.Message
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, []domain.MessageID) ([]*domain.Message, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, []int64) ([]*client.Message, error)); ok {
 		return returnFunc(ctx, chatID, messageIDs)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, []domain.MessageID) []*domain.Message); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, []int64) []*client.Message); ok {
 		r0 = returnFunc(ctx, chatID, messageIDs)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*domain.Message)
+			r0 = ret.Get(0).([]*client.Message)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID, []domain.MessageID) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, []int64) error); ok {
 		r1 = returnFunc(ctx, chatID, messageIDs)
 	} else {
 		r1 = ret.Error(1)
@@ -499,25 +500,25 @@ type FacadeService_GetMessages_Call struct {
 
 // GetMessages is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageIDs []domain.MessageID
+//   - chatID int64
+//   - messageIDs []int64
 func (_e *FacadeService_Expecter) GetMessages(ctx interface{}, chatID interface{}, messageIDs interface{}) *FacadeService_GetMessages_Call {
 	return &FacadeService_GetMessages_Call{Call: _e.mock.On("GetMessages", ctx, chatID, messageIDs)}
 }
 
-func (_c *FacadeService_GetMessages_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID)) *FacadeService_GetMessages_Call {
+func (_c *FacadeService_GetMessages_Call) Run(run func(ctx context.Context, chatID int64, messageIDs []int64)) *FacadeService_GetMessages_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 []domain.MessageID
+		var arg2 []int64
 		if args[2] != nil {
-			arg2 = args[2].([]domain.MessageID)
+			arg2 = args[2].([]int64)
 		}
 		run(
 			arg0,
@@ -528,18 +529,18 @@ func (_c *FacadeService_GetMessages_Call) Run(run func(ctx context.Context, chat
 	return _c
 }
 
-func (_c *FacadeService_GetMessages_Call) Return(messages []*domain.Message, err error) *FacadeService_GetMessages_Call {
+func (_c *FacadeService_GetMessages_Call) Return(messages []*client.Message, err error) *FacadeService_GetMessages_Call {
 	_c.Call.Return(messages, err)
 	return _c
 }
 
-func (_c *FacadeService_GetMessages_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)) *FacadeService_GetMessages_Call {
+func (_c *FacadeService_GetMessages_Call) RunAndReturn(run func(ctx context.Context, chatID int64, messageIDs []int64) ([]*client.Message, error)) *FacadeService_GetMessages_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SendMessage provides a mock function for the type FacadeService
-func (_mock *FacadeService) SendMessage(ctx context.Context, chatID domain.ChatID, text string) error {
+func (_mock *FacadeService) SendMessage(ctx context.Context, chatID int64, text string) error {
 	ret := _mock.Called(ctx, chatID, text)
 
 	if len(ret) == 0 {
@@ -547,7 +548,7 @@ func (_mock *FacadeService) SendMessage(ctx context.Context, chatID domain.ChatI
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, string) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) error); ok {
 		r0 = returnFunc(ctx, chatID, text)
 	} else {
 		r0 = ret.Error(0)
@@ -562,21 +563,21 @@ type FacadeService_SendMessage_Call struct {
 
 // SendMessage is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
+//   - chatID int64
 //   - text string
 func (_e *FacadeService_Expecter) SendMessage(ctx interface{}, chatID interface{}, text interface{}) *FacadeService_SendMessage_Call {
 	return &FacadeService_SendMessage_Call{Call: _e.mock.On("SendMessage", ctx, chatID, text)}
 }
 
-func (_c *FacadeService_SendMessage_Call) Run(run func(ctx context.Context, chatID domain.ChatID, text string)) *FacadeService_SendMessage_Call {
+func (_c *FacadeService_SendMessage_Call) Run(run func(ctx context.Context, chatID int64, text string)) *FacadeService_SendMessage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
 		var arg2 string
 		if args[2] != nil {
@@ -596,13 +597,13 @@ func (_c *FacadeService_SendMessage_Call) Return(err error) *FacadeService_SendM
 	return _c
 }
 
-func (_c *FacadeService_SendMessage_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, text string) error) *FacadeService_SendMessage_Call {
+func (_c *FacadeService_SendMessage_Call) RunAndReturn(run func(ctx context.Context, chatID int64, text string) error) *FacadeService_SendMessage_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SendMessageAlbum provides a mock function for the type FacadeService
-func (_mock *FacadeService) SendMessageAlbum(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem) error {
+func (_mock *FacadeService) SendMessageAlbum(ctx context.Context, chatID int64, items []domain.AlbumItem) error {
 	ret := _mock.Called(ctx, chatID, items)
 
 	if len(ret) == 0 {
@@ -610,7 +611,7 @@ func (_mock *FacadeService) SendMessageAlbum(ctx context.Context, chatID domain.
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, []domain.AlbumItem) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, []domain.AlbumItem) error); ok {
 		r0 = returnFunc(ctx, chatID, items)
 	} else {
 		r0 = ret.Error(0)
@@ -625,21 +626,21 @@ type FacadeService_SendMessageAlbum_Call struct {
 
 // SendMessageAlbum is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
+//   - chatID int64
 //   - items []domain.AlbumItem
 func (_e *FacadeService_Expecter) SendMessageAlbum(ctx interface{}, chatID interface{}, items interface{}) *FacadeService_SendMessageAlbum_Call {
 	return &FacadeService_SendMessageAlbum_Call{Call: _e.mock.On("SendMessageAlbum", ctx, chatID, items)}
 }
 
-func (_c *FacadeService_SendMessageAlbum_Call) Run(run func(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem)) *FacadeService_SendMessageAlbum_Call {
+func (_c *FacadeService_SendMessageAlbum_Call) Run(run func(ctx context.Context, chatID int64, items []domain.AlbumItem)) *FacadeService_SendMessageAlbum_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
 		var arg2 []domain.AlbumItem
 		if args[2] != nil {
@@ -659,13 +660,13 @@ func (_c *FacadeService_SendMessageAlbum_Call) Return(err error) *FacadeService_
 	return _c
 }
 
-func (_c *FacadeService_SendMessageAlbum_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem) error) *FacadeService_SendMessageAlbum_Call {
+func (_c *FacadeService_SendMessageAlbum_Call) RunAndReturn(run func(ctx context.Context, chatID int64, items []domain.AlbumItem) error) *FacadeService_SendMessageAlbum_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateMessage provides a mock function for the type FacadeService
-func (_mock *FacadeService) UpdateMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text string) error {
+func (_mock *FacadeService) UpdateMessage(ctx context.Context, chatID int64, messageID int64, text string) error {
 	ret := _mock.Called(ctx, chatID, messageID, text)
 
 	if len(ret) == 0 {
@@ -673,7 +674,7 @@ func (_mock *FacadeService) UpdateMessage(ctx context.Context, chatID domain.Cha
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID, string) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, string) error); ok {
 		r0 = returnFunc(ctx, chatID, messageID, text)
 	} else {
 		r0 = ret.Error(0)
@@ -688,26 +689,26 @@ type FacadeService_UpdateMessage_Call struct {
 
 // UpdateMessage is a helper method to define mock.On call
 //   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
+//   - chatID int64
+//   - messageID int64
 //   - text string
 func (_e *FacadeService_Expecter) UpdateMessage(ctx interface{}, chatID interface{}, messageID interface{}, text interface{}) *FacadeService_UpdateMessage_Call {
 	return &FacadeService_UpdateMessage_Call{Call: _e.mock.On("UpdateMessage", ctx, chatID, messageID, text)}
 }
 
-func (_c *FacadeService_UpdateMessage_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text string)) *FacadeService_UpdateMessage_Call {
+func (_c *FacadeService_UpdateMessage_Call) Run(run func(ctx context.Context, chatID int64, messageID int64, text string)) *FacadeService_UpdateMessage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 domain.ChatID
+		var arg1 int64
 		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg1 = args[1].(int64)
 		}
-		var arg2 domain.MessageID
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
+			arg2 = args[2].(int64)
 		}
 		var arg3 string
 		if args[3] != nil {
@@ -728,7 +729,7 @@ func (_c *FacadeService_UpdateMessage_Call) Return(err error) *FacadeService_Upd
 	return _c
 }
 
-func (_c *FacadeService_UpdateMessage_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text string) error) *FacadeService_UpdateMessage_Call {
+func (_c *FacadeService_UpdateMessage_Call) RunAndReturn(run func(ctx context.Context, chatID int64, messageID int64, text string) error) *FacadeService_UpdateMessage_Call {
 	_c.Call.Return(run)
 	return _c
 }

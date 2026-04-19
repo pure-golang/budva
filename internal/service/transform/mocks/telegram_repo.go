@@ -5,10 +5,8 @@
 package mocks
 
 import (
-	"context"
-
-	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 // NewTelegramRepo creates a new instance of TelegramRepo. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -39,25 +37,27 @@ func (_m *TelegramRepo) EXPECT() *TelegramRepo_Expecter {
 }
 
 // GetCallbackQueryAnswer provides a mock function for the type TelegramRepo
-func (_mock *TelegramRepo) GetCallbackQueryAnswer(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, data []byte) (string, error) {
-	ret := _mock.Called(ctx, chatID, messageID, data)
+func (_mock *TelegramRepo) GetCallbackQueryAnswer(getCallbackQueryAnswerRequest *client.GetCallbackQueryAnswerRequest) (*client.CallbackQueryAnswer, error) {
+	ret := _mock.Called(getCallbackQueryAnswerRequest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetCallbackQueryAnswer")
 	}
 
-	var r0 string
+	var r0 *client.CallbackQueryAnswer
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID, []byte) (string, error)); ok {
-		return returnFunc(ctx, chatID, messageID, data)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetCallbackQueryAnswerRequest) (*client.CallbackQueryAnswer, error)); ok {
+		return returnFunc(getCallbackQueryAnswerRequest)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID, []byte) string); ok {
-		r0 = returnFunc(ctx, chatID, messageID, data)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetCallbackQueryAnswerRequest) *client.CallbackQueryAnswer); ok {
+		r0 = returnFunc(getCallbackQueryAnswerRequest)
 	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*client.CallbackQueryAnswer)
+		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID, domain.MessageID, []byte) error); ok {
-		r1 = returnFunc(ctx, chatID, messageID, data)
+	if returnFunc, ok := ret.Get(1).(func(*client.GetCallbackQueryAnswerRequest) error); ok {
+		r1 = returnFunc(getCallbackQueryAnswerRequest)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -70,138 +70,118 @@ type TelegramRepo_GetCallbackQueryAnswer_Call struct {
 }
 
 // GetCallbackQueryAnswer is a helper method to define mock.On call
-//   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
-//   - data []byte
-func (_e *TelegramRepo_Expecter) GetCallbackQueryAnswer(ctx interface{}, chatID interface{}, messageID interface{}, data interface{}) *TelegramRepo_GetCallbackQueryAnswer_Call {
-	return &TelegramRepo_GetCallbackQueryAnswer_Call{Call: _e.mock.On("GetCallbackQueryAnswer", ctx, chatID, messageID, data)}
+//   - getCallbackQueryAnswerRequest *client.GetCallbackQueryAnswerRequest
+func (_e *TelegramRepo_Expecter) GetCallbackQueryAnswer(getCallbackQueryAnswerRequest interface{}) *TelegramRepo_GetCallbackQueryAnswer_Call {
+	return &TelegramRepo_GetCallbackQueryAnswer_Call{Call: _e.mock.On("GetCallbackQueryAnswer", getCallbackQueryAnswerRequest)}
 }
 
-func (_c *TelegramRepo_GetCallbackQueryAnswer_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, data []byte)) *TelegramRepo_GetCallbackQueryAnswer_Call {
+func (_c *TelegramRepo_GetCallbackQueryAnswer_Call) Run(run func(getCallbackQueryAnswerRequest *client.GetCallbackQueryAnswerRequest)) *TelegramRepo_GetCallbackQueryAnswer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 *client.GetCallbackQueryAnswerRequest
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 domain.ChatID
-		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
-		}
-		var arg2 domain.MessageID
-		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
-		}
-		var arg3 []byte
-		if args[3] != nil {
-			arg3 = args[3].([]byte)
+			arg0 = args[0].(*client.GetCallbackQueryAnswerRequest)
 		}
 		run(
 			arg0,
-			arg1,
-			arg2,
-			arg3,
 		)
 	})
 	return _c
 }
 
-func (_c *TelegramRepo_GetCallbackQueryAnswer_Call) Return(s string, err error) *TelegramRepo_GetCallbackQueryAnswer_Call {
-	_c.Call.Return(s, err)
+func (_c *TelegramRepo_GetCallbackQueryAnswer_Call) Return(callbackQueryAnswer *client.CallbackQueryAnswer, err error) *TelegramRepo_GetCallbackQueryAnswer_Call {
+	_c.Call.Return(callbackQueryAnswer, err)
 	return _c
 }
 
-func (_c *TelegramRepo_GetCallbackQueryAnswer_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, data []byte) (string, error)) *TelegramRepo_GetCallbackQueryAnswer_Call {
+func (_c *TelegramRepo_GetCallbackQueryAnswer_Call) RunAndReturn(run func(getCallbackQueryAnswerRequest *client.GetCallbackQueryAnswerRequest) (*client.CallbackQueryAnswer, error)) *TelegramRepo_GetCallbackQueryAnswer_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetChatType provides a mock function for the type TelegramRepo
-func (_mock *TelegramRepo) GetChatType(ctx context.Context, chatID domain.ChatID) (string, error) {
-	ret := _mock.Called(ctx, chatID)
+// GetChat provides a mock function for the type TelegramRepo
+func (_mock *TelegramRepo) GetChat(getChatRequest *client.GetChatRequest) (*client.Chat, error) {
+	ret := _mock.Called(getChatRequest)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetChatType")
+		panic("no return value specified for GetChat")
 	}
 
-	var r0 string
+	var r0 *client.Chat
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID) (string, error)); ok {
-		return returnFunc(ctx, chatID)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetChatRequest) (*client.Chat, error)); ok {
+		return returnFunc(getChatRequest)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID) string); ok {
-		r0 = returnFunc(ctx, chatID)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetChatRequest) *client.Chat); ok {
+		r0 = returnFunc(getChatRequest)
 	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*client.Chat)
+		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID) error); ok {
-		r1 = returnFunc(ctx, chatID)
+	if returnFunc, ok := ret.Get(1).(func(*client.GetChatRequest) error); ok {
+		r1 = returnFunc(getChatRequest)
 	} else {
 		r1 = ret.Error(1)
 	}
 	return r0, r1
 }
 
-// TelegramRepo_GetChatType_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetChatType'
-type TelegramRepo_GetChatType_Call struct {
+// TelegramRepo_GetChat_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetChat'
+type TelegramRepo_GetChat_Call struct {
 	*mock.Call
 }
 
-// GetChatType is a helper method to define mock.On call
-//   - ctx context.Context
-//   - chatID domain.ChatID
-func (_e *TelegramRepo_Expecter) GetChatType(ctx interface{}, chatID interface{}) *TelegramRepo_GetChatType_Call {
-	return &TelegramRepo_GetChatType_Call{Call: _e.mock.On("GetChatType", ctx, chatID)}
+// GetChat is a helper method to define mock.On call
+//   - getChatRequest *client.GetChatRequest
+func (_e *TelegramRepo_Expecter) GetChat(getChatRequest interface{}) *TelegramRepo_GetChat_Call {
+	return &TelegramRepo_GetChat_Call{Call: _e.mock.On("GetChat", getChatRequest)}
 }
 
-func (_c *TelegramRepo_GetChatType_Call) Run(run func(ctx context.Context, chatID domain.ChatID)) *TelegramRepo_GetChatType_Call {
+func (_c *TelegramRepo_GetChat_Call) Run(run func(getChatRequest *client.GetChatRequest)) *TelegramRepo_GetChat_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 *client.GetChatRequest
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 domain.ChatID
-		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
+			arg0 = args[0].(*client.GetChatRequest)
 		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *TelegramRepo_GetChatType_Call) Return(s string, err error) *TelegramRepo_GetChatType_Call {
-	_c.Call.Return(s, err)
+func (_c *TelegramRepo_GetChat_Call) Return(chat *client.Chat, err error) *TelegramRepo_GetChat_Call {
+	_c.Call.Return(chat, err)
 	return _c
 }
 
-func (_c *TelegramRepo_GetChatType_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID) (string, error)) *TelegramRepo_GetChatType_Call {
+func (_c *TelegramRepo_GetChat_Call) RunAndReturn(run func(getChatRequest *client.GetChatRequest) (*client.Chat, error)) *TelegramRepo_GetChat_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetMessageLink provides a mock function for the type TelegramRepo
-func (_mock *TelegramRepo) GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error) {
-	ret := _mock.Called(ctx, chatID, messageID, forAlbum)
+func (_mock *TelegramRepo) GetMessageLink(getMessageLinkRequest *client.GetMessageLinkRequest) (*client.MessageLink, error) {
+	ret := _mock.Called(getMessageLinkRequest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetMessageLink")
 	}
 
-	var r0 string
+	var r0 *client.MessageLink
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID, bool) (string, error)); ok {
-		return returnFunc(ctx, chatID, messageID, forAlbum)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetMessageLinkRequest) (*client.MessageLink, error)); ok {
+		return returnFunc(getMessageLinkRequest)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.ChatID, domain.MessageID, bool) string); ok {
-		r0 = returnFunc(ctx, chatID, messageID, forAlbum)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetMessageLinkRequest) *client.MessageLink); ok {
+		r0 = returnFunc(getMessageLinkRequest)
 	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*client.MessageLink)
+		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.ChatID, domain.MessageID, bool) error); ok {
-		r1 = returnFunc(ctx, chatID, messageID, forAlbum)
+	if returnFunc, ok := ret.Get(1).(func(*client.GetMessageLinkRequest) error); ok {
+		r1 = returnFunc(getMessageLinkRequest)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -214,74 +194,56 @@ type TelegramRepo_GetMessageLink_Call struct {
 }
 
 // GetMessageLink is a helper method to define mock.On call
-//   - ctx context.Context
-//   - chatID domain.ChatID
-//   - messageID domain.MessageID
-//   - forAlbum bool
-func (_e *TelegramRepo_Expecter) GetMessageLink(ctx interface{}, chatID interface{}, messageID interface{}, forAlbum interface{}) *TelegramRepo_GetMessageLink_Call {
-	return &TelegramRepo_GetMessageLink_Call{Call: _e.mock.On("GetMessageLink", ctx, chatID, messageID, forAlbum)}
+//   - getMessageLinkRequest *client.GetMessageLinkRequest
+func (_e *TelegramRepo_Expecter) GetMessageLink(getMessageLinkRequest interface{}) *TelegramRepo_GetMessageLink_Call {
+	return &TelegramRepo_GetMessageLink_Call{Call: _e.mock.On("GetMessageLink", getMessageLinkRequest)}
 }
 
-func (_c *TelegramRepo_GetMessageLink_Call) Run(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool)) *TelegramRepo_GetMessageLink_Call {
+func (_c *TelegramRepo_GetMessageLink_Call) Run(run func(getMessageLinkRequest *client.GetMessageLinkRequest)) *TelegramRepo_GetMessageLink_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 *client.GetMessageLinkRequest
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 domain.ChatID
-		if args[1] != nil {
-			arg1 = args[1].(domain.ChatID)
-		}
-		var arg2 domain.MessageID
-		if args[2] != nil {
-			arg2 = args[2].(domain.MessageID)
-		}
-		var arg3 bool
-		if args[3] != nil {
-			arg3 = args[3].(bool)
+			arg0 = args[0].(*client.GetMessageLinkRequest)
 		}
 		run(
 			arg0,
-			arg1,
-			arg2,
-			arg3,
 		)
 	})
 	return _c
 }
 
-func (_c *TelegramRepo_GetMessageLink_Call) Return(s string, err error) *TelegramRepo_GetMessageLink_Call {
-	_c.Call.Return(s, err)
+func (_c *TelegramRepo_GetMessageLink_Call) Return(messageLink *client.MessageLink, err error) *TelegramRepo_GetMessageLink_Call {
+	_c.Call.Return(messageLink, err)
 	return _c
 }
 
-func (_c *TelegramRepo_GetMessageLink_Call) RunAndReturn(run func(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error)) *TelegramRepo_GetMessageLink_Call {
+func (_c *TelegramRepo_GetMessageLink_Call) RunAndReturn(run func(getMessageLinkRequest *client.GetMessageLinkRequest) (*client.MessageLink, error)) *TelegramRepo_GetMessageLink_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetMessageLinkInfo provides a mock function for the type TelegramRepo
-func (_mock *TelegramRepo) GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error) {
-	ret := _mock.Called(ctx, url)
+func (_mock *TelegramRepo) GetMessageLinkInfo(getMessageLinkInfoRequest *client.GetMessageLinkInfoRequest) (*client.MessageLinkInfo, error) {
+	ret := _mock.Called(getMessageLinkInfoRequest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetMessageLinkInfo")
 	}
 
-	var r0 *domain.MessageLinkInfo
+	var r0 *client.MessageLinkInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*domain.MessageLinkInfo, error)); ok {
-		return returnFunc(ctx, url)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetMessageLinkInfoRequest) (*client.MessageLinkInfo, error)); ok {
+		return returnFunc(getMessageLinkInfoRequest)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *domain.MessageLinkInfo); ok {
-		r0 = returnFunc(ctx, url)
+	if returnFunc, ok := ret.Get(0).(func(*client.GetMessageLinkInfoRequest) *client.MessageLinkInfo); ok {
+		r0 = returnFunc(getMessageLinkInfoRequest)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.MessageLinkInfo)
+			r0 = ret.Get(0).(*client.MessageLinkInfo)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, url)
+	if returnFunc, ok := ret.Get(1).(func(*client.GetMessageLinkInfoRequest) error); ok {
+		r1 = returnFunc(getMessageLinkInfoRequest)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -294,130 +256,56 @@ type TelegramRepo_GetMessageLinkInfo_Call struct {
 }
 
 // GetMessageLinkInfo is a helper method to define mock.On call
-//   - ctx context.Context
-//   - url string
-func (_e *TelegramRepo_Expecter) GetMessageLinkInfo(ctx interface{}, url interface{}) *TelegramRepo_GetMessageLinkInfo_Call {
-	return &TelegramRepo_GetMessageLinkInfo_Call{Call: _e.mock.On("GetMessageLinkInfo", ctx, url)}
+//   - getMessageLinkInfoRequest *client.GetMessageLinkInfoRequest
+func (_e *TelegramRepo_Expecter) GetMessageLinkInfo(getMessageLinkInfoRequest interface{}) *TelegramRepo_GetMessageLinkInfo_Call {
+	return &TelegramRepo_GetMessageLinkInfo_Call{Call: _e.mock.On("GetMessageLinkInfo", getMessageLinkInfoRequest)}
 }
 
-func (_c *TelegramRepo_GetMessageLinkInfo_Call) Run(run func(ctx context.Context, url string)) *TelegramRepo_GetMessageLinkInfo_Call {
+func (_c *TelegramRepo_GetMessageLinkInfo_Call) Run(run func(getMessageLinkInfoRequest *client.GetMessageLinkInfoRequest)) *TelegramRepo_GetMessageLinkInfo_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 *client.GetMessageLinkInfoRequest
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
+			arg0 = args[0].(*client.GetMessageLinkInfoRequest)
 		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *TelegramRepo_GetMessageLinkInfo_Call) Return(messageLinkInfo *domain.MessageLinkInfo, err error) *TelegramRepo_GetMessageLinkInfo_Call {
+func (_c *TelegramRepo_GetMessageLinkInfo_Call) Return(messageLinkInfo *client.MessageLinkInfo, err error) *TelegramRepo_GetMessageLinkInfo_Call {
 	_c.Call.Return(messageLinkInfo, err)
 	return _c
 }
 
-func (_c *TelegramRepo_GetMessageLinkInfo_Call) RunAndReturn(run func(ctx context.Context, url string) (*domain.MessageLinkInfo, error)) *TelegramRepo_GetMessageLinkInfo_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ParseTextEntities provides a mock function for the type TelegramRepo
-func (_mock *TelegramRepo) ParseTextEntities(ctx context.Context, text string) (*domain.FormattedText, error) {
-	ret := _mock.Called(ctx, text)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ParseTextEntities")
-	}
-
-	var r0 *domain.FormattedText
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*domain.FormattedText, error)); ok {
-		return returnFunc(ctx, text)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *domain.FormattedText); ok {
-		r0 = returnFunc(ctx, text)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.FormattedText)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, text)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// TelegramRepo_ParseTextEntities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ParseTextEntities'
-type TelegramRepo_ParseTextEntities_Call struct {
-	*mock.Call
-}
-
-// ParseTextEntities is a helper method to define mock.On call
-//   - ctx context.Context
-//   - text string
-func (_e *TelegramRepo_Expecter) ParseTextEntities(ctx interface{}, text interface{}) *TelegramRepo_ParseTextEntities_Call {
-	return &TelegramRepo_ParseTextEntities_Call{Call: _e.mock.On("ParseTextEntities", ctx, text)}
-}
-
-func (_c *TelegramRepo_ParseTextEntities_Call) Run(run func(ctx context.Context, text string)) *TelegramRepo_ParseTextEntities_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *TelegramRepo_ParseTextEntities_Call) Return(formattedText *domain.FormattedText, err error) *TelegramRepo_ParseTextEntities_Call {
-	_c.Call.Return(formattedText, err)
-	return _c
-}
-
-func (_c *TelegramRepo_ParseTextEntities_Call) RunAndReturn(run func(ctx context.Context, text string) (*domain.FormattedText, error)) *TelegramRepo_ParseTextEntities_Call {
+func (_c *TelegramRepo_GetMessageLinkInfo_Call) RunAndReturn(run func(getMessageLinkInfoRequest *client.GetMessageLinkInfoRequest) (*client.MessageLinkInfo, error)) *TelegramRepo_GetMessageLinkInfo_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // TranslateText provides a mock function for the type TelegramRepo
-func (_mock *TelegramRepo) TranslateText(ctx context.Context, text *domain.FormattedText, lang string) (*domain.FormattedText, error) {
-	ret := _mock.Called(ctx, text, lang)
+func (_mock *TelegramRepo) TranslateText(translateTextRequest *client.TranslateTextRequest) (*client.FormattedText, error) {
+	ret := _mock.Called(translateTextRequest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for TranslateText")
 	}
 
-	var r0 *domain.FormattedText
+	var r0 *client.FormattedText
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *domain.FormattedText, string) (*domain.FormattedText, error)); ok {
-		return returnFunc(ctx, text, lang)
+	if returnFunc, ok := ret.Get(0).(func(*client.TranslateTextRequest) (*client.FormattedText, error)); ok {
+		return returnFunc(translateTextRequest)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *domain.FormattedText, string) *domain.FormattedText); ok {
-		r0 = returnFunc(ctx, text, lang)
+	if returnFunc, ok := ret.Get(0).(func(*client.TranslateTextRequest) *client.FormattedText); ok {
+		r0 = returnFunc(translateTextRequest)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.FormattedText)
+			r0 = ret.Get(0).(*client.FormattedText)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *domain.FormattedText, string) error); ok {
-		r1 = returnFunc(ctx, text, lang)
+	if returnFunc, ok := ret.Get(1).(func(*client.TranslateTextRequest) error); ok {
+		r1 = returnFunc(translateTextRequest)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -430,42 +318,30 @@ type TelegramRepo_TranslateText_Call struct {
 }
 
 // TranslateText is a helper method to define mock.On call
-//   - ctx context.Context
-//   - text *domain.FormattedText
-//   - lang string
-func (_e *TelegramRepo_Expecter) TranslateText(ctx interface{}, text interface{}, lang interface{}) *TelegramRepo_TranslateText_Call {
-	return &TelegramRepo_TranslateText_Call{Call: _e.mock.On("TranslateText", ctx, text, lang)}
+//   - translateTextRequest *client.TranslateTextRequest
+func (_e *TelegramRepo_Expecter) TranslateText(translateTextRequest interface{}) *TelegramRepo_TranslateText_Call {
+	return &TelegramRepo_TranslateText_Call{Call: _e.mock.On("TranslateText", translateTextRequest)}
 }
 
-func (_c *TelegramRepo_TranslateText_Call) Run(run func(ctx context.Context, text *domain.FormattedText, lang string)) *TelegramRepo_TranslateText_Call {
+func (_c *TelegramRepo_TranslateText_Call) Run(run func(translateTextRequest *client.TranslateTextRequest)) *TelegramRepo_TranslateText_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 *client.TranslateTextRequest
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 *domain.FormattedText
-		if args[1] != nil {
-			arg1 = args[1].(*domain.FormattedText)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
+			arg0 = args[0].(*client.TranslateTextRequest)
 		}
 		run(
 			arg0,
-			arg1,
-			arg2,
 		)
 	})
 	return _c
 }
 
-func (_c *TelegramRepo_TranslateText_Call) Return(formattedText *domain.FormattedText, err error) *TelegramRepo_TranslateText_Call {
+func (_c *TelegramRepo_TranslateText_Call) Return(formattedText *client.FormattedText, err error) *TelegramRepo_TranslateText_Call {
 	_c.Call.Return(formattedText, err)
 	return _c
 }
 
-func (_c *TelegramRepo_TranslateText_Call) RunAndReturn(run func(ctx context.Context, text *domain.FormattedText, lang string) (*domain.FormattedText, error)) *TelegramRepo_TranslateText_Call {
+func (_c *TelegramRepo_TranslateText_Call) RunAndReturn(run func(translateTextRequest *client.TranslateTextRequest) (*client.FormattedText, error)) *TelegramRepo_TranslateText_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -4,24 +4,28 @@ import (
 	"context"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
+
+	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	dtogql "github.com/pure-golang/budva-claude/internal/dto/graphql"
 )
 
+// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// Обёртки clientAdapter с raw-TDLib сигнатурами.
 type telegramRepo interface {
-	GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error)
-	GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset int32, limit int32) ([]*domain.Message, error)
-	SendMessage(ctx context.Context, chatID domain.ChatID, content domain.InputMessageContent) (domain.MessageID, error)
-	SendMessageAlbum(ctx context.Context, chatID domain.ChatID, contents []domain.InputMessageContent) ([]domain.MessageID, error)
-	ForwardMessages(ctx context.Context, fromChatID domain.ChatID, toChatID domain.ChatID, messageIDs []domain.MessageID) ([]domain.MessageID, error)
-	EditMessageText(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text *domain.FormattedText) error
-	DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID, revoke bool) error
-	GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, forAlbum bool) (string, error)
-	GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error)
-	GetMessageLinkInfo(ctx context.Context, url string) (*domain.MessageLinkInfo, error)
-	GetOption(ctx context.Context, name string) (string, error)
-	GetMe(ctx context.Context) (int64, error)
+	GetMessage(*client.GetMessageRequest) (*client.Message, error)
+	GetChatHistory(*client.GetChatHistoryRequest) (*client.Messages, error)
+	SendMessage(*client.SendMessageRequest) (*client.Message, error)
+	SendMessageAlbum(*client.SendMessageAlbumRequest) (*client.Messages, error)
+	ForwardMessages(*client.ForwardMessagesRequest) (*client.Messages, error)
+	EditMessageText(*client.EditMessageTextRequest) (*client.Message, error)
+	DeleteMessages(*client.DeleteMessagesRequest) (*client.Ok, error)
+	GetMessageLink(*client.GetMessageLinkRequest) (*client.MessageLink, error)
+	GetMessages(*client.GetMessagesRequest) (*client.Messages, error)
+	GetMessageLinkInfo(*client.GetMessageLinkInfoRequest) (*client.MessageLinkInfo, error)
+	GetMe() (*client.User, error)
 }
 
 // Service реализует фасад для внешнего доступа к Telegram.
@@ -31,80 +35,139 @@ type Service struct {
 
 // New создаёт новый экземпляр фасада.
 func New(telegramRepo telegramRepo) *Service {
-	return &Service{
-		telegramRepo: telegramRepo,
-	}
+	return &Service{telegramRepo: telegramRepo}
 }
 
 // GetMessage возвращает сообщение по ID.
-func (s *Service) GetMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (*domain.Message, error) {
-	return s.telegramRepo.GetMessage(ctx, chatID, messageID)
+func (s *Service) GetMessage(_ context.Context, chatID int64, messageID int64) (*client.Message, error) {
+	return s.telegramRepo.GetMessage(&client.GetMessageRequest{ChatId: chatID, MessageId: messageID})
 }
 
 // SendMessage отправляет текстовое сообщение.
-func (s *Service) SendMessage(ctx context.Context, chatID domain.ChatID, text string) error {
-	content := domain.InputMessageContent{
-		Type: domain.ContentText,
-		Text: &domain.FormattedText{Text: text},
-	}
-	_, err := s.telegramRepo.SendMessage(ctx, chatID, content)
+func (s *Service) SendMessage(_ context.Context, chatID int64, text string) error {
+	_, err := s.telegramRepo.SendMessage(&client.SendMessageRequest{
+		ChatId: chatID,
+		InputMessageContent: &client.InputMessageText{
+			Text: &client.FormattedText{Text: text},
+		},
+	})
 	return err
 }
 
 // SendMessageAlbum отправляет несколько сообщений как альбом.
-func (s *Service) SendMessageAlbum(ctx context.Context, chatID domain.ChatID, items []domain.AlbumItem) error {
-	contents := make([]domain.InputMessageContent, 0, len(items))
+// ContentType определяется по расширению файла; без FilePath — отправляется как текст.
+func (s *Service) SendMessageAlbum(_ context.Context, chatID int64, items []domain.AlbumItem) error {
+	contents := make([]client.InputMessageContent, 0, len(items))
 	for _, item := range items {
-		content := domain.InputMessageContent{
-			Text: &domain.FormattedText{Text: item.Text},
+		caption := &client.FormattedText{Text: item.Text}
+		if item.FilePath == "" {
+			contents = append(contents, &client.InputMessageText{Text: caption})
+			continue
 		}
-		if item.FilePath != "" {
-			content.Type = domain.ContentTypeByFileExt(filepath.Ext(item.FilePath))
-			content.FilePath = item.FilePath
-		} else {
-			content.Type = domain.ContentText
-		}
-		contents = append(contents, content)
+		contents = append(contents, inputMessageByFileExt(item.FilePath, caption))
 	}
-	_, err := s.telegramRepo.SendMessageAlbum(ctx, chatID, contents)
+	_, err := s.telegramRepo.SendMessageAlbum(&client.SendMessageAlbumRequest{
+		ChatId:               chatID,
+		InputMessageContents: contents,
+	})
 	return err
 }
 
-// ForwardMessage пересылает сообщение из одного чата в другой.
-func (s *Service) ForwardMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) error {
-	// Пересылаем в тот же чат (копия) — конкретный destination определяет клиент
-	_, err := s.telegramRepo.ForwardMessages(ctx, chatID, chatID, []domain.MessageID{messageID})
+// ForwardMessage пересылает сообщение внутри одного чата (копия).
+func (s *Service) ForwardMessage(_ context.Context, chatID int64, messageID int64) error {
+	_, err := s.telegramRepo.ForwardMessages(&client.ForwardMessagesRequest{
+		ChatId:     chatID,
+		FromChatId: chatID,
+		MessageIds: []int64{messageID},
+	})
 	return err
 }
 
 // UpdateMessage обновляет текст сообщения.
-func (s *Service) UpdateMessage(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID, text string) error {
-	return s.telegramRepo.EditMessageText(ctx, chatID, messageID, &domain.FormattedText{Text: text})
+func (s *Service) UpdateMessage(_ context.Context, chatID int64, messageID int64, text string) error {
+	_, err := s.telegramRepo.EditMessageText(&client.EditMessageTextRequest{
+		ChatId:              chatID,
+		MessageId:           messageID,
+		InputMessageContent: &client.InputMessageText{Text: &client.FormattedText{Text: text}},
+	})
+	return err
 }
 
 // DeleteMessages удаляет сообщения.
-func (s *Service) DeleteMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) error {
-	return s.telegramRepo.DeleteMessages(ctx, chatID, messageIDs, true)
+func (s *Service) DeleteMessages(_ context.Context, chatID int64, messageIDs []int64) error {
+	_, err := s.telegramRepo.DeleteMessages(&client.DeleteMessagesRequest{
+		ChatId:     chatID,
+		MessageIds: messageIDs,
+		Revoke:     true,
+	})
+	return err
 }
 
 // GetChatHistory возвращает сообщения чата с пагинацией.
-func (s *Service) GetChatHistory(ctx context.Context, chatID domain.ChatID, fromMessageID domain.MessageID, offset, limit int32) ([]*domain.Message, error) {
-	return s.telegramRepo.GetChatHistory(ctx, chatID, fromMessageID, offset, limit)
+func (s *Service) GetChatHistory(_ context.Context, chatID int64, fromMessageID int64, offset, limit int32) ([]*client.Message, error) {
+	msgs, err := s.telegramRepo.GetChatHistory(&client.GetChatHistoryRequest{
+		ChatId:        chatID,
+		FromMessageId: fromMessageID,
+		Offset:        offset,
+		Limit:         limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return msgs.Messages, nil
 }
 
 // GetMessages возвращает сообщения по списку ID (batch).
-func (s *Service) GetMessages(ctx context.Context, chatID domain.ChatID, messageIDs []domain.MessageID) ([]*domain.Message, error) {
-	return s.telegramRepo.GetMessages(ctx, chatID, messageIDs)
+func (s *Service) GetMessages(_ context.Context, chatID int64, messageIDs []int64) ([]*client.Message, error) {
+	msgs, err := s.telegramRepo.GetMessages(&client.GetMessagesRequest{
+		ChatId:     chatID,
+		MessageIds: messageIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return msgs.Messages, nil
 }
 
 // GetMessageLink возвращает публичную ссылку на сообщение.
-func (s *Service) GetMessageLink(ctx context.Context, chatID domain.ChatID, messageID domain.MessageID) (string, error) {
-	return s.telegramRepo.GetMessageLink(ctx, chatID, messageID, false)
+func (s *Service) GetMessageLink(_ context.Context, chatID int64, messageID int64) (string, error) {
+	link, err := s.telegramRepo.GetMessageLink(&client.GetMessageLinkRequest{
+		ChatId:    chatID,
+		MessageId: messageID,
+		ForAlbum:  false,
+	})
+	if err != nil {
+		return "", err
+	}
+	return link.Link, nil
 }
 
 // GetMessageLinkInfo извлекает информацию о сообщении по ссылке.
-func (s *Service) GetMessageLinkInfo(ctx context.Context, link string) (*domain.MessageLinkInfo, error) {
-	return s.telegramRepo.GetMessageLinkInfo(ctx, link)
+func (s *Service) GetMessageLinkInfo(_ context.Context, url string) (*client.MessageLinkInfo, error) {
+	return s.telegramRepo.GetMessageLinkInfo(&client.GetMessageLinkInfoRequest{Url: url})
+}
+
+// GetStatus возвращает текущий статус сервиса. Поле TDLibVersion достаётся
+// статической функцией client.GetOption (она не является методом *client.Client
+// и в clientAdapter не входит).
+func (s *Service) GetStatus(_ context.Context) (*dtogql.StatusResponse, error) {
+	versionOpt, err := client.GetOption(&client.GetOptionRequest{Name: "version"})
+	if err != nil {
+		return nil, err
+	}
+	var version string
+	if v, ok := versionOpt.(*client.OptionValueString); ok {
+		version = v.Value
+	}
+	user, err := s.telegramRepo.GetMe()
+	if err != nil {
+		return nil, err
+	}
+	return &dtogql.StatusResponse{
+		ReleaseVersion: releaseVersion(),
+		TDLibVersion:   version,
+		UserID:         user.Id,
+	}, nil
 }
 
 func releaseVersion() string {
@@ -115,19 +178,20 @@ func releaseVersion() string {
 	return info.Main.Version
 }
 
-// GetStatus возвращает текущий статус сервиса.
-func (s *Service) GetStatus(ctx context.Context) (*dtogql.StatusResponse, error) {
-	version, err := s.telegramRepo.GetOption(ctx, "version")
-	if err != nil {
-		return nil, err
+// inputMessageByFileExt выбирает корректный InputMessageContent по расширению файла.
+func inputMessageByFileExt(filePath string, caption *client.FormattedText) client.InputMessageContent {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	file := &client.InputFileLocal{Path: filePath}
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp":
+		return &client.InputMessagePhoto{Photo: file, Caption: caption}
+	case ".mp4", ".mov", ".avi", ".mkv":
+		return &client.InputMessageVideo{Video: file, Caption: caption}
+	case ".mp3", ".ogg", ".m4a", ".flac", ".wav":
+		return &client.InputMessageAudio{Audio: file, Caption: caption}
+	case ".gif":
+		return &client.InputMessageAnimation{Animation: file, Caption: caption}
+	default:
+		return &client.InputMessageDocument{Document: file, Caption: caption}
 	}
-	userID, err := s.telegramRepo.GetMe(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &dtogql.StatusResponse{
-		ReleaseVersion: releaseVersion(),
-		TDLibVersion:   version,
-		UserID:         userID,
-	}, nil
 }

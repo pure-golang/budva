@@ -9,6 +9,9 @@
 // Ограничения:
 //
 //   - Один сервис обслуживает оба транспорта (gRPC и GraphQL).
-//   - Методы SendMessage и SendMessageAlbum работают только с текстовым контентом;
-//     поддержка медиа будет добавлена позже.
+//   - SendMessageAlbum маршрутизирует медиа через inputMessageByFileExt: расширение
+//     файла определяет тип (photo/video/audio/animation/document), без FilePath
+//     — plain text.
+//   - Возвращаемые типы — raw TDLib (`*client.Message`, `*client.MessageLinkInfo`);
+//     конвертация в proto/GraphQL DTO живёт в transport-слое.
 package facade

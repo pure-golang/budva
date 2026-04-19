@@ -5,8 +5,8 @@
 package mocks
 
 import (
-	"github.com/pure-golang/budva-claude/internal/domain"
 	mock "github.com/stretchr/testify/mock"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 // NewMessageService creates a new instance of MessageService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -37,18 +37,20 @@ func (_m *MessageService) EXPECT() *MessageService_Expecter {
 }
 
 // BuildInputContent provides a mock function for the type MessageService
-func (_mock *MessageService) BuildInputContent(msg *domain.Message, text *domain.FormattedText) domain.InputMessageContent {
+func (_mock *MessageService) BuildInputContent(msg *client.Message, text *client.FormattedText) client.InputMessageContent {
 	ret := _mock.Called(msg, text)
 
 	if len(ret) == 0 {
 		panic("no return value specified for BuildInputContent")
 	}
 
-	var r0 domain.InputMessageContent
-	if returnFunc, ok := ret.Get(0).(func(*domain.Message, *domain.FormattedText) domain.InputMessageContent); ok {
+	var r0 client.InputMessageContent
+	if returnFunc, ok := ret.Get(0).(func(*client.Message, *client.FormattedText) client.InputMessageContent); ok {
 		r0 = returnFunc(msg, text)
 	} else {
-		r0 = ret.Get(0).(domain.InputMessageContent)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(client.InputMessageContent)
+		}
 	}
 	return r0
 }
@@ -59,21 +61,21 @@ type MessageService_BuildInputContent_Call struct {
 }
 
 // BuildInputContent is a helper method to define mock.On call
-//   - msg *domain.Message
-//   - text *domain.FormattedText
+//   - msg *client.Message
+//   - text *client.FormattedText
 func (_e *MessageService_Expecter) BuildInputContent(msg interface{}, text interface{}) *MessageService_BuildInputContent_Call {
 	return &MessageService_BuildInputContent_Call{Call: _e.mock.On("BuildInputContent", msg, text)}
 }
 
-func (_c *MessageService_BuildInputContent_Call) Run(run func(msg *domain.Message, text *domain.FormattedText)) *MessageService_BuildInputContent_Call {
+func (_c *MessageService_BuildInputContent_Call) Run(run func(msg *client.Message, text *client.FormattedText)) *MessageService_BuildInputContent_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *domain.Message
+		var arg0 *client.Message
 		if args[0] != nil {
-			arg0 = args[0].(*domain.Message)
+			arg0 = args[0].(*client.Message)
 		}
-		var arg1 *domain.FormattedText
+		var arg1 *client.FormattedText
 		if args[1] != nil {
-			arg1 = args[1].(*domain.FormattedText)
+			arg1 = args[1].(*client.FormattedText)
 		}
 		run(
 			arg0,
@@ -83,30 +85,30 @@ func (_c *MessageService_BuildInputContent_Call) Run(run func(msg *domain.Messag
 	return _c
 }
 
-func (_c *MessageService_BuildInputContent_Call) Return(inputMessageContent domain.InputMessageContent) *MessageService_BuildInputContent_Call {
+func (_c *MessageService_BuildInputContent_Call) Return(inputMessageContent client.InputMessageContent) *MessageService_BuildInputContent_Call {
 	_c.Call.Return(inputMessageContent)
 	return _c
 }
 
-func (_c *MessageService_BuildInputContent_Call) RunAndReturn(run func(msg *domain.Message, text *domain.FormattedText) domain.InputMessageContent) *MessageService_BuildInputContent_Call {
+func (_c *MessageService_BuildInputContent_Call) RunAndReturn(run func(msg *client.Message, text *client.FormattedText) client.InputMessageContent) *MessageService_BuildInputContent_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetFormattedText provides a mock function for the type MessageService
-func (_mock *MessageService) GetFormattedText(msg *domain.Message) *domain.FormattedText {
+func (_mock *MessageService) GetFormattedText(msg *client.Message) *client.FormattedText {
 	ret := _mock.Called(msg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetFormattedText")
 	}
 
-	var r0 *domain.FormattedText
-	if returnFunc, ok := ret.Get(0).(func(*domain.Message) *domain.FormattedText); ok {
+	var r0 *client.FormattedText
+	if returnFunc, ok := ret.Get(0).(func(*client.Message) *client.FormattedText); ok {
 		r0 = returnFunc(msg)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*domain.FormattedText)
+			r0 = ret.Get(0).(*client.FormattedText)
 		}
 	}
 	return r0
@@ -118,16 +120,16 @@ type MessageService_GetFormattedText_Call struct {
 }
 
 // GetFormattedText is a helper method to define mock.On call
-//   - msg *domain.Message
+//   - msg *client.Message
 func (_e *MessageService_Expecter) GetFormattedText(msg interface{}) *MessageService_GetFormattedText_Call {
 	return &MessageService_GetFormattedText_Call{Call: _e.mock.On("GetFormattedText", msg)}
 }
 
-func (_c *MessageService_GetFormattedText_Call) Run(run func(msg *domain.Message)) *MessageService_GetFormattedText_Call {
+func (_c *MessageService_GetFormattedText_Call) Run(run func(msg *client.Message)) *MessageService_GetFormattedText_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *domain.Message
+		var arg0 *client.Message
 		if args[0] != nil {
-			arg0 = args[0].(*domain.Message)
+			arg0 = args[0].(*client.Message)
 		}
 		run(
 			arg0,
@@ -136,18 +138,18 @@ func (_c *MessageService_GetFormattedText_Call) Run(run func(msg *domain.Message
 	return _c
 }
 
-func (_c *MessageService_GetFormattedText_Call) Return(formattedText *domain.FormattedText) *MessageService_GetFormattedText_Call {
+func (_c *MessageService_GetFormattedText_Call) Return(formattedText *client.FormattedText) *MessageService_GetFormattedText_Call {
 	_c.Call.Return(formattedText)
 	return _c
 }
 
-func (_c *MessageService_GetFormattedText_Call) RunAndReturn(run func(msg *domain.Message) *domain.FormattedText) *MessageService_GetFormattedText_Call {
+func (_c *MessageService_GetFormattedText_Call) RunAndReturn(run func(msg *client.Message) *client.FormattedText) *MessageService_GetFormattedText_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetReplyMarkupData provides a mock function for the type MessageService
-func (_mock *MessageService) GetReplyMarkupData(msg *domain.Message) []byte {
+func (_mock *MessageService) GetReplyMarkupData(msg *client.Message) []byte {
 	ret := _mock.Called(msg)
 
 	if len(ret) == 0 {
@@ -155,7 +157,7 @@ func (_mock *MessageService) GetReplyMarkupData(msg *domain.Message) []byte {
 	}
 
 	var r0 []byte
-	if returnFunc, ok := ret.Get(0).(func(*domain.Message) []byte); ok {
+	if returnFunc, ok := ret.Get(0).(func(*client.Message) []byte); ok {
 		r0 = returnFunc(msg)
 	} else {
 		if ret.Get(0) != nil {
@@ -171,16 +173,16 @@ type MessageService_GetReplyMarkupData_Call struct {
 }
 
 // GetReplyMarkupData is a helper method to define mock.On call
-//   - msg *domain.Message
+//   - msg *client.Message
 func (_e *MessageService_Expecter) GetReplyMarkupData(msg interface{}) *MessageService_GetReplyMarkupData_Call {
 	return &MessageService_GetReplyMarkupData_Call{Call: _e.mock.On("GetReplyMarkupData", msg)}
 }
 
-func (_c *MessageService_GetReplyMarkupData_Call) Run(run func(msg *domain.Message)) *MessageService_GetReplyMarkupData_Call {
+func (_c *MessageService_GetReplyMarkupData_Call) Run(run func(msg *client.Message)) *MessageService_GetReplyMarkupData_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *domain.Message
+		var arg0 *client.Message
 		if args[0] != nil {
-			arg0 = args[0].(*domain.Message)
+			arg0 = args[0].(*client.Message)
 		}
 		run(
 			arg0,
@@ -194,13 +196,13 @@ func (_c *MessageService_GetReplyMarkupData_Call) Return(bytes []byte) *MessageS
 	return _c
 }
 
-func (_c *MessageService_GetReplyMarkupData_Call) RunAndReturn(run func(msg *domain.Message) []byte) *MessageService_GetReplyMarkupData_Call {
+func (_c *MessageService_GetReplyMarkupData_Call) RunAndReturn(run func(msg *client.Message) []byte) *MessageService_GetReplyMarkupData_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // IsSystemMessage provides a mock function for the type MessageService
-func (_mock *MessageService) IsSystemMessage(msg *domain.Message) bool {
+func (_mock *MessageService) IsSystemMessage(msg *client.Message) bool {
 	ret := _mock.Called(msg)
 
 	if len(ret) == 0 {
@@ -208,7 +210,7 @@ func (_mock *MessageService) IsSystemMessage(msg *domain.Message) bool {
 	}
 
 	var r0 bool
-	if returnFunc, ok := ret.Get(0).(func(*domain.Message) bool); ok {
+	if returnFunc, ok := ret.Get(0).(func(*client.Message) bool); ok {
 		r0 = returnFunc(msg)
 	} else {
 		r0 = ret.Get(0).(bool)
@@ -222,16 +224,16 @@ type MessageService_IsSystemMessage_Call struct {
 }
 
 // IsSystemMessage is a helper method to define mock.On call
-//   - msg *domain.Message
+//   - msg *client.Message
 func (_e *MessageService_Expecter) IsSystemMessage(msg interface{}) *MessageService_IsSystemMessage_Call {
 	return &MessageService_IsSystemMessage_Call{Call: _e.mock.On("IsSystemMessage", msg)}
 }
 
-func (_c *MessageService_IsSystemMessage_Call) Run(run func(msg *domain.Message)) *MessageService_IsSystemMessage_Call {
+func (_c *MessageService_IsSystemMessage_Call) Run(run func(msg *client.Message)) *MessageService_IsSystemMessage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *domain.Message
+		var arg0 *client.Message
 		if args[0] != nil {
-			arg0 = args[0].(*domain.Message)
+			arg0 = args[0].(*client.Message)
 		}
 		run(
 			arg0,
@@ -245,7 +247,7 @@ func (_c *MessageService_IsSystemMessage_Call) Return(b bool) *MessageService_Is
 	return _c
 }
 
-func (_c *MessageService_IsSystemMessage_Call) RunAndReturn(run func(msg *domain.Message) bool) *MessageService_IsSystemMessage_Call {
+func (_c *MessageService_IsSystemMessage_Call) RunAndReturn(run func(msg *client.Message) bool) *MessageService_IsSystemMessage_Call {
 	_c.Call.Return(run)
 	return _c
 }
