@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"log"
 	"log/slog"
-	"math/rand/v2"
+	"math/big"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -21,9 +22,24 @@ import (
 	"github.com/pure-golang/budva-claude/internal/repo/telegram"
 	"github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
-	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
 	"github.com/pure-golang/budva-claude/internal/test/support"
+	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
 )
+
+// jitter возвращает случайный base..base+spread-1 секунд для задержек между API-вызовами.
+// Используем crypto/rand, чтобы пройти gosec G404 — к криптографической стойкости
+// требований нет, просто jitter. Если spread<=0 или rand.Int вернул ошибку,
+// откатываемся к base без джиттера.
+func jitter(base, spread int64) time.Duration {
+	if spread <= 0 {
+		return time.Duration(base) * time.Second
+	}
+	n, err := rand.Int(rand.Reader, big.NewInt(spread))
+	if err != nil {
+		return time.Duration(base) * time.Second
+	}
+	return time.Duration(base+n.Int64()) * time.Second
+}
 
 const fixturesPath = ".config/stand.json"
 
@@ -102,7 +118,7 @@ func run(up bool) error {
 	authService := auth.New(telegramRepo)
 	authService.Start(ctx)
 
-	termRepo := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
+	termRepo := term.New(os.Stdin, os.Stdout, syscall.Stdin)
 	termTransport := tterm.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {
@@ -152,7 +168,7 @@ func standUp(ctx context.Context, logger *slog.Logger, repo *telegram.Repo) erro
 		}
 
 		if created > 0 {
-			time.Sleep(time.Duration(3+rand.IntN(6)) * time.Second) //nolint:gosec // Не криптографический контекст, рандом для jitter между API-вызовами
+			time.Sleep(jitter(3, 6))
 		}
 
 		fix, err := createChat(ctx, repo, spec)
@@ -248,7 +264,7 @@ func standDown(ctx context.Context, logger *slog.Logger, repo *telegram.Repo) er
 
 	for i, chat := range fixtures.Chats {
 		if i > 0 {
-			time.Sleep(time.Duration(3+rand.IntN(6)) * time.Second) //nolint:gosec // Не криптографический контекст, рандом для jitter между API-вызовами
+			time.Sleep(jitter(3, 6))
 		}
 
 		if _, err := repo.DeleteChat(&client.DeleteChatRequest{ChatId: chat.ChatID}); err != nil {

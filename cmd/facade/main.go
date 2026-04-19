@@ -94,7 +94,7 @@ func run() error {
 	})
 
 	// 8. Terminal transport
-	termRepo := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
+	termRepo := term.New(os.Stdin, os.Stdout, syscall.Stdin)
 	termTransport := tterm.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {
