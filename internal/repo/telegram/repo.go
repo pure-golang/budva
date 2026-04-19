@@ -140,10 +140,14 @@ func (r *Repo) SubmitPassword(_ context.Context, password string) error {
 // чистый старт с WaitPhoneNumber.
 func (r *Repo) CleanUp() {
 	if r.cfg.DatabaseDirectory != "" {
-		os.RemoveAll(r.cfg.DatabaseDirectory) //nolint:errcheck // Best-effort cleanup
+		if err := os.RemoveAll(r.cfg.DatabaseDirectory); err != nil {
+			r.logger.Warn("Failed to remove TDLib database directory", slog.String("path", r.cfg.DatabaseDirectory), slog.Any("err", err))
+		}
 	}
 	if r.cfg.FilesDirectory != "" {
-		os.RemoveAll(r.cfg.FilesDirectory) //nolint:errcheck // Best-effort cleanup
+		if err := os.RemoveAll(r.cfg.FilesDirectory); err != nil {
+			r.logger.Warn("Failed to remove TDLib files directory", slog.String("path", r.cfg.FilesDirectory), slog.Any("err", err))
+		}
 	}
 }
 
