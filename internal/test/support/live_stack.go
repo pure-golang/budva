@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -489,24 +490,78 @@ func (s *LiveStack) CheckAlbumMessages(chatID int64, prefix string, count int32)
 	}
 }
 
-// CheckNoMessage проверяет что последнее сообщение НЕ содержит prefix (сообщение не доставлено).
+// CheckNoMessage проверяет что последнее сообщение НЕ содержит prefix (сообщение не доставлено
+// или было удалено). Поллит историю чата с дедлайном, потому что физическое удаление в Telegram —
+// асинхронное: TDLib DeleteMessages возвращается сразу, а подтверждение приходит позже (особенно
+// на поздних сценариях длинного прогона при накопленном rate-limit).
 func (s *LiveStack) CheckNoMessage(chatID int64, prefix string) error {
-	time.Sleep(3 * time.Second)
-	msgs, err := s.Telegram.GetChatHistory(&client.GetChatHistoryRequest{
-		ChatId: chatID,
-		Limit:  1,
-	})
-	if err != nil {
-		return err
+	deadline := time.After(10 * time.Second)
+	for {
+		msgs, err := s.Telegram.GetChatHistory(&client.GetChatHistoryRequest{
+			ChatId: chatID,
+			Limit:  1,
+		})
+		if err != nil {
+			return err
+		}
+		if len(msgs.Messages) == 0 {
+			return nil
+		}
+		top := msgs.Messages[0]
+		if !s.isFresh(top) || !strings.HasPrefix(messageText(top), prefix) {
+			return nil
+		}
+		select {
+		case <-deadline:
+			return fmt.Errorf("unexpected message with prefix %q in chat %d", prefix, chatID)
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
-	if len(msgs.Messages) == 0 {
-		return nil
+}
+
+// WaitForCopyMappings ждёт, пока в state будет прописан permanent ID для всех копий
+// source-сообщения во всех dst-чатах, которые handler зарегистрировал через
+// SetCopiedMessageID. Защищает тесты от гонки: CheckLastMessage видит копию в
+// истории чата через GetChatHistory, но UpdateMessageSendSucceeded мог ещё не
+// пройти через Updates()-канал, и processUpdates не успел записать mapping
+// tmpMsgID → permMessageID. Без этого handler.OnDeletedMessages видит
+// GetNewMessageID=0 и не может разослать каскадное удаление копий.
+func (s *LiveStack) WaitForCopyMappings(srcChatID, srcMessageID int64) error {
+	deadline := time.After(10 * time.Second)
+	for {
+		s.mu.RLock()
+		st := s.State
+		s.mu.RUnlock()
+
+		copies := st.GetCopiedMessageIDs(srcChatID, srcMessageID)
+		ready := len(copies) > 0
+		for _, c := range copies {
+			parts := strings.Split(c, ":")
+			if len(parts) < 3 {
+				ready = false
+				break
+			}
+			dstID, err1 := strconv.ParseInt(parts[1], 10, 64)
+			tmpID, err2 := strconv.ParseInt(parts[2], 10, 64)
+			if err1 != nil || err2 != nil {
+				ready = false
+				break
+			}
+			if st.GetNewMessageID(dstID, tmpID) == 0 {
+				ready = false
+				break
+			}
+		}
+		if ready {
+			return nil
+		}
+
+		select {
+		case <-deadline:
+			return fmt.Errorf("timeout waiting for copy mappings for src %d/%d", srcChatID, srcMessageID)
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
-	top := msgs.Messages[0]
-	if s.isFresh(top) && strings.HasPrefix(messageText(top), prefix) {
-		return fmt.Errorf("unexpected message with prefix %q in chat %d", prefix, chatID)
-	}
-	return nil
 }
 
 // ChatByName возвращает фикстуру по имени.
