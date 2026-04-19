@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -32,6 +33,13 @@ import (
 // FLOOD_WAIT, не раздувая общее время BDD-прогона.
 const putMinInterval = 1200 * time.Millisecond
 
+// logCleanup логирует ошибку best-effort cleanup через slog.Warn.
+func logCleanup(logger *slog.Logger, resource string, err error) {
+	if err != nil {
+		logger.Warn("Cleanup failed", slog.String("resource", resource), slog.Any("err", err))
+	}
+}
+
 // LiveStack содержит собранный стек для BDD-тестов с реальным TDLib.
 type LiveStack struct {
 	Telegram      *telegram.Repo
@@ -41,6 +49,7 @@ type LiveStack struct {
 	Fixtures      *Fixtures
 	SourceID      int64
 	TargetIDs     []int64
+	logger        *slog.Logger
 	fixturesPath  string
 	tmpDir        string
 	cancelUpdates context.CancelFunc
@@ -56,12 +65,17 @@ type LiveStack struct {
 	// игнорируют сообщения с Date < startedAt: это гарантирует, что мы не
 	// матчим мусор от предыдущих прогонов, у которых префиксы (001..N)
 	// пересекаются с текущими.
-	startedAt int32
+	// TDLib отдаёт Message.Date как int32, но хранить удобно в int64, чтобы
+	// избежать проблемы 2038 при сравнении со startedAt.
+	startedAt int64
 }
 
 // NewLiveStack создаёт экземпляр стека для BDD-тестов.
 func NewLiveStack(fixturesPath string) *LiveStack {
-	return &LiveStack{fixturesPath: fixturesPath}
+	return &LiveStack{
+		fixturesPath: fixturesPath,
+		logger:       slog.Default().With("module", "bdd.live_stack"),
+	}
 }
 
 // Start инициализирует TDLib, загружает фикстуры, ждёт авторизации, собирает handler pipeline.
@@ -96,7 +110,7 @@ func (s *LiveStack) Start() error {
 				goto authorized
 			case domain.AuthStateWaitPhone, domain.AuthStateWaitCode, domain.AuthStateWaitPassword:
 				cancel()
-				telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+				logCleanup(s.logger, "telegram", telegramRepo.Close())
 				return fmt.Errorf("TDLib requires interactive auth (%s): run cmd/stand --up first", ev.State)
 			case domain.AuthStateClosed:
 				cancel()
@@ -104,27 +118,29 @@ func (s *LiveStack) Start() error {
 			}
 		case <-time.After(30 * time.Second):
 			cancel()
-			telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+			logCleanup(s.logger, "telegram", telegramRepo.Close())
 			return fmt.Errorf("authorization timeout: ensure .env is configured and session is cached")
 		}
 	}
 authorized:
 
-	// Прогреваем кеш чатов.
-	_, _ = telegramRepo.LoadChats(&client.LoadChatsRequest{Limit: 100}) //nolint:errcheck // TDLib возвращает ошибку когда чатов меньше limit
+	// Прогреваем кеш чатов. TDLib возвращает ошибку, когда чатов меньше limit — нормальный случай.
+	if _, err := telegramRepo.LoadChats(&client.LoadChatsRequest{Limit: 100}); err != nil {
+		s.logger.Debug("LoadChats returned error (chat list possibly shorter than limit)", slog.Any("err", err))
+	}
 
 	tmpDir, err := os.MkdirTemp("", "budva-bdd-*")
 	if err != nil {
 		cancel()
-		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+		logCleanup(s.logger, "telegram", telegramRepo.Close())
 		return err
 	}
 
-	stateRepo := state.New(config.StorageConfig{DatabaseDirectory: tmpDir}) //nolint:exhaustruct // Только путь нужен для temp DB
+	stateRepo := state.New(config.StorageConfig{DatabaseDirectory: tmpDir})
 	if err := stateRepo.Start(context.Background()); err != nil {
 		cancel()
-		os.RemoveAll(tmpDir) //nolint:errcheck // Best-effort cleanup
-		telegramRepo.Close() //nolint:errcheck // Best-effort cleanup
+		logCleanup(s.logger, "tmpDir", os.RemoveAll(tmpDir))
+		logCleanup(s.logger, "telegram", telegramRepo.Close())
 		return err
 	}
 
@@ -133,7 +149,7 @@ authorized:
 	s.Queue = queue.New()
 	s.tmpDir = tmpDir
 	s.putLastSend = make(map[int64]time.Time)
-	s.startedAt = int32(time.Now().Unix()) //nolint:gosec // Unix seconds помещаются в int32 до 2038
+	s.startedAt = time.Now().Unix()
 	s.Handler = handler.New(
 		telegramRepo,
 		stateRepo,
@@ -181,8 +197,12 @@ func (s *LiveStack) processUpdates(ctx context.Context) {
 			switch u := upd.(type) {
 			case *client.UpdateMessageSendSucceeded:
 				if u.Message != nil {
-					_ = st.SetNewMessageID(u.Message.ChatId, u.OldMessageId, u.Message.Id) //nolint:errcheck // Best-effort
-					_ = st.SetTmpMessageID(u.Message.ChatId, u.Message.Id, u.OldMessageId) //nolint:errcheck // Best-effort
+					if err := st.SetNewMessageID(u.Message.ChatId, u.OldMessageId, u.Message.Id); err != nil {
+						s.logger.Warn("Failed to set new message ID", slog.Any("err", err))
+					}
+					if err := st.SetTmpMessageID(u.Message.ChatId, u.Message.Id, u.OldMessageId); err != nil {
+						s.logger.Warn("Failed to set tmp message ID", slog.Any("err", err))
+					}
 				}
 			case *client.UpdateMessageEdited:
 				// Resolve в отдельной горутине: GetMessage синхронный и при медленном
@@ -265,7 +285,7 @@ func (s *LiveStack) ResetState() error {
 		}
 	}
 	if s.tmpDir != "" {
-		os.RemoveAll(s.tmpDir) //nolint:errcheck // Best-effort cleanup
+		logCleanup(s.logger, "tmpDir", os.RemoveAll(s.tmpDir))
 	}
 	tmpDir, err := os.MkdirTemp("", "budva-bdd-*")
 	if err != nil {
@@ -399,7 +419,7 @@ func (s *LiveStack) PutAlbum(chatID int64, contents []client.InputMessageContent
 // Защищает от коллизий с мусором от предыдущих прогонов: префиксы 001..N
 // переиспользуются, но Date у старых сообщений меньше startedAt.
 func (s *LiveStack) isFresh(msg *client.Message) bool {
-	return msg != nil && msg.Date >= s.startedAt
+	return msg != nil && int64(msg.Date) >= s.startedAt
 }
 
 // CheckLastMessage проверяет что последнее сообщение в чате содержит prefix сценария.
@@ -434,12 +454,12 @@ func (s *LiveStack) CheckLastMessage(chatID int64, prefix string) (*client.Messa
 
 // CheckAlbumMessages проверяет что в чате появился альбом с prefix и возвращает его сообщения
 // отсортированные по ID (возрастающий = порядок фото в альбоме).
-func (s *LiveStack) CheckAlbumMessages(chatID int64, prefix string, count int) ([]*client.Message, error) {
+func (s *LiveStack) CheckAlbumMessages(chatID int64, prefix string, count int32) ([]*client.Message, error) {
 	deadline := time.After(10 * time.Second)
 	for {
 		msgs, err := s.Telegram.GetChatHistory(&client.GetChatHistoryRequest{
 			ChatId: chatID,
-			Limit:  int32(count * 2), //nolint:gosec // count всегда маленький
+			Limit:  count * 2,
 		})
 		if err != nil {
 			return nil, err
@@ -456,7 +476,7 @@ func (s *LiveStack) CheckAlbumMessages(chatID int64, prefix string, count int) (
 				sort.Slice(result, func(i, j int) bool {
 					return result[i].Id < result[j].Id
 				})
-				if len(result) >= count {
+				if len(result) >= int(count) {
 					return result[:count], nil
 				}
 			}
