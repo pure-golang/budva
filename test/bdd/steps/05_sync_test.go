@@ -12,7 +12,7 @@ import (
 	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/test/support"
+	testsupport "github.com/pure-golang/budva-claude/internal/test/support"
 )
 
 func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
@@ -56,7 +56,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = text
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(text), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent(text), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = "test message"
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(s.messageText), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent(s.messageText), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -86,12 +86,12 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Given(`^сообщение было скопировано в целевые чаты$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
-			if err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
-			s.env.Handler.OnMessageSendSucceeded(msg.ChatId, msg.Id, msg.Id)
 		}
+		// processUpdates записывает temp→perm маппинг напрямую в state;
+		// DrainQueue обрабатывает оставши��ся handler tasks.
 		s.env.DrainQueue()
 		return nil
 	})
@@ -103,7 +103,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 		// Реально редактируем SOURCE сообщение через TDLib.
 		editedText := &client.FormattedText{
-			Text: support.PrefixText(s.prefix, newText),
+			Text: testsupport.PrefixText(s.prefix, newText),
 		}
 		if _, err := s.env.Telegram.EditMessageText(&client.EditMessageTextRequest{
 			ChatId:              s.env.SourceID,
@@ -117,13 +117,27 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		// Для copy_once (versioning) transform добавляет Markdown-ссылку `[Prev](url)`;
 		// TDLib ParseTextEntities выносит URL в TextEntityTypeTextUrl, оставляя в plain text
 		// только заголовок. Поэтому проверяем entities, а не Contains(text, "https://t.me").
+		// basicGroup-таргеты не поддерживают GetMessageLink — для них ждём только обновление
+		// текста без ссылки.
 		deadline := time.After(10 * time.Second)
 		expectLink := s.copyOnce
+		if expectLink {
+			anySupportsLink := false
+			for _, targetID := range s.env.TargetIDs {
+				if s.env.SupportsMessageLink(targetID) {
+					anySupportsLink = true
+					break
+				}
+			}
+			if !anySupportsLink {
+				expectLink = false
+			}
+		}
 	editPoll:
 		for {
 			s.env.DrainQueue()
 			for _, targetID := range s.env.TargetIDs {
-				msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+				msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 				if err != nil {
 					continue
 				}
@@ -174,7 +188,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате появляется новая копия с текстом "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -188,7 +202,12 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^новая копия содержит ссылку на предыдущую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			// Навигационные ссылки работают только в supergroups/channels;
+			// basicGroup пропускаем по бизнес-правилу из feature-файла.
+			if !s.env.SupportsMessageLink(targetID) {
+				continue
+			}
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -202,7 +221,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^предыдущая копия обновляется со ссылкой на новую версию$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -211,7 +230,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^существующая копия в целевых чатах обновляется на "([^"]*)"$`, func(text string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -225,7 +244,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии остаются в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -234,7 +253,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копии удаляются из всех целевых чатов$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
+			if err := s.env.CheckNoMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -245,7 +264,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.When(`^permanent ID записывается в хранилище$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -261,7 +280,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Given(`^permanent ID ещё не записан в хранилище$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				continue
 			}
@@ -277,7 +296,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.env.DrainQueue()
 
 		for _, targetID := range s.env.TargetIDs {
-			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
+			if err := s.env.CheckNoMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}

@@ -30,7 +30,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = "normal text"
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(s.messageText), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent(s.messageText), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -46,7 +46,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = text
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(text), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent(text), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -60,7 +60,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение не появляется в целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
+			if err := s.env.CheckNoMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -69,7 +69,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение с текстом "([^"]*)" появляется во всех целевых чатах$`, func(expected string) error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -93,7 +93,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^сообщение появляется в check-чате ровно один раз$`, func() error {
-		if _, err := s.env.CheckLastMessage(context.Background(), s.checkChatID, s.prefix); err != nil {
+		if _, err := s.env.CheckLastMessage(s.checkChatID, s.prefix); err != nil {
 			return err
 		}
 		return nil

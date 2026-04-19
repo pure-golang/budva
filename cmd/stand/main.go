@@ -22,7 +22,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
 	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
-	"github.com/pure-golang/budva-claude/test/support"
+	"github.com/pure-golang/budva-claude/internal/test/support"
 )
 
 const fixturesPath = ".config/stand.json"

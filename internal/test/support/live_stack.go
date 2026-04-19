@@ -51,6 +51,12 @@ type LiveStack struct {
 	// отдельный throttle для прямых test-side отправок.
 	putMu       sync.Mutex
 	putLastSend map[int64]time.Time
+
+	// startedAt — Unix-время старта тестового прогона. Все Check-методы
+	// игнорируют сообщения с Date < startedAt: это гарантирует, что мы не
+	// матчим мусор от предыдущих прогонов, у которых префиксы (001..N)
+	// пересекаются с текущими.
+	startedAt int32
 }
 
 // NewLiveStack создаёт экземпляр стека для BDD-тестов.
@@ -127,6 +133,7 @@ authorized:
 	s.Queue = queue.New()
 	s.tmpDir = tmpDir
 	s.putLastSend = make(map[int64]time.Time)
+	s.startedAt = int32(time.Now().Unix()) //nolint:gosec // Unix seconds помещаются в int32 до 2038
 	s.Handler = handler.New(
 		telegramRepo,
 		stateRepo,
@@ -301,7 +308,7 @@ func PrefixText(prefix, text string) string {
 
 // throttlePut выдерживает putMinInterval между test-side отправками в один чат,
 // чтобы не получать FLOOD_WAIT от Telegram (rate ~1 msg/sec в чат).
-func (s *LiveStack) throttlePut(ctx context.Context, chatID int64) {
+func (s *LiveStack) throttlePut(chatID int64) {
 	s.putMu.Lock()
 	last, ok := s.putLastSend[chatID]
 	s.putMu.Unlock()
@@ -309,11 +316,7 @@ func (s *LiveStack) throttlePut(ctx context.Context, chatID int64) {
 	if ok {
 		wait := putMinInterval - time.Since(last)
 		if wait > 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(wait):
-			}
+			time.Sleep(wait)
 		}
 	}
 
@@ -324,15 +327,15 @@ func (s *LiveStack) throttlePut(ctx context.Context, chatID int64) {
 
 // PutMessage отправляет сообщение в чат через TDLib с prefix сценария.
 // Блокирует до получения permanent ID через SendMessageAndWait.
-func (s *LiveStack) PutMessage(ctx context.Context, chatID int64, content client.InputMessageContent, prefix string) (*client.Message, error) {
-	return s.PutMessageReply(ctx, chatID, content, 0, prefix)
+func (s *LiveStack) PutMessage(chatID int64, content client.InputMessageContent, prefix string) (*client.Message, error) {
+	return s.PutMessageReply(chatID, content, 0, prefix)
 }
 
 // PutMessageReply отправляет сообщение с reply-to в чат (если replyToMessageID != 0).
 // Блокирует до получения permanent ID.
-func (s *LiveStack) PutMessageReply(ctx context.Context, chatID int64, content client.InputMessageContent, replyToMessageID int64, prefix string) (*client.Message, error) {
+func (s *LiveStack) PutMessageReply(chatID int64, content client.InputMessageContent, replyToMessageID int64, prefix string) (*client.Message, error) {
 	content = applyPrefix(content, prefix)
-	s.throttlePut(ctx, chatID)
+	s.throttlePut(chatID)
 	req := &client.SendMessageRequest{
 		ChatId:              chatID,
 		InputMessageContent: content,
@@ -340,7 +343,7 @@ func (s *LiveStack) PutMessageReply(ctx context.Context, chatID int64, content c
 	if replyToMessageID != 0 {
 		req.ReplyTo = &client.InputMessageReplyToMessage{MessageId: replyToMessageID}
 	}
-	msg, err := s.Telegram.SendMessageAndWait(ctx, req)
+	msg, err := s.Telegram.SendMessageAndWait(context.Background(), req)
 	if err != nil {
 		return nil, fmt.Errorf("put message: %w", err)
 	}
@@ -349,12 +352,12 @@ func (s *LiveStack) PutMessageReply(ctx context.Context, chatID int64, content c
 
 // PutAlbum отправляет медиа-альбом в чат через TDLib.
 // Добавляет prefix к caption первого элемента. Поллит историю чата до появления альбома.
-func (s *LiveStack) PutAlbum(ctx context.Context, chatID int64, contents []client.InputMessageContent, prefix string) ([]*client.Message, error) {
+func (s *LiveStack) PutAlbum(chatID int64, contents []client.InputMessageContent, prefix string) ([]*client.Message, error) {
 	if len(contents) > 0 && prefix != "" {
 		contents[0] = applyPrefix(contents[0], prefix)
 	}
 
-	s.throttlePut(ctx, chatID)
+	s.throttlePut(chatID)
 	if _, err := s.Telegram.SendMessageAlbum(&client.SendMessageAlbumRequest{
 		ChatId:               chatID,
 		InputMessageContents: contents,
@@ -373,11 +376,11 @@ func (s *LiveStack) PutAlbum(ctx context.Context, chatID int64, contents []clien
 		}
 		for _, m := range msgs.Messages {
 			text := messageText(m)
-			if m.MediaAlbumId != 0 && strings.HasPrefix(text, prefix) {
+			if m.MediaAlbumId != 0 && s.isFresh(m) && strings.HasPrefix(text, prefix) {
 				aid := m.MediaAlbumId
 				var result []*client.Message
 				for _, am := range msgs.Messages {
-					if am.MediaAlbumId == aid {
+					if am.MediaAlbumId == aid && s.isFresh(am) {
 						result = append(result, am)
 					}
 				}
@@ -392,8 +395,15 @@ func (s *LiveStack) PutAlbum(ctx context.Context, chatID int64, contents []clien
 	}
 }
 
+// isFresh — true если сообщение отправлено не раньше старта текущего тестового прогона.
+// Защищает от коллизий с мусором от предыдущих прогонов: префиксы 001..N
+// переиспользуются, но Date у старых сообщений меньше startedAt.
+func (s *LiveStack) isFresh(msg *client.Message) bool {
+	return msg != nil && msg.Date >= s.startedAt
+}
+
 // CheckLastMessage проверяет что последнее сообщение в чате содержит prefix сценария.
-func (s *LiveStack) CheckLastMessage(_ context.Context, chatID int64, prefix string) (*client.Message, error) {
+func (s *LiveStack) CheckLastMessage(chatID int64, prefix string) (*client.Message, error) {
 	deadline := time.After(10 * time.Second)
 	for {
 		msgs, err := s.Telegram.GetChatHistory(&client.GetChatHistoryRequest{
@@ -405,7 +415,7 @@ func (s *LiveStack) CheckLastMessage(_ context.Context, chatID int64, prefix str
 		}
 		if len(msgs.Messages) > 0 {
 			msg := msgs.Messages[0]
-			if strings.HasPrefix(messageText(msg), prefix) {
+			if s.isFresh(msg) && strings.HasPrefix(messageText(msg), prefix) {
 				return msg, nil
 			}
 		}
@@ -422,33 +432,9 @@ func (s *LiveStack) CheckLastMessage(_ context.Context, chatID int64, prefix str
 	}
 }
 
-// CheckAlbumMessage ищет среди последних сообщений чата сообщение с указанным prefix.
-func (s *LiveStack) CheckAlbumMessage(_ context.Context, chatID int64, prefix string) (*client.Message, error) {
-	deadline := time.After(10 * time.Second)
-	for {
-		msgs, err := s.Telegram.GetChatHistory(&client.GetChatHistoryRequest{
-			ChatId: chatID,
-			Limit:  10,
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, msg := range msgs.Messages {
-			if strings.HasPrefix(messageText(msg), prefix) {
-				return msg, nil
-			}
-		}
-		select {
-		case <-deadline:
-			return nil, fmt.Errorf("timeout: no album message with prefix %q in chat %d", prefix, chatID)
-		case <-time.After(500 * time.Millisecond):
-		}
-	}
-}
-
 // CheckAlbumMessages проверяет что в чате появился альбом с prefix и возвращает его сообщения
 // отсортированные по ID (возрастающий = порядок фото в альбоме).
-func (s *LiveStack) CheckAlbumMessages(_ context.Context, chatID int64, prefix string, count int) ([]*client.Message, error) {
+func (s *LiveStack) CheckAlbumMessages(chatID int64, prefix string, count int) ([]*client.Message, error) {
 	deadline := time.After(10 * time.Second)
 	for {
 		msgs, err := s.Telegram.GetChatHistory(&client.GetChatHistoryRequest{
@@ -459,11 +445,11 @@ func (s *LiveStack) CheckAlbumMessages(_ context.Context, chatID int64, prefix s
 			return nil, err
 		}
 		for _, m := range msgs.Messages {
-			if strings.HasPrefix(messageText(m), prefix) && m.MediaAlbumId != 0 {
+			if s.isFresh(m) && strings.HasPrefix(messageText(m), prefix) && m.MediaAlbumId != 0 {
 				aid := m.MediaAlbumId
 				var result []*client.Message
 				for _, am := range msgs.Messages {
-					if am.MediaAlbumId == aid {
+					if am.MediaAlbumId == aid && s.isFresh(am) {
 						result = append(result, am)
 					}
 				}
@@ -484,7 +470,7 @@ func (s *LiveStack) CheckAlbumMessages(_ context.Context, chatID int64, prefix s
 }
 
 // CheckNoMessage проверяет что последнее сообщение НЕ содержит prefix (сообщение не доставлено).
-func (s *LiveStack) CheckNoMessage(_ context.Context, chatID int64, prefix string) error {
+func (s *LiveStack) CheckNoMessage(chatID int64, prefix string) error {
 	time.Sleep(3 * time.Second)
 	msgs, err := s.Telegram.GetChatHistory(&client.GetChatHistoryRequest{
 		ChatId: chatID,
@@ -496,7 +482,8 @@ func (s *LiveStack) CheckNoMessage(_ context.Context, chatID int64, prefix strin
 	if len(msgs.Messages) == 0 {
 		return nil
 	}
-	if strings.HasPrefix(messageText(msgs.Messages[0]), prefix) {
+	top := msgs.Messages[0]
+	if s.isFresh(top) && strings.HasPrefix(messageText(top), prefix) {
 		return fmt.Errorf("unexpected message with prefix %q in chat %d", prefix, chatID)
 	}
 	return nil
@@ -505,6 +492,18 @@ func (s *LiveStack) CheckNoMessage(_ context.Context, chatID int64, prefix strin
 // ChatByName возвращает фикстуру по имени.
 func (s *LiveStack) ChatByName(name string) (ChatFixture, error) {
 	return s.Fixtures.ChatByName(name)
+}
+
+// SupportsMessageLink возвращает true, если TDLib GetMessageLink работает для чата.
+// Навигационные ссылки (Prev/Next/Link) доступны только в supergroups и каналах
+// (supergroup с IsChannel=true); basicGroup не поддерживает t.me/c-ссылки.
+func (s *LiveStack) SupportsMessageLink(chatID int64) bool {
+	for _, ch := range s.Fixtures.Chats {
+		if ch.ChatID == chatID {
+			return ch.ChatType == "supergroup"
+		}
+	}
+	return false
 }
 
 // messageText возвращает текст/подпись для prefix-проверки.

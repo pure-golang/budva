@@ -25,7 +25,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			s.messageText = "test message"
 		}
 
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(s.messageText), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent(s.messageText), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -39,7 +39,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение появляется во всех целевых чатах$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -48,7 +48,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^копия сообщения появляется без авторства оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -64,7 +64,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^пересланное сообщение содержит авторство оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -81,7 +81,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		for i := 1; i <= 2; i++ {
-			msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(fmt.Sprintf("message %d", i)), s.prefix)
+			msg, err := s.env.PutMessage(s.env.SourceID, textContent(fmt.Sprintf("message %d", i)), s.prefix)
 			if err != nil {
 				return err
 			}
@@ -94,7 +94,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^оба сообщения доставлены в целевые чаты$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -108,7 +108,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return fmt.Errorf("no previously sent message")
 		}
 
-		replyMsg, err := s.env.PutMessageReply(context.Background(), s.env.SourceID, textContent(text), s.sentMsg.Id, s.prefix)
+		replyMsg, err := s.env.PutMessageReply(s.env.SourceID, textContent(text), s.sentMsg.Id, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -121,7 +121,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате ответ связан с копией оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -131,7 +131,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	// --- Origin unwrapping ---
 
 	ctx.Given(`^в исходном чате есть пересланное сообщение из канала$`, func() error {
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent("original channel content"), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent("original channel content"), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -161,7 +161,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате используется контент оригинала$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -227,7 +227,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^сообщение не пересылается в целевые чаты$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if err := s.env.CheckNoMessage(context.Background(), targetID, s.prefix); err != nil {
+			if err := s.env.CheckNoMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}

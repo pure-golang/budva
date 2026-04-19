@@ -12,25 +12,25 @@ import (
 	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/test/support"
+	testsupport "github.com/pure-golang/budva-claude/internal/test/support"
 )
 
 const fixturesPath = ".config/stand.json"
 
 // sharedStack создаётся один раз для всех сценариев (TDLib не пересоздаётся).
 var (
-	sharedStack    *support.LiveStack
+	sharedStack    *testsupport.LiveStack
 	sharedStackErr error
 )
 
-func getOrCreateStack() (*support.LiveStack, error) {
+func getOrCreateStack() (*testsupport.LiveStack, error) {
 	if sharedStack != nil {
 		return sharedStack, nil
 	}
 	if sharedStackErr != nil {
 		return nil, sharedStackErr
 	}
-	stack := support.NewLiveStack(fixturesPath)
+	stack := testsupport.NewLiveStack(fixturesPath)
 	if err := stack.Start(); err != nil {
 		sharedStackErr = err
 		return nil, err
@@ -41,10 +41,12 @@ func getOrCreateStack() (*support.LiveStack, error) {
 
 // scenarioCtx хранит состояние одного сценария.
 type scenarioCtx struct {
-	env *support.LiveStack
+	env *testsupport.LiveStack
 
-	// prefix — уникальный маркер сценария (nanoid). Добавляется к тексту сообщений,
-	// чтобы отличить сообщения текущего сценария от мусора прошлых запусков.
+	// prefix — уникальный маркер сценария (см. generatePrefix). Добавляется к тексту
+	// сообщений, чтобы отличить сообщения текущего сценария от сообщений соседних
+	// сценариев внутри одного прогона. От мусора прошлых прогонов защищает отдельный
+	// фильтр по msg.Date в LiveStack.isFresh.
 	prefix string
 
 	deliveryMode string

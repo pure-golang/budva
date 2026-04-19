@@ -15,7 +15,7 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.sendCopy = true
 		s.applyRuleSet()
 
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent("message with button"), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent("message with button"), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^бот автоматически отвечает на запрос$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}

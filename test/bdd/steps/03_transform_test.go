@@ -44,7 +44,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Given(`^в исходном чате есть ранее скопированное сообщение$`, func() error {
-		_, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent("previous message"), s.prefix)
+		_, err := s.env.PutMessage(s.env.SourceID, textContent("previous message"), s.prefix)
 		return err
 	})
 
@@ -67,7 +67,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return fmt.Errorf("get message link: %w", err)
 		}
 
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(fmt.Sprintf("see %s", link.Link)), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent(fmt.Sprintf("see %s", link.Link)), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -81,7 +81,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате ссылка указывает на копию предыдущего сообщения$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -89,14 +89,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if text == nil {
 				return fmt.Errorf("no text in target %d", targetID)
 			}
-			hasTargetLink := false
-			for _, e := range text.Entities {
-				if textURL, ok := e.Type.(*client.TextEntityTypeTextUrl); ok && strings.HasPrefix(textURL.Url, "https://t.me/") {
-					hasTargetLink = true
-					break
-				}
-			}
-			if !hasTargetLink && !strings.Contains(text.Text, "https://t.me/") {
+			if !hasTMeEntity(text) && !strings.Contains(text.Text, "https://t.me/") {
 				return fmt.Errorf("expected link to copy in target %d, not found in %q", targetID, text.Text)
 			}
 		}
@@ -127,7 +120,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			}
 		}
 
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(fmt.Sprintf("see %s", externalLink)), s.prefix)
+		msg, err := s.env.PutMessage(s.env.SourceID, textContent(fmt.Sprintf("see %s", externalLink)), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -141,7 +134,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение появляется без внешней ссылки$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix); err != nil {
+			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
 				return err
 			}
 		}
@@ -150,7 +143,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение содержит подпись источника$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -178,7 +171,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение содержит переведённый текст$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -196,7 +189,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^в целевом чате сообщение содержит ссылку на оригинал$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(context.Background(), targetID, s.prefix)
+			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
 			if err != nil {
 				return err
 			}
@@ -204,14 +197,7 @@ func register03TransformSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if text == nil {
 				return fmt.Errorf("no text in target %d", targetID)
 			}
-			hasLinkEntity := false
-			for _, e := range text.Entities {
-				if textURL, ok := e.Type.(*client.TextEntityTypeTextUrl); ok && strings.HasPrefix(textURL.Url, "https://t.me/") {
-					hasLinkEntity = true
-					break
-				}
-			}
-			if !hasLinkEntity {
+			if !hasTMeEntity(text) {
 				return fmt.Errorf("expected TextURL entity with t.me permalink in target %d, not found; text=%q",
 					targetID, text.Text)
 			}
