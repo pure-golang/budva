@@ -1,3 +1,5 @@
+//go:build bdd
+
 package steps
 
 import (
@@ -6,8 +8,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
-
-	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
@@ -24,10 +25,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			s.messageText = "test message"
 		}
 
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: s.messageText},
-		}, s.prefix)
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(s.messageText), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -54,13 +52,10 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			// Copy mode: ForwardInfo должен быть nil (нет атрибуции оригинала)
 			if msg.ForwardInfo != nil {
-				return fmt.Errorf("copy mode: expected no ForwardInfo in target %d, got origin chat %d",
-					targetID, msg.ForwardInfo.OriginChatID)
+				return fmt.Errorf("copy mode: expected no ForwardInfo in target %d", targetID)
 			}
-			// Текст сообщения должен содержать оригинальный текст
-			if msg.Content.Text == nil {
+			if messageCaption(msg) == nil {
 				return fmt.Errorf("copy mode: no text in message in target %d", targetID)
 			}
 		}
@@ -73,7 +68,6 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			// Forward mode: ForwardInfo должен быть заполнен
 			if msg.ForwardInfo == nil {
 				return fmt.Errorf("forward mode: expected ForwardInfo in target %d, got nil", targetID)
 			}
@@ -87,10 +81,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		for i := 1; i <= 2; i++ {
-			msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-				Type: domain.ContentText,
-				Text: &domain.FormattedText{Text: fmt.Sprintf("message %d", i)},
-			}, s.prefix)
+			msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(fmt.Sprintf("message %d", i)), s.prefix)
 			if err != nil {
 				return err
 			}
@@ -117,11 +108,7 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return fmt.Errorf("no previously sent message")
 		}
 
-		replyMsg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-			Type:             domain.ContentText,
-			Text:             &domain.FormattedText{Text: text},
-			ReplyToMessageID: s.sentMsg.ID,
-		}, s.prefix)
+		replyMsg, err := s.env.PutMessageReply(context.Background(), s.env.SourceID, textContent(text), s.sentMsg.Id, s.prefix)
 		if err != nil {
 			return err
 		}
@@ -144,17 +131,16 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	// --- Origin unwrapping ---
 
 	ctx.Given(`^в исходном чате есть пересланное сообщение из канала$`, func() error {
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: "original channel content"},
-		}, s.prefix)
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent("original channel content"), s.prefix)
 		if err != nil {
 			return err
 		}
-		// Эмулируем ForwardInfo (в реальном TDLib forward info приходит от API)
-		msg.ForwardInfo = &domain.MessageForwardInfo{
-			OriginChatID:    s.env.SourceID,
-			OriginMessageID: msg.ID,
+		// Эмулируем ForwardInfo с origin channel — в реальном TDLib это заполняет API.
+		msg.ForwardInfo = &client.MessageForwardInfo{
+			Origin: &client.MessageOriginChannel{
+				ChatId:    s.env.SourceID,
+				MessageId: msg.Id,
+			},
 		}
 		s.forwardedMsg = msg
 		return nil
@@ -179,7 +165,8 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			if msg.Content.Text == nil || msg.Content.Text.Text == "" {
+			caption := messageCaption(msg)
+			if caption == nil || caption.Text == "" {
 				return fmt.Errorf("no content in last message of target chat %d", targetID)
 			}
 		}
@@ -216,12 +203,11 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		// Системные сообщения нельзя отправить напрямую — конструируем вручную
-		msg := &domain.Message{
-			ChatID: s.env.SourceID,
-			ID:     time.Now().UnixNano(),
-			Content: domain.MessageContent{
-				Type: domain.ContentSystem,
-			},
+		// (в реальном TDLib они приходят от сервера как chat events).
+		msg := &client.Message{
+			ChatId:  s.env.SourceID,
+			Id:      time.Now().UnixNano(),
+			Content: &client.MessageChatJoinByLink{},
 		}
 		s.sentMsg = msg
 
@@ -232,12 +218,10 @@ func register01DeliverySteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^системное сообщение удаляется из исходного чата$`, func() error {
-		// С реальным TDLib удаление подтверждается отсутствием ошибки от DeleteMessages
 		return nil
 	})
 
 	ctx.Then(`^системное сообщение остаётся в исходном чате$`, func() error {
-		// С реальным TDLib handler не вызвал DeleteMessages → сообщение на месте
 		return nil
 	})
 

@@ -1,3 +1,5 @@
+//go:build bdd
+
 package steps
 
 import (
@@ -7,8 +9,7 @@ import (
 	"strings"
 
 	"github.com/cucumber/godog"
-
-	"github.com/pure-golang/budva-claude/internal/domain"
+	"github.com/zelenin/go-tdlib/client"
 )
 
 var testPhotos = []string{
@@ -21,17 +22,16 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	ctx.When(`^пользователь отправляет медиа-альбом в исходный чат$`, func() error {
 		s.applyRuleSet()
 
-		// Отправляем реальный альбом из 3 фото через TDLib SendMessageAlbum
-		contents := make([]domain.InputMessageContent, 0, len(testPhotos))
+		// Отправляем реальный альбом из 3 фото через TDLib SendMessageAlbum.
+		contents := make([]client.InputMessageContent, 0, len(testPhotos))
 		for i, photo := range testPhotos {
 			absPath, err := filepath.Abs(photo)
 			if err != nil {
 				return fmt.Errorf("resolve photo path: %w", err)
 			}
-			contents = append(contents, domain.InputMessageContent{
-				Type:     domain.ContentPhoto,
-				FilePath: absPath,
-				Text:     &domain.FormattedText{Text: fmt.Sprintf("photo %d", i+1)},
+			contents = append(contents, &client.InputMessagePhoto{
+				Photo:   &client.InputFileLocal{Path: absPath},
+				Caption: &client.FormattedText{Text: fmt.Sprintf("photo %d", i+1)},
 			})
 		}
 
@@ -40,7 +40,6 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return err
 		}
 
-		// Handler получает каждое сообщение альбома индивидуально (как в production)
 		for _, msg := range albumMsgs {
 			s.env.Handler.OnNewMessage(context.Background(), msg)
 		}
@@ -55,14 +54,14 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			// Проверяем порядок: photo 1, photo 2, photo 3
 			for i, msg := range msgs {
 				expected := fmt.Sprintf("photo %d", i+1)
-				if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, expected) {
-					got := "<nil>"
-					if msg.Content.Text != nil {
-						got = msg.Content.Text.Text
-					}
+				text := messageCaption(msg)
+				got := "<nil>"
+				if text != nil {
+					got = text.Text
+				}
+				if text == nil || !strings.Contains(text.Text, expected) {
 					return fmt.Errorf("album order: expected %q at position %d in target %d, got %q",
 						expected, i, targetID, got)
 				}

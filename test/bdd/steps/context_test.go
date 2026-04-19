@@ -1,12 +1,15 @@
+//go:build bdd
+
 package steps
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"fmt"
 	"regexp"
+	"sync/atomic"
 
 	"github.com/cucumber/godog"
+	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/test/support"
@@ -47,7 +50,7 @@ type scenarioCtx struct {
 	deliveryMode string
 	sourceType   string
 	messageText  string
-	sentMsg      *domain.Message
+	sentMsg      *client.Message
 
 	// Опции правила
 	sendCopy             bool
@@ -71,16 +74,20 @@ type scenarioCtx struct {
 	skipRetryDrain bool
 
 	// Check/Other чаты
-	checkChatID domain.ChatID
+	checkChatID int64
 
 	// Пересланное сообщение из канала
-	forwardedMsg *domain.Message
+	forwardedMsg *client.Message
 }
 
+// scenarioSeq — глобальный счётчик сценариев для маркера.
+// Цифровой маркер не переводится TDLib (в отличие от hex, где `da...` → `Да...`),
+// а последовательность даёт стабильный порядок сценариев в логах.
+var scenarioSeq atomic.Uint64
+
+// generatePrefix возвращает маркер сценария из трёх цифр с ведущими нулями.
 func generatePrefix() string {
-	b := make([]byte, 4)
-	rand.Read(b) //nolint:errcheck // crypto/rand.Read never fails on supported platforms
-	return hex.EncodeToString(b)
+	return fmt.Sprintf("%03d", scenarioSeq.Add(1))
 }
 
 func (s *scenarioCtx) reset() error {
@@ -118,6 +125,27 @@ func (s *scenarioCtx) reset() error {
 // applyRuleSet собирает RuleSet из накопленного состояния и устанавливает в handler.
 func (s *scenarioCtx) applyRuleSet() {
 	s.src.DeleteSystemMessages = s.deleteSystemMessages
+
+	// TargetIDs могут быть переопределены шагом «целевой чат типа» после того,
+	// как опции источника (Link/Sign/Translate/Prev/Next) были привязаны к
+	// прежнему slice. Пересобираем `For` здесь, чтобы transform-проверки
+	// containsChatID(For, DstChatID) видели актуальный набор целевых чатов.
+	if s.src.Link != nil {
+		s.src.Link.For = s.env.TargetIDs
+	}
+	if s.src.Sign != nil {
+		s.src.Sign.For = s.env.TargetIDs
+	}
+	if s.src.Translate != nil {
+		s.src.Translate.For = s.env.TargetIDs
+	}
+	if s.src.Prev != nil {
+		s.src.Prev.For = s.env.TargetIDs
+	}
+	if s.src.Next != nil {
+		s.src.Next.For = s.env.TargetIDs
+	}
+
 	rs := s.env.MakeRuleSet(s.sendCopy, s.src)
 
 	rule := rs.ForwardRules["test_rule"]
@@ -181,7 +209,7 @@ func initScenario(ctx *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		s.env.TargetIDs = []domain.ChatID{fix.ChatID}
+		s.env.TargetIDs = []int64{fix.ChatID}
 		return nil
 	})
 

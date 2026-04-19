@@ -1,3 +1,5 @@
+//go:build bdd
+
 package steps
 
 import (
@@ -7,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/test/support"
@@ -53,10 +56,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = text
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: text},
-		}, s.prefix)
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(text), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -72,10 +72,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = "test message"
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: s.messageText},
-		}, s.prefix)
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(s.messageText), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -93,7 +90,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			s.env.Handler.OnMessageSendSucceeded(msg.ChatID, msg.ID, msg.ID)
+			s.env.Handler.OnMessageSendSucceeded(msg.ChatId, msg.Id, msg.Id)
 		}
 		s.env.DrainQueue()
 		return nil
@@ -104,19 +101,22 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			return fmt.Errorf("no previously sent message")
 		}
 
-		// Реально редактируем SOURCE сообщение через TDLib (как в budva43 e2e).
-		// TDLib отправит UpdateMessageEdited → processUpdates → handler.OnEditedMessage →
-		// handler синхронизирует изменение в target-копиях.
-		editedText := &domain.FormattedText{
+		// Реально редактируем SOURCE сообщение через TDLib.
+		editedText := &client.FormattedText{
 			Text: support.PrefixText(s.prefix, newText),
 		}
-		if err := s.env.Telegram.EditMessageText(context.Background(), s.env.SourceID, s.sentMsg.ID, editedText); err != nil {
+		if _, err := s.env.Telegram.EditMessageText(&client.EditMessageTextRequest{
+			ChatId:              s.env.SourceID,
+			MessageId:           s.sentMsg.Id,
+			InputMessageContent: &client.InputMessageText{Text: editedText},
+		}); err != nil {
 			return fmt.Errorf("edit source message: %w", err)
 		}
 
-		// Поллим: DrainQueue + проверяем target, пока edit не применится.
-		// Для copy_once (versioning): ждём появления ссылки в новой копии.
-		// Для обычного edit: ждём появления нового текста в существующей копии.
+		// Поллим: ждём применения edit.
+		// Для copy_once (versioning) transform добавляет Markdown-ссылку `[Prev](url)`;
+		// TDLib ParseTextEntities выносит URL в TextEntityTypeTextUrl, оставляя в plain text
+		// только заголовок. Поэтому проверяем entities, а не Contains(text, "https://t.me").
 		deadline := time.After(10 * time.Second)
 		expectLink := s.copyOnce
 	editPoll:
@@ -127,13 +127,14 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				if err != nil {
 					continue
 				}
-				if msg.Content.Text == nil {
+				text := messageCaption(msg)
+				if text == nil {
 					continue
 				}
-				if expectLink && strings.Contains(msg.Content.Text.Text, "https://t.me") {
+				if expectLink && hasTMeEntity(text) {
 					break editPoll
 				}
-				if !expectLink && strings.Contains(msg.Content.Text.Text, newText) {
+				if !expectLink && strings.Contains(text.Text, newText) {
 					break editPoll
 				}
 			}
@@ -142,7 +143,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				if expectLink {
 					return fmt.Errorf("versioning: link not found in target within 10s")
 				}
-				break editPoll // Пусть Then step проверит результат
+				break editPoll
 			case <-time.After(200 * time.Millisecond):
 			}
 		}
@@ -159,7 +160,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.env.Handler.OnDeletedMessages(
 			context.Background(),
 			s.env.SourceID,
-			[]domain.MessageID{s.sentMsg.ID},
+			[]int64{s.sentMsg.Id},
 			true,
 		)
 		if s.skipRetryDrain {
@@ -177,7 +178,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, text) {
+			caption := messageCaption(msg)
+			if caption == nil || !strings.Contains(caption.Text, text) {
 				return fmt.Errorf("no message containing text %q in target chat %d", text, targetID)
 			}
 		}
@@ -190,7 +192,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, "https://t.me") {
+			caption := messageCaption(msg)
+			if caption == nil || !hasTMeEntity(caption) {
 				return fmt.Errorf("no message with link to previous version in target chat %d", targetID)
 			}
 		}
@@ -212,7 +215,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, text) {
+			caption := messageCaption(msg)
+			if caption == nil || !strings.Contains(caption.Text, text) {
 				return fmt.Errorf("no message with text %q in target chat %d", text, targetID)
 			}
 		}
@@ -245,10 +249,10 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			if err := s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, msg.ID), fmt.Sprintf("%d", msg.ID)); err != nil {
+			if err := s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, msg.Id), fmt.Sprintf("%d", msg.Id)); err != nil {
 				return err
 			}
-			if err := s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, msg.ID), fmt.Sprintf("%d", msg.ID)); err != nil {
+			if err := s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, msg.Id), fmt.Sprintf("%d", msg.Id)); err != nil {
 				return err
 			}
 		}
@@ -261,7 +265,7 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				continue
 			}
-			if err := s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", msg.ChatID, msg.ID)); err != nil {
+			if err := s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", msg.ChatId, msg.Id)); err != nil {
 				return err
 			}
 		}

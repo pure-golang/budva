@@ -1,3 +1,5 @@
+//go:build bdd
+
 package steps
 
 import (
@@ -6,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/cucumber/godog"
-
-	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
 func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
@@ -30,10 +30,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = "normal text"
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: s.messageText},
-		}, s.prefix)
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(s.messageText), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -49,10 +46,7 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		s.applyRuleSet()
 
 		s.messageText = text
-		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, domain.InputMessageContent{
-			Type: domain.ContentText,
-			Text: &domain.FormattedText{Text: text},
-		}, s.prefix)
+		msg, err := s.env.PutMessage(context.Background(), s.env.SourceID, textContent(text), s.prefix)
 		if err != nil {
 			return err
 		}
@@ -79,7 +73,8 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			if err != nil {
 				return err
 			}
-			if msg.Content.Text == nil || !strings.Contains(msg.Content.Text.Text, expected) {
+			caption := messageCaption(msg)
+			if caption == nil || !strings.Contains(caption.Text, expected) {
 				return fmt.Errorf("no message containing text %q in target chat %d", expected, targetID)
 			}
 		}
