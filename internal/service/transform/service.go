@@ -2,7 +2,6 @@ package transform
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -242,19 +241,20 @@ func (s *Service) replaceMyselfLinks(ctx context.Context, text *client.Formatted
 }
 
 // findCopyLink ищет ссылку на копию сообщения в целевом чате.
+// Формат элемента copiedMessageIDs — "forwardRuleID:dstChatID:tmpMessageID";
+// ruleID при чтении игнорируется, соответствие находим по равенству parts[1] == dstChatID.
 func (s *Service) findCopyLink(ctx context.Context, srcChatID int64, srcMessageID int64, dstChatID int64) string {
 	_ = ctx
 	copies := s.stateRepo.GetCopiedMessageIDs(srcChatID, srcMessageID)
-	dstPrefix := formatDstPrefix(dstChatID)
 	for _, c := range copies {
-		if !strings.HasPrefix(c, dstPrefix) {
-			continue
-		}
 		parts := strings.Split(c, ":")
 		if len(parts) < 3 {
 			continue
 		}
-		tmpID := parseMessageID(parts[len(parts)-1])
+		if parseMessageID(parts[1]) != dstChatID {
+			continue
+		}
+		tmpID := parseMessageID(parts[2])
 		newID := s.stateRepo.GetNewMessageID(dstChatID, tmpID)
 		if newID == 0 {
 			continue
@@ -342,13 +342,6 @@ func applyReplacement(text *client.FormattedText, offset, length int32, newText 
 	}
 
 	return text
-}
-
-func formatDstPrefix(dstChatID int64) string {
-	// Формат copiedMessageID: "ruleID:dstChatID:tmpMsgID".
-	s := fmt.Sprintf("%d", dstChatID)
-	s = strings.ReplaceAll(s, "-", "")
-	return ":" + s
 }
 
 func parseMessageID(s string) int64 {
