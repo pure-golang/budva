@@ -10,16 +10,19 @@ import (
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/handler/mocks"
+	"github.com/pure-golang/budva-claude/internal/repo/queue"
 )
 
-// newRunNextHandler — внутренний helper для прямого тестирования runNextLinkWorkflow.
-// Живёт в internal-тесте т.к. метод приватный.
-func newRunNextHandler(t *testing.T) (*Handler, *mocks.TelegramRepo, *mocks.StateRepo, *mocks.MessageService, *mocks.TransformService) {
-	t.Helper()
+// TestRunNextLinkWorkflow_CtxDone — отменённый ctx приводит к немедленному return в первой итерации.
+func TestRunNextLinkWorkflow_CtxDone(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
 	telegramRepo := mocks.NewTelegramRepo(t)
 	stateRepo := mocks.NewStateRepo(t)
 	messageService := mocks.NewMessageService(t)
 	transformService := mocks.NewTransformService(t)
+	taskQueue := queue.New()
 	h := New(
 		telegramRepo,
 		stateRepo,
@@ -27,28 +30,16 @@ func newRunNextHandler(t *testing.T) (*Handler, *mocks.TelegramRepo, *mocks.Stat
 		mocks.NewFilterService(t),
 		transformService,
 		mocks.NewAlbumService(t),
-		&internalSyncQueue{},
+		taskQueue,
 		mocks.NewRateLimiter(t),
 		func(_ []int64) DedupTracker { return mocks.NewDedupTracker(t) },
 	)
-	return h, telegramRepo, stateRepo, messageService, transformService
-}
-
-type internalSyncQueue struct{ tasks []func() }
-
-func (q *internalSyncQueue) Add(fn func()) { q.tasks = append(q.tasks, fn) }
-
-// TestRunNextLinkWorkflow_CtxDone — отменённый ctx приводит к немедленному return в первой итерации.
-func TestRunNextLinkWorkflow_CtxDone(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	h, _, _, _, _ := newRunNextHandler(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	// Act — должен выйти сразу по ctx.Done.
 	h.runNextLinkWorkflow(ctx, &domain.Source{ChatID: 100}, 200, 50, 51)
+	taskQueue.ProcessAll()
 
 	// Assert — без моков: ни одной операции.
 }
@@ -59,7 +50,22 @@ func TestRunNextLinkWorkflow_Success(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, telegramRepo, stateRepo, messageService, transformService := newRunNextHandler(t)
+	telegramRepo := mocks.NewTelegramRepo(t)
+	stateRepo := mocks.NewStateRepo(t)
+	messageService := mocks.NewMessageService(t)
+	transformService := mocks.NewTransformService(t)
+	taskQueue := queue.New()
+	h := New(
+		telegramRepo,
+		stateRepo,
+		messageService,
+		mocks.NewFilterService(t),
+		transformService,
+		mocks.NewAlbumService(t),
+		taskQueue,
+		mocks.NewRateLimiter(t),
+		func(_ []int64) DedupTracker { return mocks.NewDedupTracker(t) },
+	)
 	src := &domain.Source{ChatID: 100}
 
 	prevMsg := &client.Message{ChatId: 200, Id: 500, Content: &client.MessageText{Text: &client.FormattedText{Text: "prev"}}}
@@ -78,6 +84,7 @@ func TestRunNextLinkWorkflow_Success(t *testing.T) {
 
 	// Act
 	h.runNextLinkWorkflow(context.Background(), src, 200, 500, 51)
+	taskQueue.ProcessAll()
 }
 
 // TestRunNextLinkWorkflow_GetMessageFail — ошибка GetMessage останавливает loop.
@@ -85,13 +92,27 @@ func TestRunNextLinkWorkflow_GetMessageFail(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, telegramRepo, stateRepo, _, _ := newRunNextHandler(t)
+	telegramRepo := mocks.NewTelegramRepo(t)
+	stateRepo := mocks.NewStateRepo(t)
+	taskQueue := queue.New()
+	h := New(
+		telegramRepo,
+		stateRepo,
+		mocks.NewMessageService(t),
+		mocks.NewFilterService(t),
+		mocks.NewTransformService(t),
+		mocks.NewAlbumService(t),
+		taskQueue,
+		mocks.NewRateLimiter(t),
+		func(_ []int64) DedupTracker { return mocks.NewDedupTracker(t) },
+	)
 
 	stateRepo.EXPECT().GetNewMessageID(int64(200), int64(51)).Return(int64(52))
 	telegramRepo.EXPECT().GetMessage(mock.Anything).Return(nil, errors.New("not found"))
 
 	// Act
 	h.runNextLinkWorkflow(context.Background(), &domain.Source{ChatID: 100}, 200, 500, 51)
+	taskQueue.ProcessAll()
 }
 
 // TestRunNextLinkWorkflow_NilText — text == nil, return.
@@ -99,7 +120,21 @@ func TestRunNextLinkWorkflow_NilText(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, telegramRepo, stateRepo, messageService, _ := newRunNextHandler(t)
+	telegramRepo := mocks.NewTelegramRepo(t)
+	stateRepo := mocks.NewStateRepo(t)
+	messageService := mocks.NewMessageService(t)
+	taskQueue := queue.New()
+	h := New(
+		telegramRepo,
+		stateRepo,
+		messageService,
+		mocks.NewFilterService(t),
+		mocks.NewTransformService(t),
+		mocks.NewAlbumService(t),
+		taskQueue,
+		mocks.NewRateLimiter(t),
+		func(_ []int64) DedupTracker { return mocks.NewDedupTracker(t) },
+	)
 
 	prevMsg := &client.Message{ChatId: 200, Id: 500}
 	stateRepo.EXPECT().GetNewMessageID(int64(200), int64(51)).Return(int64(52))
@@ -108,6 +143,7 @@ func TestRunNextLinkWorkflow_NilText(t *testing.T) {
 
 	// Act
 	h.runNextLinkWorkflow(context.Background(), &domain.Source{ChatID: 100}, 200, 500, 51)
+	taskQueue.ProcessAll()
 }
 
 // TestParseCopyRef_Variants — табличный тест для приватной parseCopyRef.
@@ -186,7 +222,22 @@ func TestEditMessages_CaptionBranch_SetAnswer(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	h, telegramRepo, stateRepo, messageService, transformService := newRunNextHandler(t)
+	telegramRepo := mocks.NewTelegramRepo(t)
+	stateRepo := mocks.NewStateRepo(t)
+	messageService := mocks.NewMessageService(t)
+	transformService := mocks.NewTransformService(t)
+	taskQueue := queue.New()
+	h := New(
+		telegramRepo,
+		stateRepo,
+		messageService,
+		mocks.NewFilterService(t),
+		transformService,
+		mocks.NewAlbumService(t),
+		taskQueue,
+		mocks.NewRateLimiter(t),
+		func(_ []int64) DedupTracker { return mocks.NewDedupTracker(t) },
+	)
 	rule := &domain.ForwardRule{ID: "r1", From: 100, To: []int64{200}, SendCopy: true}
 	rs := &domain.RuleSet{
 		Sources:       map[int64]*domain.Source{100: {ChatID: 100}},

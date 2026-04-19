@@ -1,5 +1,3 @@
-//go:build bdd
-
 package steps
 
 import (
@@ -49,7 +47,7 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^медиа-альбом появляется во всех целевых чатах в правильном порядке$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.CheckAlbumMessages(targetID, s.prefix, int32(len(testPhotos)))
+			msgs, err := s.env.CheckAlbumMessages(targetID, s.prefix, int32(len(testPhotos))) //nolint:gosec // test-data фиксированного размера, overflow невозможен
 			if err != nil {
 				return err
 			}

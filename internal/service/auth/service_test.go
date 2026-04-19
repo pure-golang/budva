@@ -6,7 +6,6 @@ import (
 	"sync"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -43,7 +42,7 @@ func TestStateUpdatedFromEvent(t *testing.T) {
 
 		// Act
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		assert.Equal(t, domain.AuthStateReady, svc.State())
@@ -72,7 +71,7 @@ func TestSubscribeReceivesStateChanges(t *testing.T) {
 
 		// Act — Ready завершает run(), поэтому отправляем его последним
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		mu.Lock()
@@ -109,11 +108,11 @@ func TestSubscribeReceivesExtra(t *testing.T) {
 			State: domain.AuthStateWaitPassword,
 			Extra: hint,
 		}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Отправляем input, чтобы run() продолжился
 		svc.InputChan() <- "secret"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		mu.Lock()
@@ -142,32 +141,32 @@ func TestFullAuthFlow(t *testing.T) {
 
 		// WaitPhone
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
 
 		svc.InputChan() <- "+79261234567"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// WaitCode
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		svc.InputChan() <- "12345"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// WaitPassword
 		states <- domain.AuthStateEvent{
 			State: domain.AuthStateWaitPassword,
 			Extra: &domain.WaitPasswordState{PasswordHint: "2FA"},
 		}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		svc.InputChan() <- "secret"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Ready
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		assert.Equal(t, domain.AuthStateReady, svc.State())
 	})
 }
@@ -198,7 +197,7 @@ func TestMultipleSubscribers(t *testing.T) {
 
 		// Act
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		mu.Lock()
@@ -222,9 +221,9 @@ func TestCancelDuringWait(t *testing.T) {
 
 		// Act — отправляем состояние, но не даём input
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		cancel()
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert — сервис остановился, состояние зафиксировано
 		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
@@ -253,9 +252,9 @@ func TestClosingStateIsSkipped(t *testing.T) {
 
 		// Act — Closing не должен попадать в listeners
 		states <- domain.AuthStateEvent{State: domain.AuthStateClosing}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert — только Ready, без Closing
 		mu.Lock()
@@ -279,18 +278,18 @@ func TestSubmitCodeRejection_WaitsForReEmit(t *testing.T) {
 
 		// Act — WaitCode, ввод отклонён repo
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		svc.InputChan() <- "wrong"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Сервис вернулся в внешний цикл — ждёт новый event от repo.
 		// Repo повторно эмитит WaitCode (как TDLib при rejection).
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		svc.InputChan() <- "correct"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert — оба вызова SubmitCode проверяются через AssertExpectations
 	})
@@ -311,19 +310,19 @@ func TestFlowWithout2FA(t *testing.T) {
 
 		// WaitPhone
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		svc.InputChan() <- "+79261234567"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// WaitCode
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitCode}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		svc.InputChan() <- "12345"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Ready — без WaitPassword
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		assert.Equal(t, domain.AuthStateReady, svc.State())
@@ -379,7 +378,7 @@ func TestExtra_ReturnsLastStateExtra(t *testing.T) {
 			State: domain.AuthStateWaitPassword,
 			Extra: hint,
 		}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		got := svc.Extra()
@@ -444,9 +443,9 @@ func TestClosedStateIsSkipped(t *testing.T) {
 
 		// Act — Closed не должен попадать в listeners
 		states <- domain.AuthStateEvent{State: domain.AuthStateClosed}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert — только Ready
 		mu.Lock()
@@ -469,7 +468,7 @@ func TestCancelBeforeEvent(t *testing.T) {
 
 		// Act — отменяем до отправки событий, run() должен выйти через <-ctx.Done()
 		cancel()
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert — состояние осталось zero-value
 		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
@@ -490,9 +489,9 @@ func TestSubmitPhoneError_Logged(t *testing.T) {
 
 		// Act
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		svc.InputChan() <- "+79261234567"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert — ошибка залогирована, сервис жив; проверка через AssertExpectations
 		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
@@ -513,9 +512,9 @@ func TestSubmitPasswordError_Logged(t *testing.T) {
 
 		// Act
 		states <- domain.AuthStateEvent{State: domain.AuthStateWaitPassword}
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 		svc.InputChan() <- "bad"
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		assert.Equal(t, domain.AuthStateWaitPassword, svc.State())
@@ -567,7 +566,7 @@ func TestConcurrentStateReadWrite(t *testing.T) {
 		}
 		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
 		wg.Wait()
-		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
 
 		// Assert
 		assert.Equal(t, domain.AuthStateReady, svc.State())

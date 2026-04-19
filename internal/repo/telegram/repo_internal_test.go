@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -544,41 +545,36 @@ func TestPendingSends_ConcurrentAddRemove(t *testing.T) {
 func TestSendMessageAndWait_SuccessPath(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	m := mocks.NewClientAdapter(t)
-	m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
-		return &client.Message{Id: 1}, nil
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		m := mocks.NewClientAdapter(t)
+		m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
+			return &client.Message{Id: 1}, nil
+		})
+		r := New(config.TelegramConfig{})
+		r.clientAdapter = m
+		r.phoneCh = make(chan string, 1)
+		r.codeCh = make(chan string, 1)
+		r.passwordCh = make(chan string, 1)
+
+		// Фоновая goroutine, эмулирующая UpdateMessageSendSucceeded.
+		permanent := &client.Message{Id: 42}
+		go func() {
+			// synctest.Wait блокируется, пока SendMessageAndWait не встанет в durable-block на resultCh.
+			synctest.Wait()
+			r.dispatchSendResult(&client.UpdateMessageSendSucceeded{
+				OldMessageId: 1,
+				Message:      permanent,
+			})
+		}()
+
+		// Act
+		got, err := r.SendMessageAndWait(context.Background(), &client.SendMessageRequest{ChatId: 10})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, permanent, got)
 	})
-	r := New(config.TelegramConfig{})
-	r.clientAdapter = m
-	r.phoneCh = make(chan string, 1)
-	r.codeCh = make(chan string, 1)
-	r.passwordCh = make(chan string, 1)
-
-	// Фоновая goroutine, эмулирующая UpdateMessageSendSucceeded.
-	permanent := &client.Message{Id: 42}
-	go func() {
-		// Даём немного времени, чтобы SendMessageAndWait добавил запись в pendingSends.
-		deadline := time.Now().Add(time.Second)
-		for time.Now().Before(deadline) {
-			_, ok := r.pendingSends.Load(int64(1))
-			if ok {
-				r.dispatchSendResult(&client.UpdateMessageSendSucceeded{
-					OldMessageId: 1,
-					Message:      permanent,
-				})
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
-
-	// Act
-	got, err := r.SendMessageAndWait(context.Background(), &client.SendMessageRequest{ChatId: 10})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, permanent, got)
 }
 
 func TestSendMessageAndWait_SendMessageError(t *testing.T) {
@@ -607,137 +603,141 @@ func TestSendMessageAndWait_SendMessageError(t *testing.T) {
 func TestSendMessageAndWait_ContextCancelled(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: SendMessage возвращает tmp_id, но никто не доставит permanent.
-	m := mocks.NewClientAdapter(t)
-	m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
-		return &client.Message{Id: 7}, nil
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange: SendMessage возвращает tmp_id, но никто не доставит permanent.
+		m := mocks.NewClientAdapter(t)
+		m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
+			return &client.Message{Id: 7}, nil
+		})
+		r := New(config.TelegramConfig{})
+		r.clientAdapter = m
+		r.phoneCh = make(chan string, 1)
+		r.codeCh = make(chan string, 1)
+		r.passwordCh = make(chan string, 1)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			// Ждём, пока SendMessageAndWait не встанет в durable-block на select.
+			synctest.Wait()
+			cancel()
+		}()
+
+		// Act
+		msg, err := r.SendMessageAndWait(ctx, &client.SendMessageRequest{ChatId: 10})
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, msg)
+		assert.ErrorIs(t, err, context.Canceled)
+
+		// pendingSends очищен defer-ом.
+		_, ok := r.pendingSends.Load(int64(7))
+		assert.False(t, ok)
 	})
-	r := New(config.TelegramConfig{})
-	r.clientAdapter = m
-	r.phoneCh = make(chan string, 1)
-	r.codeCh = make(chan string, 1)
-	r.passwordCh = make(chan string, 1)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		cancel()
-	}()
-
-	// Act
-	msg, err := r.SendMessageAndWait(ctx, &client.SendMessageRequest{ChatId: 10})
-
-	// Assert
-	require.Error(t, err)
-	assert.Nil(t, msg)
-	assert.ErrorIs(t, err, context.Canceled)
-
-	// pendingSends очищен defer-ом.
-	_, ok := r.pendingSends.Load(int64(7))
-	assert.False(t, ok)
 }
 
 func TestSendMessageAndWait_FloodWaitExhaustsRetries(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: каждая попытка возвращает FLOOD_WAIT 1 — после sendFloodWaitRetries+1 попыток
-	// ошибка должна просочиться наружу.
-	var attempts int32
-	mu := sync.Mutex{}
-	m := mocks.NewClientAdapter(t)
-	m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange: каждая попытка возвращает FLOOD_WAIT 1 — после sendFloodWaitRetries+1 попыток
+		// ошибка должна просочиться наружу.
+		var attempts int32
+		mu := sync.Mutex{}
+		m := mocks.NewClientAdapter(t)
+		m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
+			mu.Lock()
+			attempts++
+			mu.Unlock()
+			return nil, errors.New("Too Many Requests: retry after 1")
+		})
+		r := New(config.TelegramConfig{})
+		r.clientAdapter = m
+		r.phoneCh = make(chan string, 1)
+		r.codeCh = make(chan string, 1)
+		r.passwordCh = make(chan string, 1)
+
+		// Под synctest реальное ожидание FLOOD_WAIT (~3s) становится виртуальным.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// Act
+		msg, err := r.SendMessageAndWait(ctx, &client.SendMessageRequest{ChatId: 10})
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, msg)
+		// Ожидаем sendFloodWaitRetries + 1 = 3 попытки.
 		mu.Lock()
-		attempts++
+		assert.EqualValues(t, sendFloodWaitRetries+1, attempts)
 		mu.Unlock()
-		return nil, errors.New("Too Many Requests: retry after 1")
 	})
-	r := New(config.TelegramConfig{})
-	r.clientAdapter = m
-	r.phoneCh = make(chan string, 1)
-	r.codeCh = make(chan string, 1)
-	r.passwordCh = make(chan string, 1)
-
-	// Ограничиваем общий таймаут теста: wait=1.5s * 2 повторов ~3s, даём запас.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Act
-	msg, err := r.SendMessageAndWait(ctx, &client.SendMessageRequest{ChatId: 10})
-
-	// Assert
-	require.Error(t, err)
-	assert.Nil(t, msg)
-	// Ожидаем sendFloodWaitRetries + 1 = 3 попытки.
-	mu.Lock()
-	assert.EqualValues(t, sendFloodWaitRetries+1, attempts)
-	mu.Unlock()
 }
 
 func TestSendMessageAndWait_FloodWaitInterruptedByContext(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: первый вызов FLOOD_WAIT ≥ 1s, ctx отменяется в середине ожидания.
-	m := mocks.NewClientAdapter(t)
-	m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
-		return nil, errors.New("Too Many Requests: retry after 5")
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange: первый вызов FLOOD_WAIT ≥ 1s, ctx отменяется в середине ожидания.
+		m := mocks.NewClientAdapter(t)
+		m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
+			return nil, errors.New("Too Many Requests: retry after 5")
+		})
+		r := New(config.TelegramConfig{})
+		r.clientAdapter = m
+		r.phoneCh = make(chan string, 1)
+		r.codeCh = make(chan string, 1)
+		r.passwordCh = make(chan string, 1)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+
+		// Act
+		msg, err := r.SendMessageAndWait(ctx, &client.SendMessageRequest{ChatId: 10})
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, msg)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		// Под synctest виртуальное время: прошло ровно 50ms, не 5s.
+		assert.Less(t, time.Since(start), time.Second)
 	})
-	r := New(config.TelegramConfig{})
-	r.clientAdapter = m
-	r.phoneCh = make(chan string, 1)
-	r.codeCh = make(chan string, 1)
-	r.passwordCh = make(chan string, 1)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-
-	start := time.Now()
-
-	// Act
-	msg, err := r.SendMessageAndWait(ctx, &client.SendMessageRequest{ChatId: 10})
-
-	// Assert
-	require.Error(t, err)
-	assert.Nil(t, msg)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
-	// Должны выйти задолго до 5-секундного FLOOD_WAIT-ожидания.
-	assert.Less(t, time.Since(start), time.Second)
 }
 
 func TestSendMessageAndWait_DeliversErrorThroughPendingChannel(t *testing.T) {
 	t.Parallel()
 
-	// Arrange: SendMessage успешен, но дальше приходит UpdateMessageSendFailed.
-	m := mocks.NewClientAdapter(t)
-	m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
-		return &client.Message{Id: 55}, nil
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange: SendMessage успешен, но дальше приходит UpdateMessageSendFailed.
+		m := mocks.NewClientAdapter(t)
+		m.EXPECT().SendMessage(mock.Anything).RunAndReturn(func(_ *client.SendMessageRequest) (*client.Message, error) {
+			return &client.Message{Id: 55}, nil
+		})
+		r := New(config.TelegramConfig{})
+		r.clientAdapter = m
+		r.phoneCh = make(chan string, 1)
+		r.codeCh = make(chan string, 1)
+		r.passwordCh = make(chan string, 1)
+
+		go func() {
+			// synctest.Wait блокируется до durable-block SendMessageAndWait на resultCh.
+			synctest.Wait()
+			r.dispatchSendResult(&client.UpdateMessageSendFailed{
+				OldMessageId: 55,
+				Error:        &client.Error{Code: 400, Message: "BAD_REQUEST"},
+			})
+		}()
+
+		// Act
+		msg, err := r.SendMessageAndWait(context.Background(), &client.SendMessageRequest{ChatId: 10})
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, msg)
+		assert.Contains(t, err.Error(), "BAD_REQUEST")
 	})
-	r := New(config.TelegramConfig{})
-	r.clientAdapter = m
-	r.phoneCh = make(chan string, 1)
-	r.codeCh = make(chan string, 1)
-	r.passwordCh = make(chan string, 1)
-
-	go func() {
-		deadline := time.Now().Add(time.Second)
-		for time.Now().Before(deadline) {
-			if _, ok := r.pendingSends.Load(int64(55)); ok {
-				r.dispatchSendResult(&client.UpdateMessageSendFailed{
-					OldMessageId: 55,
-					Error:        &client.Error{Code: 400, Message: "BAD_REQUEST"},
-				})
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
-
-	// Act
-	msg, err := r.SendMessageAndWait(context.Background(), &client.SendMessageRequest{ChatId: 10})
-
-	// Assert
-	require.Error(t, err)
-	assert.Nil(t, msg)
-	assert.Contains(t, err.Error(), "BAD_REQUEST")
 }
 
 // --- sendMessageAndWaitOnce непосредственно ---

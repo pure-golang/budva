@@ -15,14 +15,6 @@ import (
 	"github.com/pure-golang/budva-claude/internal/service/transform/mocks"
 )
 
-// newTestService создаёт *Service с mock-зависимостями.
-func newTestService(t *testing.T) (*transform.Service, *mocks.TelegramRepo, *mocks.StateRepo) {
-	t.Helper()
-	tg := mocks.NewTelegramRepo(t)
-	st := mocks.NewStateRepo(t)
-	return transform.New(tg, st), tg, st
-}
-
 // Transform использует статическую client.ParseTextEntities — её не мокаем.
 // Тесты подают текст, проходящий через реальный парсер Markdown v2.
 
@@ -30,7 +22,9 @@ func TestTransform_NoTransformations(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	p := domain.TransformParams{
 		Text:   &client.FormattedText{Text: "hello"},
 		Source: &domain.Source{ChatID: 100},
@@ -48,7 +42,9 @@ func TestTransform_Translation(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID:    100,
 		Translate: &domain.Translate{Lang: "ru", For: []int64{200}},
@@ -77,7 +73,9 @@ func TestTransform_Translation_ErrorKeepsOriginal(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID:    100,
 		Translate: &domain.Translate{Lang: "ru", For: []int64{200}},
@@ -101,7 +99,9 @@ func TestTransform_Translation_SkippedForOtherChat(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID:    100,
 		Translate: &domain.Translate{Lang: "ru", For: []int64{200}},
@@ -124,7 +124,9 @@ func TestTransform_ReplaceFragments(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID: 200,
@@ -152,7 +154,9 @@ func TestTransform_Sign(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Sign:   &domain.Sign{Title: "Source", For: []int64{200}},
@@ -176,7 +180,9 @@ func TestTransform_Sign_SkippedWithoutWithSources(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Sign:   &domain.Sign{Title: "Source", For: []int64{200}},
@@ -199,7 +205,9 @@ func TestTransform_Link(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Link:   &domain.Link{Title: "Orig", For: []int64{200}},
@@ -228,7 +236,9 @@ func TestTransform_Link_ErrorSkipped(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Link:   &domain.Link{Title: "Orig", For: []int64{200}},
@@ -255,7 +265,9 @@ func TestTransform_Link_EmptyLinkSkipped(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Link:   &domain.Link{Title: "Orig", For: []int64{200}},
@@ -280,7 +292,9 @@ func TestTransform_PrevLink(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Prev:   &domain.Prev{Title: "Prev", For: []int64{200}},
@@ -308,7 +322,9 @@ func TestTransform_PrevLink_ErrorSkipped(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Prev:   &domain.Prev{Title: "Prev", For: []int64{200}},
@@ -334,7 +350,9 @@ func TestTransform_AutoAnswer(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100, AutoAnswer: true}
 	tg.EXPECT().GetCallbackQueryAnswer(mock.MatchedBy(func(req *client.GetCallbackQueryAnswerRequest) bool {
 		return req.ChatId == 100 && req.MessageId == 1
@@ -360,7 +378,9 @@ func TestTransform_AutoAnswer_NoReplyMarkupSkipped(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100, AutoAnswer: true}
 	p := domain.TransformParams{
 		Text:      &client.FormattedText{Text: "hello"},
@@ -380,7 +400,9 @@ func TestTransform_AutoAnswer_ErrorKeepsText(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100, AutoAnswer: true}
 	tg.EXPECT().GetCallbackQueryAnswer(mock.Anything).Return(nil, errors.New("boom"))
 	p := domain.TransformParams{
@@ -402,7 +424,9 @@ func TestTransform_AutoAnswer_EmptyAnswerKeepsText(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100, AutoAnswer: true}
 	tg.EXPECT().GetCallbackQueryAnswer(mock.Anything).Return(&client.CallbackQueryAnswer{Text: ""}, nil)
 	p := domain.TransformParams{
@@ -424,7 +448,9 @@ func TestTransform_AutoAnswer_NilAnswerKeepsText(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100, AutoAnswer: true}
 	tg.EXPECT().GetCallbackQueryAnswer(mock.Anything).Return(nil, nil)
 	p := domain.TransformParams{
@@ -446,7 +472,9 @@ func TestTransform_ReplaceMyselfLinks_BasicGroupSkipped(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -483,7 +511,9 @@ func TestTransform_ReplaceMyselfLinks_GetChatError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -516,7 +546,9 @@ func TestTransform_ReplaceMyselfLinks_NoEntities(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -543,7 +575,9 @@ func TestTransform_ReplaceMyselfLinks_TextURLEntityReplaced(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, st := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -595,7 +629,9 @@ func TestTransform_ReplaceMyselfLinks_PlainURLReplaced(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, st := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -643,7 +679,9 @@ func TestTransform_ReplaceMyselfLinks_NegativeDstChatID(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, st := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: -100}
 	dst := &domain.Destination{
 		ChatID:             -200,
@@ -690,7 +728,9 @@ func TestTransform_ReplaceMyselfLinks_ExternalLinkDeleted(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID: 200,
@@ -735,7 +775,9 @@ func TestTransform_ReplaceMyselfLinks_ExternalLinkWithoutDeleteKept(t *testing.T
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -776,7 +818,9 @@ func TestTransform_ReplaceMyselfLinks_LinkInfoErrorSkipped(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -815,7 +859,9 @@ func TestTransform_ReplaceMyselfLinks_NonURLEntitySkipped(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -852,7 +898,9 @@ func TestTransform_ReplaceMyselfLinks_NoCopyFound(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, st := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -910,7 +958,9 @@ func TestTransform_ReplaceMyselfLinks_EmptyURL(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	dst := &domain.Destination{
 		ChatID:             200,
@@ -948,7 +998,9 @@ func TestAddNextLink(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{200}},
@@ -969,7 +1021,9 @@ func TestAddNextLink_NoNextConfig(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{ChatID: 100}
 	text := &client.FormattedText{Text: "original"}
 
@@ -984,7 +1038,9 @@ func TestAddNextLink_ChatNotInFor(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, _, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{300}},
@@ -1002,7 +1058,9 @@ func TestAddNextLink_LinkError(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{200}},
@@ -1021,7 +1079,9 @@ func TestAddNextLink_EmptyLink(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{200}},
@@ -1040,7 +1100,9 @@ func TestAddNextLink_NilLink(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	svc, tg, _ := newTestService(t)
+	tg := mocks.NewTelegramRepo(t)
+	st := mocks.NewStateRepo(t)
+	svc := transform.New(tg, st)
 	src := &domain.Source{
 		ChatID: 100,
 		Next:   &domain.Next{Title: "Next", For: []int64{200}},
