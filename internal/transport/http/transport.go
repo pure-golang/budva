@@ -5,10 +5,13 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 	alogger "github.com/pure-golang/adapters/logger"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
+	"github.com/pure-golang/budva-claude/internal/transport/http/resolvers"
 )
 
 type authService interface {
@@ -21,11 +24,11 @@ type authService interface {
 // Transport реализует HTTP-транспорт с REST-эндпоинтами для авторизации.
 type Transport struct {
 	authService authService
-	resolver    *graph.Resolver
+	resolver    *resolvers.Resolver
 }
 
 // New создаёт новый экземпляр HTTP-транспорта.
-func New(authService authService, resolver *graph.Resolver) *Transport {
+func New(authService authService, resolver *resolvers.Resolver) *Transport {
 	return &Transport{
 		authService: authService,
 		resolver:    resolver,
@@ -39,8 +42,11 @@ func (t *Transport) EnrichRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/telegram/code", t.handlePostCode)
 	mux.HandleFunc("POST /api/auth/telegram/password", t.handlePostPassword)
 	if t.resolver != nil {
-		mux.HandleFunc("POST /graphql", t.resolver.Handler())
-		mux.HandleFunc("GET /playground", graph.PlaygroundHandler("/graphql"))
+		srv := handler.NewDefaultServer(
+			graph.NewExecutableSchema(graph.Config{Resolvers: t.resolver}),
+		)
+		mux.Handle("POST /graphql", srv)
+		mux.Handle("GET /playground", playground.Handler("GraphQL playground", "/graphql"))
 	}
 }
 

@@ -1,16 +1,10 @@
-// Package graph реализует GraphQL-транспорт поверх HTTP.
+// Package graph содержит сгенерированный gqlgen контракт GraphQL-схемы.
 //
-// Использование:
+// Пакет играет ту же роль, что grpc/pb/: хранит `.graphqls`-схему и generated exec-код,
+// читается только автогенератором. Правится руками только в части `schema.graphqls`;
+// остальные файлы перезаписываются при `task gqlgen`.
 //
-//	resolver := graph.NewResolver(statusProvider)
-//	handler := graph.NewHandler(resolver)
-//	mux.Handle("/query", handler)
-//	mux.Handle("/", graph.PlaygroundHandler("/query"))
+// Имплементация резолверов живёт в `internal/transport/http/resolvers/`.
 //
 // Пакет не читает переменные окружения напрямую.
-//
-// Ограничения:
-//
-//   - Схема описана в schema.graphqls.
-//   - Playground доступен только для отладки.
 package graph

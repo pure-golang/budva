@@ -20,14 +20,14 @@ import (
 	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/controller"
 	"github.com/pure-golang/budva-claude/internal/repo/telegram"
-	repoterm "github.com/pure-golang/budva-claude/internal/repo/term"
+	"github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
 	"github.com/pure-golang/budva-claude/internal/service/facade"
-	grpctransport "github.com/pure-golang/budva-claude/internal/transport/grpc"
+	tgrpc "github.com/pure-golang/budva-claude/internal/transport/grpc"
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
-	httptransport "github.com/pure-golang/budva-claude/internal/transport/http"
-	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
-	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
+	thttp "github.com/pure-golang/budva-claude/internal/transport/http"
+	"github.com/pure-golang/budva-claude/internal/transport/http/resolvers"
+	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
 )
 
 func main() {
@@ -79,8 +79,8 @@ func run() error {
 	mux := http.NewServeMux()
 	ctrl := controller.New()
 	ctrl.EnrichRoutes(mux)
-	gqlResolver := graph.NewResolver(facadeService)
-	httpTransport := httptransport.New(authService, gqlResolver)
+	gqlResolver := resolvers.New(facadeService)
+	httpTransport := thttp.New(authService, gqlResolver)
 	httpTransport.EnrichRoutes(mux)
 
 	handler := amiddleware.Chain(mux, amiddleware.Monitoring("/graphql", "/api/*"), amiddleware.Recovery)
@@ -89,13 +89,13 @@ func run() error {
 
 	// 7. gRPC transport
 	grpcServer := agrpc.NewDefault(cfg.GRPCServer, func(s *grpc.Server) {
-		grpcTransport := grpctransport.New(facadeService)
+		grpcTransport := tgrpc.New(facadeService)
 		pb.RegisterFacadeGRPCServer(s, grpcTransport)
 	})
 
 	// 8. Terminal transport
-	termRepo := repoterm.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
-	termTransport := termtransport.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
+	termRepo := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
+	termTransport := tterm.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {
 			logger.Error("Terminal transport error", slog.Any("err", err))

@@ -27,6 +27,6 @@ packages:
   github.com/pure-golang/budva-claude/internal/transport/grpc:
     config:
       all: true
-  github.com/pure-golang/budva-claude/internal/transport/http/graph:
+  github.com/pure-golang/budva-claude/internal/transport/http/resolvers:
     config:
       all: true
