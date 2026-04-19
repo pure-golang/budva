@@ -21,7 +21,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/repo/telegram"
 	"github.com/pure-golang/budva-claude/internal/repo/term"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
-	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
+	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
 	"github.com/pure-golang/budva-claude/test/support"
 )
 
@@ -103,7 +103,7 @@ func run(up bool) error {
 	authService.Start(ctx)
 
 	termRepo := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
-	termTransport := termtransport.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
+	termTransport := tterm.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {
 			logger.Error("Terminal transport error", slog.Any("err", err))

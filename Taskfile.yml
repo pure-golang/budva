@@ -2,7 +2,7 @@ version: "3"
 
 includes:
   common:
-    taskfile: ../level85/Taskfile.yml # смотри базовые таски
+    taskfile: ../level85/Taskfile.yml
     flatten: true
     excludes:
       - mock

@@ -27,7 +27,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/service/limiter"
 	"github.com/pure-golang/budva-claude/internal/service/message"
 	"github.com/pure-golang/budva-claude/internal/service/transform"
-	termtransport "github.com/pure-golang/budva-claude/internal/transport/term"
+	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
 )
 
 func main() {
@@ -186,7 +186,7 @@ func run() error {
 
 	// 10. Terminal transport
 	termRepo := term.New(os.Stdin, os.Stdout, int(os.Stdin.Fd())) //nolint:gosec // fd всегда 0 для stdin
-	termTransport := termtransport.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
+	termTransport := tterm.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {
 		if err := termTransport.Run(ctx, cancel); err != nil {
 			logger.Error("Terminal transport error", slog.Any("err", err))
