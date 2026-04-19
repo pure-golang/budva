@@ -1,4 +1,4 @@
-package steps
+package shared
 
 import (
 	"context"
@@ -9,15 +9,17 @@ import (
 	"github.com/zelenin/go-tdlib/client"
 )
 
+// testPhotos — фикстуры для медиа-альбомов (используются только в RegisterMediaSteps).
 var testPhotos = []string{
 	"test/bdd/testdata/photo1.png",
 	"test/bdd/testdata/photo2.png",
 	"test/bdd/testdata/photo3.png",
 }
 
-func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+// RegisterMediaSteps регистрирует шаги эпика 04_media.
+func RegisterMediaSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
 	ctx.When(`^пользователь отправляет медиа-альбом в исходный чат$`, func() error {
-		s.applyRuleSet()
+		s.ApplyRuleSet()
 
 		// Отправляем реальный альбом из 3 фото через TDLib SendMessageAlbum.
 		// Prefix добавляется к первому элементу внутри PutAlbum.
@@ -32,22 +34,22 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			})
 		}
 
-		albumMsgs, err := s.env.PutAlbum(s.env.SourceID, contents, s.prefix)
+		albumMsgs, err := s.Env.PutAlbum(s.Env.SourceID, contents, s.Prefix)
 		if err != nil {
 			return err
 		}
 
 		for _, msg := range albumMsgs {
-			s.env.Handler.OnNewMessage(context.Background(), msg)
+			s.Env.Handler.OnNewMessage(context.Background(), msg)
 		}
-		s.env.DrainQueue()
+		s.Env.DrainQueue()
 
 		return nil
 	})
 
 	ctx.Then(`^медиа-альбом появляется во всех целевых чатах в правильном порядке$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.CheckAlbumMessages(targetID, s.prefix, int32(len(testPhotos))) //nolint:gosec // test-data фиксированного размера, overflow невозможен
+		for _, targetID := range s.Env.TargetIDs {
+			msgs, err := s.Env.CheckAlbumMessages(targetID, s.Prefix, int32(len(testPhotos))) //nolint:gosec // test-data фиксированного размера, overflow невозможен
 			if err != nil {
 				return err
 			}

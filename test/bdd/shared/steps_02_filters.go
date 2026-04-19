@@ -1,6 +1,4 @@
-//go:build bdd
-
-package steps
+package shared
 
 import (
 	"context"
@@ -10,57 +8,58 @@ import (
 	"github.com/cucumber/godog"
 )
 
-func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+// RegisterFiltersSteps регистрирует шаги эпика 02_filters.
+func RegisterFiltersSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
 	ctx.Given(`^фильтр исключения с паттерном "([^"]*)"$`, func(pattern string) error {
-		s.excludePattern = pattern
+		s.ExcludePattern = pattern
 		return nil
 	})
 
 	ctx.Given(`^фильтр включения с паттерном "([^"]*)"$`, func(pattern string) error {
-		s.includePattern = pattern
+		s.IncludePattern = pattern
 		return nil
 	})
 
 	ctx.Given(`^фильтр submatch с паттерном "([^"]*)"$`, func(pattern string) error {
-		s.submatchPattern = pattern
+		s.SubmatchPattern = pattern
 		return nil
 	})
 
 	ctx.When(`^пользователь отправляет сообщение без запрещённого паттерна$`, func() error {
-		s.applyRuleSet()
+		s.ApplyRuleSet()
 
-		s.messageText = "normal text"
-		msg, err := s.env.PutMessage(s.env.SourceID, textContent(s.messageText), s.prefix)
+		s.MessageText = "normal text"
+		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent(s.MessageText), s.Prefix)
 		if err != nil {
 			return err
 		}
-		s.sentMsg = msg
+		s.SentMsg = msg
 
-		s.env.Handler.OnNewMessage(context.Background(), msg)
-		s.env.DrainQueue()
+		s.Env.Handler.OnNewMessage(context.Background(), msg)
+		s.Env.DrainQueue()
 
 		return nil
 	})
 
 	ctx.When(`^пользователь отправляет сообщение с текстом "([^"]*)"$`, func(text string) error {
-		s.applyRuleSet()
+		s.ApplyRuleSet()
 
-		s.messageText = text
-		msg, err := s.env.PutMessage(s.env.SourceID, textContent(text), s.prefix)
+		s.MessageText = text
+		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent(text), s.Prefix)
 		if err != nil {
 			return err
 		}
-		s.sentMsg = msg
+		s.SentMsg = msg
 
-		s.env.Handler.OnNewMessage(context.Background(), msg)
-		s.env.DrainQueue()
+		s.Env.Handler.OnNewMessage(context.Background(), msg)
+		s.Env.DrainQueue()
 
 		return nil
 	})
 
 	ctx.Then(`^сообщение не появляется в целевых чатах$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			if err := s.env.CheckNoMessage(targetID, s.prefix); err != nil {
+		for _, targetID := range s.Env.TargetIDs {
+			if err := s.Env.CheckNoMessage(targetID, s.Prefix); err != nil {
 				return err
 			}
 		}
@@ -68,12 +67,12 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^сообщение с текстом "([^"]*)" появляется во всех целевых чатах$`, func(expected string) error {
-		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
+		for _, targetID := range s.Env.TargetIDs {
+			msg, err := s.Env.CheckLastMessage(targetID, s.Prefix)
 			if err != nil {
 				return err
 			}
-			caption := messageCaption(msg)
+			caption := MessageCaption(msg)
 			if caption == nil || !strings.Contains(caption.Text, expected) {
 				return fmt.Errorf("no message containing text %q in target chat %d", expected, targetID)
 			}
@@ -84,16 +83,16 @@ func register02FiltersSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	// --- Check/Other dedup ---
 
 	ctx.Given(`^назначен check-чат для отклонённых сообщений$`, func() error {
-		if len(s.env.Fixtures.Chats) > 2 {
-			s.checkChatID = s.env.Fixtures.Chats[2].ChatID
+		if len(s.Env.Fixtures.Chats) > 2 {
+			s.CheckChatID = s.Env.Fixtures.Chats[2].ChatID
 		} else {
-			s.checkChatID = -1004000
+			s.CheckChatID = -1004000
 		}
 		return nil
 	})
 
 	ctx.Then(`^сообщение появляется в check-чате ровно один раз$`, func() error {
-		if _, err := s.env.CheckLastMessage(s.checkChatID, s.prefix); err != nil {
+		if _, err := s.Env.CheckLastMessage(s.CheckChatID, s.Prefix); err != nil {
 			return err
 		}
 		return nil

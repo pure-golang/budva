@@ -1,6 +1,4 @@
-//go:build bdd
-
-package steps
+package shared
 
 import (
 	"strings"
@@ -8,14 +6,14 @@ import (
 	"github.com/zelenin/go-tdlib/client"
 )
 
-// textContent — короткий конструктор InputMessageText для BDD-шагов.
-func textContent(text string) client.InputMessageContent {
+// TextContent — короткий конструктор InputMessageText для BDD-шагов.
+func TextContent(text string) client.InputMessageContent {
 	return &client.InputMessageText{Text: &client.FormattedText{Text: text}}
 }
 
-// messageCaption возвращает Text/Caption из Content независимо от типа сообщения.
+// MessageCaption возвращает Text/Caption из Content независимо от типа сообщения.
 // Используется в BDD-шагах для проверки, что сообщение не пустое/совпадает.
-func messageCaption(msg *client.Message) *client.FormattedText {
+func MessageCaption(msg *client.Message) *client.FormattedText {
 	if msg == nil || msg.Content == nil {
 		return nil
 	}
@@ -36,10 +34,10 @@ func messageCaption(msg *client.Message) *client.FormattedText {
 	return nil
 }
 
-// hasTMeEntity проверяет, содержит ли FormattedText TextEntityTypeTextUrl с URL,
+// HasTMeEntity проверяет, содержит ли FormattedText TextEntityTypeTextUrl с URL,
 // начинающимся на https://t.me/. TDLib ParseTextEntities выносит URL из Markdown
 // `[title](url)` в entities, оставляя в plain text только title.
-func hasTMeEntity(ft *client.FormattedText) bool {
+func HasTMeEntity(ft *client.FormattedText) bool {
 	if ft == nil {
 		return false
 	}

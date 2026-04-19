@@ -1,6 +1,4 @@
-//go:build bdd
-
-package steps
+package shared
 
 import (
 	"context"
@@ -10,12 +8,13 @@ import (
 	"github.com/zelenin/go-tdlib/client"
 )
 
-func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+// RegisterAutoSteps регистрирует шаги эпика 06_auto.
+func RegisterAutoSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
 	ctx.When(`^в исходном чате появляется сообщение с callback-запросом$`, func() error {
-		s.sendCopy = true
-		s.applyRuleSet()
+		s.SendCopy = true
+		s.ApplyRuleSet()
 
-		msg, err := s.env.PutMessage(s.env.SourceID, textContent("message with button"), s.prefix)
+		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent("message with button"), s.Prefix)
 		if err != nil {
 			return err
 		}
@@ -31,18 +30,18 @@ func register06AutoSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 				},
 			}},
 		}
-		s.sentMsg = msg
+		s.SentMsg = msg
 
-		s.env.Handler.OnNewMessage(context.Background(), msg)
-		s.env.DrainQueue()
+		s.Env.Handler.OnNewMessage(context.Background(), msg)
+		s.Env.DrainQueue()
 		time.Sleep(500 * time.Millisecond)
 
 		return nil
 	})
 
 	ctx.Then(`^бот автоматически отвечает на запрос$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
+		for _, targetID := range s.Env.TargetIDs {
+			if _, err := s.Env.CheckLastMessage(targetID, s.Prefix); err != nil {
 				return err
 			}
 		}

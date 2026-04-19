@@ -1,6 +1,4 @@
-//go:build bdd
-
-package steps
+package shared
 
 import (
 	"context"
@@ -15,99 +13,108 @@ import (
 	testsupport "github.com/pure-golang/budva-claude/internal/test/support"
 )
 
-func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
+// RegisterSyncSteps регистрирует шаги эпика 05_sync.
+func RegisterSyncSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" с опцией copy_once$`, func(mode string) error {
-		s.deliveryMode = mode
-		s.sendCopy = (mode == "копия")
-		s.copyOnce = true
-		s.src.Prev = &domain.Prev{
+		s.DeliveryMode = mode
+		s.SendCopy = (mode == "копия")
+		s.CopyOnce = true
+		s.Src.Prev = &domain.Prev{
 			Title: domain.PrevTitle,
-			For:   s.env.TargetIDs,
+			For:   s.Env.TargetIDs,
 		}
-		s.src.Next = &domain.Next{
+		s.Src.Next = &domain.Next{
 			Title: domain.NextTitle,
-			For:   s.env.TargetIDs,
+			For:   s.Env.TargetIDs,
 		}
 		return nil
 	})
 
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" без опции copy_once$`, func(mode string) error {
-		s.deliveryMode = mode
-		s.sendCopy = (mode == "копия")
-		s.copyOnce = false
+		s.DeliveryMode = mode
+		s.SendCopy = (mode == "копия")
+		s.CopyOnce = false
 		return nil
 	})
 
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" с опцией indelible$`, func(mode string) error {
-		s.deliveryMode = mode
-		s.sendCopy = (mode == "копия")
-		s.indelible = true
+		s.DeliveryMode = mode
+		s.SendCopy = (mode == "копия")
+		s.Indelible = true
 		return nil
 	})
 
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" без опции indelible$`, func(mode string) error {
-		s.deliveryMode = mode
-		s.sendCopy = (mode == "копия")
-		s.indelible = false
+		s.DeliveryMode = mode
+		s.SendCopy = (mode == "копия")
+		s.Indelible = false
 		return nil
 	})
 
 	ctx.Given(`^пользователь ранее отправил сообщение с текстом "([^"]*)"$`, func(text string) error {
-		s.applyRuleSet()
+		s.ApplyRuleSet()
 
-		s.messageText = text
-		msg, err := s.env.PutMessage(s.env.SourceID, textContent(text), s.prefix)
+		s.MessageText = text
+		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent(text), s.Prefix)
 		if err != nil {
 			return err
 		}
-		s.sentMsg = msg
+		s.SentMsg = msg
 
-		s.env.Handler.OnNewMessage(context.Background(), msg)
-		s.env.DrainQueue()
+		s.Env.Handler.OnNewMessage(context.Background(), msg)
+		s.Env.DrainQueue()
 
 		return nil
 	})
 
 	ctx.Given(`^пользователь ранее отправил сообщение$`, func() error {
-		s.applyRuleSet()
+		s.ApplyRuleSet()
 
-		s.messageText = "test message"
-		msg, err := s.env.PutMessage(s.env.SourceID, textContent(s.messageText), s.prefix)
+		s.MessageText = "test message"
+		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent(s.MessageText), s.Prefix)
 		if err != nil {
 			return err
 		}
-		s.sentMsg = msg
+		s.SentMsg = msg
 
-		s.env.Handler.OnNewMessage(context.Background(), msg)
-		s.env.DrainQueue()
+		s.Env.Handler.OnNewMessage(context.Background(), msg)
+		s.Env.DrainQueue()
 
 		return nil
 	})
 
 	ctx.Given(`^сообщение было скопировано в целевые чаты$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
+		for _, targetID := range s.Env.TargetIDs {
+			if _, err := s.Env.CheckLastMessage(targetID, s.Prefix); err != nil {
 				return err
 			}
 		}
 		// processUpdates записывает temp→perm маппинг напрямую в state;
-		// DrainQueue обрабатывает оставши��ся handler tasks.
-		s.env.DrainQueue()
+		// DrainQueue обрабатывает оставшиеся handler tasks.
+		s.Env.DrainQueue()
+		// Ждём, что processUpdates успел записать temp→perm mapping для всех копий:
+		// без этого handler.deleteMessages на последующем шаге увидит GetNewMessageID=0
+		// и не сможет разослать каскадное удаление.
+		if s.SentMsg != nil {
+			if err := s.Env.WaitForCopyMappings(s.Env.SourceID, s.SentMsg.Id); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 
 	ctx.When(`^пользователь редактирует сообщение на "([^"]*)"$`, func(newText string) error {
-		if s.sentMsg == nil {
+		if s.SentMsg == nil {
 			return fmt.Errorf("no previously sent message")
 		}
 
 		// Реально редактируем SOURCE сообщение через TDLib.
 		editedText := &client.FormattedText{
-			Text: testsupport.PrefixText(s.prefix, newText),
+			Text: testsupport.PrefixText(s.Prefix, newText),
 		}
-		if _, err := s.env.Telegram.EditMessageText(&client.EditMessageTextRequest{
-			ChatId:              s.env.SourceID,
-			MessageId:           s.sentMsg.Id,
+		if _, err := s.Env.Telegram.EditMessageText(&client.EditMessageTextRequest{
+			ChatId:              s.Env.SourceID,
+			MessageId:           s.SentMsg.Id,
 			InputMessageContent: &client.InputMessageText{Text: editedText},
 		}); err != nil {
 			return fmt.Errorf("edit source message: %w", err)
@@ -120,11 +127,11 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		// basicGroup-таргеты не поддерживают GetMessageLink — для них ждём только обновление
 		// текста без ссылки.
 		deadline := time.After(10 * time.Second)
-		expectLink := s.copyOnce
+		expectLink := s.CopyOnce
 		if expectLink {
 			anySupportsLink := false
-			for _, targetID := range s.env.TargetIDs {
-				if s.env.SupportsMessageLink(targetID) {
+			for _, targetID := range s.Env.TargetIDs {
+				if s.Env.SupportsMessageLink(targetID) {
 					anySupportsLink = true
 					break
 				}
@@ -135,17 +142,17 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 		}
 	editPoll:
 		for {
-			s.env.DrainQueue()
-			for _, targetID := range s.env.TargetIDs {
-				msg, err := s.env.CheckLastMessage(targetID, s.prefix)
+			s.Env.DrainQueue()
+			for _, targetID := range s.Env.TargetIDs {
+				msg, err := s.Env.CheckLastMessage(targetID, s.Prefix)
 				if err != nil {
 					continue
 				}
-				text := messageCaption(msg)
+				text := MessageCaption(msg)
 				if text == nil {
 					continue
 				}
-				if expectLink && hasTMeEntity(text) {
+				if expectLink && HasTMeEntity(text) {
 					break editPoll
 				}
 				if !expectLink && strings.Contains(text.Text, newText) {
@@ -162,37 +169,37 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 			}
 		}
 
-		s.messageText = newText
+		s.MessageText = newText
 		return nil
 	})
 
 	ctx.When(`^пользователь удаляет оригинальное сообщение$`, func() error {
-		if s.sentMsg == nil {
+		if s.SentMsg == nil {
 			return fmt.Errorf("no previously sent message")
 		}
 
-		s.env.Handler.OnDeletedMessages(
+		s.Env.Handler.OnDeletedMessages(
 			context.Background(),
-			s.env.SourceID,
-			[]int64{s.sentMsg.Id},
+			s.Env.SourceID,
+			[]int64{s.SentMsg.Id},
 			true,
 		)
-		if s.skipRetryDrain {
-			s.env.Queue.ProcessBatch()
+		if s.SkipRetryDrain {
+			s.Env.Queue.ProcessBatch()
 		} else {
-			s.env.DrainQueue()
+			s.Env.DrainQueue()
 		}
 
 		return nil
 	})
 
 	ctx.Then(`^в целевом чате появляется новая копия с текстом "([^"]*)"$`, func(text string) error {
-		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
+		for _, targetID := range s.Env.TargetIDs {
+			msg, err := s.Env.CheckLastMessage(targetID, s.Prefix)
 			if err != nil {
 				return err
 			}
-			caption := messageCaption(msg)
+			caption := MessageCaption(msg)
 			if caption == nil || !strings.Contains(caption.Text, text) {
 				return fmt.Errorf("no message containing text %q in target chat %d", text, targetID)
 			}
@@ -201,18 +208,18 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^новая копия содержит ссылку на предыдущую версию$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
+		for _, targetID := range s.Env.TargetIDs {
 			// Навигационные ссылки работают только в supergroups/channels;
 			// basicGroup пропускаем по бизнес-правилу из feature-файла.
-			if !s.env.SupportsMessageLink(targetID) {
+			if !s.Env.SupportsMessageLink(targetID) {
 				continue
 			}
-			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
+			msg, err := s.Env.CheckLastMessage(targetID, s.Prefix)
 			if err != nil {
 				return err
 			}
-			caption := messageCaption(msg)
-			if caption == nil || !hasTMeEntity(caption) {
+			caption := MessageCaption(msg)
+			if caption == nil || !HasTMeEntity(caption) {
 				return fmt.Errorf("no message with link to previous version in target chat %d", targetID)
 			}
 		}
@@ -220,8 +227,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^предыдущая копия обновляется со ссылкой на новую версию$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
+		for _, targetID := range s.Env.TargetIDs {
+			if _, err := s.Env.CheckLastMessage(targetID, s.Prefix); err != nil {
 				return err
 			}
 		}
@@ -229,12 +236,12 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^существующая копия в целевых чатах обновляется на "([^"]*)"$`, func(text string) error {
-		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
+		for _, targetID := range s.Env.TargetIDs {
+			msg, err := s.Env.CheckLastMessage(targetID, s.Prefix)
 			if err != nil {
 				return err
 			}
-			caption := messageCaption(msg)
+			caption := MessageCaption(msg)
 			if caption == nil || !strings.Contains(caption.Text, text) {
 				return fmt.Errorf("no message with text %q in target chat %d", text, targetID)
 			}
@@ -243,8 +250,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^копии остаются в целевых чатах$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			if _, err := s.env.CheckLastMessage(targetID, s.prefix); err != nil {
+		for _, targetID := range s.Env.TargetIDs {
+			if _, err := s.Env.CheckLastMessage(targetID, s.Prefix); err != nil {
 				return err
 			}
 		}
@@ -252,8 +259,8 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	ctx.Then(`^копии удаляются из всех целевых чатов$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			if err := s.env.CheckNoMessage(targetID, s.prefix); err != nil {
+		for _, targetID := range s.Env.TargetIDs {
+			if err := s.Env.CheckNoMessage(targetID, s.Prefix); err != nil {
 				return err
 			}
 		}
@@ -261,42 +268,45 @@ func register05SyncSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 	})
 
 	// --- Retry eventual consistency ---
-
-	ctx.When(`^permanent ID записывается в хранилище$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
-			if err != nil {
-				return err
-			}
-			if err := s.env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, msg.Id), fmt.Sprintf("%d", msg.Id)); err != nil {
-				return err
-			}
-			if err := s.env.State.Set(fmt.Sprintf("tmpMsgId:%d:%d", targetID, msg.Id), fmt.Sprintf("%d", msg.Id)); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	// Маппинг temp↔permanent в state хранится как "newMsgId:chatID:tmpID → permID".
+	// Чтобы детерминированно симулировать «permanent ещё не записан», берём tmpID
+	// через обратный индекс "tmpMsgId:chatID:permID → tmpID" и удаляем исходный ключ.
 
 	ctx.Given(`^permanent ID ещё не записан в хранилище$`, func() error {
-		for _, targetID := range s.env.TargetIDs {
-			msg, err := s.env.CheckLastMessage(targetID, s.prefix)
+		for _, targetID := range s.Env.TargetIDs {
+			msg, err := s.Env.CheckLastMessage(targetID, s.Prefix)
 			if err != nil {
 				continue
 			}
-			if err := s.env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", msg.ChatId, msg.Id)); err != nil {
+			tmpID := s.Env.State.GetTmpMessageID(msg.ChatId, msg.Id)
+			if tmpID == 0 {
+				return fmt.Errorf("tmp ID mapping missing for perm %d in chat %d", msg.Id, msg.ChatId)
+			}
+			s.TmpIDByTarget[targetID] = tmpID
+			s.PermIDByTarget[targetID] = msg.Id
+			if err := s.Env.State.Delete(fmt.Sprintf("newMsgId:%d:%d", msg.ChatId, tmpID)); err != nil {
 				return err
 			}
 		}
-		s.skipRetryDrain = true
+		s.SkipRetryDrain = true
+		return nil
+	})
+
+	ctx.When(`^permanent ID записывается в хранилище$`, func() error {
+		for targetID, tmpID := range s.TmpIDByTarget {
+			permID := s.PermIDByTarget[targetID]
+			if err := s.Env.State.Set(fmt.Sprintf("newMsgId:%d:%d", targetID, tmpID), fmt.Sprintf("%d", permID)); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 
 	ctx.Then(`^после повторной попытки копии удаляются из целевых чатов$`, func() error {
-		s.env.DrainQueue()
+		s.Env.DrainQueue()
 
-		for _, targetID := range s.env.TargetIDs {
-			if err := s.env.CheckNoMessage(targetID, s.prefix); err != nil {
+		for _, targetID := range s.Env.TargetIDs {
+			if err := s.Env.CheckNoMessage(targetID, s.Prefix); err != nil {
 				return err
 			}
 		}
