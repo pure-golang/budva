@@ -49,7 +49,7 @@ func register04MediaSteps(ctx *godog.ScenarioContext, s *scenarioCtx) {
 
 	ctx.Then(`^медиа-альбом появляется во всех целевых чатах в правильном порядке$`, func() error {
 		for _, targetID := range s.env.TargetIDs {
-			msgs, err := s.env.CheckAlbumMessages(targetID, s.prefix, len(testPhotos))
+			msgs, err := s.env.CheckAlbumMessages(targetID, s.prefix, int32(len(testPhotos)))
 			if err != nil {
 				return err
 			}
