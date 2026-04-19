@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/service/auth"
@@ -344,4 +345,231 @@ func TestClose_ClosesInputChan(t *testing.T) {
 	assert.Panics(t, func() {
 		svc.InputChan() <- "should panic"
 	}, "writing to closed inputChan should panic")
+}
+
+func TestExtra_InitiallyNil(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := mocks.NewTelegramRepo(t)
+	svc := auth.New(repo)
+
+	// Act
+	extra := svc.Extra()
+
+	// Assert
+	assert.Nil(t, extra)
+}
+
+func TestExtra_ReturnsLastStateExtra(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := mocks.NewTelegramRepo(t)
+		states := make(chan domain.AuthStateEvent, 10)
+		repo.EXPECT().AuthStates().Return(states)
+		svc := auth.New(repo)
+		svc.Start(t.Context())
+
+		hint := &domain.WaitPasswordState{PasswordHint: "mother's name"}
+
+		// Act
+		states <- domain.AuthStateEvent{
+			State: domain.AuthStateWaitPassword,
+			Extra: hint,
+		}
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert
+		got := svc.Extra()
+		require.NotNil(t, got)
+		ws, ok := got.(*domain.WaitPasswordState)
+		require.True(t, ok)
+		assert.Equal(t, "mother's name", ws.PasswordHint)
+	})
+}
+
+func TestLogOut_Success(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := mocks.NewTelegramRepo(t)
+	repo.EXPECT().LogOut().Return(&client.Ok{}, nil)
+	repo.EXPECT().CleanUp().Return()
+	svc := auth.New(repo)
+
+	// Act
+	err := svc.LogOut(t.Context())
+
+	// Assert
+	require.NoError(t, err)
+}
+
+func TestLogOut_RepoError_SkipsCleanUp(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := mocks.NewTelegramRepo(t)
+	logoutErr := errors.New("logout failed")
+	repo.EXPECT().LogOut().Return(nil, logoutErr)
+	svc := auth.New(repo)
+
+	// Act
+	err := svc.LogOut(t.Context())
+
+	// Assert — ошибка пробрасывается, CleanUp не вызывается (AssertExpectations)
+	require.ErrorIs(t, err, logoutErr)
+}
+
+func TestClosedStateIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := mocks.NewTelegramRepo(t)
+		states := make(chan domain.AuthStateEvent, 10)
+		repo.EXPECT().AuthStates().Return(states)
+		svc := auth.New(repo)
+
+		var mu sync.Mutex
+		var received []domain.AuthorizationState
+		svc.Subscribe(func(state domain.AuthorizationState, _ any) {
+			mu.Lock()
+			received = append(received, state)
+			mu.Unlock()
+		})
+
+		svc.Start(t.Context())
+
+		// Act — Closed не должен попадать в listeners
+		states <- domain.AuthStateEvent{State: domain.AuthStateClosed}
+		time.Sleep(1 * time.Millisecond)
+		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert — только Ready
+		mu.Lock()
+		assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
+		mu.Unlock()
+	})
+}
+
+func TestCancelBeforeEvent(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		ctx, cancel := context.WithCancel(t.Context())
+		repo := mocks.NewTelegramRepo(t)
+		states := make(chan domain.AuthStateEvent, 10)
+		repo.EXPECT().AuthStates().Return(states)
+		svc := auth.New(repo)
+		svc.Start(ctx)
+
+		// Act — отменяем до отправки событий, run() должен выйти через <-ctx.Done()
+		cancel()
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert — состояние осталось zero-value
+		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
+	})
+}
+
+func TestSubmitPhoneError_Logged(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := mocks.NewTelegramRepo(t)
+		states := make(chan domain.AuthStateEvent, 10)
+		repo.EXPECT().AuthStates().Return(states)
+		repo.EXPECT().SubmitPhone(mock.Anything, "+79261234567").Return(errors.New("invalid phone"))
+		svc := auth.New(repo)
+		svc.Start(t.Context())
+
+		// Act
+		states <- domain.AuthStateEvent{State: domain.AuthStateWaitPhone}
+		time.Sleep(1 * time.Millisecond)
+		svc.InputChan() <- "+79261234567"
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert — ошибка залогирована, сервис жив; проверка через AssertExpectations
+		assert.Equal(t, domain.AuthStateWaitPhone, svc.State())
+	})
+}
+
+func TestSubmitPasswordError_Logged(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		repo := mocks.NewTelegramRepo(t)
+		states := make(chan domain.AuthStateEvent, 10)
+		repo.EXPECT().AuthStates().Return(states)
+		repo.EXPECT().SubmitPassword(mock.Anything, "bad").Return(errors.New("wrong password"))
+		svc := auth.New(repo)
+		svc.Start(t.Context())
+
+		// Act
+		states <- domain.AuthStateEvent{State: domain.AuthStateWaitPassword}
+		time.Sleep(1 * time.Millisecond)
+		svc.InputChan() <- "bad"
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert
+		assert.Equal(t, domain.AuthStateWaitPassword, svc.State())
+	})
+}
+
+func TestConcurrentSubscribe(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repo := mocks.NewTelegramRepo(t)
+	svc := auth.New(repo)
+
+	// Act — одновременная регистрация подписчиков (без запуска run)
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			svc.Subscribe(func(_ domain.AuthorizationState, _ any) {})
+		}()
+	}
+	wg.Wait()
+
+	// Assert — при одновременной регистрации не должно быть race
+	assert.Equal(t, domain.AuthorizationState(0), svc.State())
+}
+
+func TestConcurrentStateReadWrite(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange — проверяем, что RLock/Lock корректно защищают state/extra
+		repo := mocks.NewTelegramRepo(t)
+		states := make(chan domain.AuthStateEvent, 10)
+		repo.EXPECT().AuthStates().Return(states)
+		svc := auth.New(repo)
+		svc.Start(t.Context())
+
+		// Act — одновременные чтения во время записи из run()
+		var wg sync.WaitGroup
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_ = svc.State()
+				_ = svc.Extra()
+			}()
+		}
+		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
+		wg.Wait()
+		time.Sleep(1 * time.Millisecond)
+
+		// Assert
+		assert.Equal(t, domain.AuthStateReady, svc.State())
+	})
 }

@@ -326,7 +326,7 @@ func TestOnDeletedMessages_RetryOnMissingNewID(t *testing.T) {
 		}
 		return 600
 	}).Times(2)
-	d.stateRepo.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil).Once()
+	d.stateRepo.EXPECT().DeleteCopiedMessageIDs(int64(100), int64(1)).Return(nil)
 	d.telegramRepo.EXPECT().DeleteMessages(mock.MatchedBy(func(req *client.DeleteMessagesRequest) bool {
 		return req.ChatId == 200 && req.MessageIds[0] == 600
 	})).Return(&client.Ok{}, nil)

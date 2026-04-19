@@ -9,6 +9,9 @@ packages:
   github.com/pure-golang/budva-claude/internal/handler:
     config:
       all: true
+  github.com/pure-golang/budva-claude/internal/repo/telegram:
+    config:
+      all: true
   github.com/pure-golang/budva-claude/internal/service/transform:
     config:
       all: true
