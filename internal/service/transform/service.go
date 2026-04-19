@@ -287,7 +287,7 @@ func (s *Service) addText(_ context.Context, text *client.FormattedText, markdow
 	}
 
 	result := deepCopyFormattedText(text)
-	offset := int32(len(encodeUTF16(result.Text + "\n\n"))) //nolint:gosec // UTF-16 offset всегда < 2^31
+	offset := lenUTF16(encodeUTF16(result.Text + "\n\n"))
 	result.Text += "\n\n" + parsed.Text
 
 	for _, ent := range parsed.Entities {
@@ -322,7 +322,7 @@ func extractSubstring(text string, offset, length int32) string {
 func applyReplacement(text *client.FormattedText, offset, length int32, newText string) *client.FormattedText {
 	utf16 := encodeUTF16(text.Text)
 	newUTF16 := encodeUTF16(newText)
-	diff := int32(len(newUTF16)) - length //nolint:gosec // UTF-16 длина всегда < 2^31
+	diff := lenUTF16(newUTF16) - length
 
 	// Заменяем в UTF-16 массиве.
 	result := make([]uint16, 0, len(utf16)+int(diff))
@@ -337,7 +337,7 @@ func applyReplacement(text *client.FormattedText, offset, length int32, newText 
 		if text.Entities[i].Offset > offset {
 			text.Entities[i].Offset += diff
 		} else if text.Entities[i].Offset == offset {
-			text.Entities[i].Length = int32(len(newUTF16)) //nolint:gosec // UTF-16 длина всегда < 2^31
+			text.Entities[i].Length = lenUTF16(newUTF16)
 		}
 	}
 
