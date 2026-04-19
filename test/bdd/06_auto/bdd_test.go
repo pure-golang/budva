@@ -6,4 +6,4 @@ import (
 	"github.com/pure-golang/budva-claude/test/bdd/shared"
 )
 
-func Test06Auto(t *testing.T) { shared.RunEpic(t, "06_auto") }
+func Test(t *testing.T) { shared.RunEpic(t) }

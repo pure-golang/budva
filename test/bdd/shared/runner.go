@@ -53,15 +53,21 @@ func acquireTDLibLock() (release func(), err error) {
 	}, nil
 }
 
-// RunEpic запускает godog-сюиту для одного эпика.
-// `epic` — имя подпапки `test/bdd/` (например, "05_sync").
-func RunEpic(t *testing.T, epic string) {
+// RunEpic запускает godog-сюиту для эпика, определяя его имя из пути вызывающего файла.
+// Вызывай из bdd_test.go пакета, лежащего в test/bdd/<NN_epic>/.
+func RunEpic(t *testing.T) {
 	t.Helper()
 	chdirOnce.Do(chdirProjectRoot)
 
 	if testing.Short() {
 		t.Skip("bdd test")
 	}
+
+	_, callerFile, _, ok := runtime.Caller(1)
+	if !ok {
+		t.Fatal("BDD: failed to resolve caller path")
+	}
+	epic := filepath.Base(filepath.Dir(callerFile))
 
 	SetEpicPrefix(strings.SplitN(epic, "_", 2)[0])
 
@@ -106,7 +112,7 @@ func RunEpic(t *testing.T, epic string) {
 
 // featurePaths возвращает пути к .feature-файлам для godog:
 //   - BDD_PATHS (через запятую) — override для локального дебага; принимает
-//     как директории, так и конкретные файлы. Сочетайте с `-run Test<Name>`,
+//     как директории, так и конкретные файлы. Сочетайте с `-run Test`,
 //     иначе другие пакеты прогонят пустые сюиты.
 //   - иначе — директория эпика `test/bdd/<epic>` (godog ищет только *.feature).
 func featurePaths(epic string) []string {

@@ -9,13 +9,13 @@ import (
 // переиспользуют шаги между эпиками (например, «правило пересылки в режиме»
 // из 01_delivery встречается в 02..05).
 func RegisterAllSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
-	RegisterCommonSteps(ctx, s)
 	RegisterDeliverySteps(ctx, s)
 	RegisterFiltersSteps(ctx, s)
 	RegisterTransformSteps(ctx, s)
 	RegisterMediaSteps(ctx, s)
 	RegisterSyncSteps(ctx, s)
 	RegisterAutoSteps(ctx, s)
+	RegisterCommonSteps(ctx, s)
 }
 
 // RegisterCommonSteps регистрирует Given-шаги выбора чатов по имени фикстуры,

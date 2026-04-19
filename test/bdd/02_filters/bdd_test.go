@@ -6,4 +6,4 @@ import (
 	"github.com/pure-golang/budva-claude/test/bdd/shared"
 )
 
-func Test02Filters(t *testing.T) { shared.RunEpic(t, "02_filters") }
+func Test(t *testing.T) { shared.RunEpic(t) }

@@ -6,4 +6,4 @@ import (
 	"github.com/pure-golang/budva-claude/test/bdd/shared"
 )
 
-func Test05Sync(t *testing.T) { shared.RunEpic(t, "05_sync") }
+func Test(t *testing.T) { shared.RunEpic(t) }

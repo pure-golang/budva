@@ -19,8 +19,9 @@
 - `test/smoke/*_test.go` — смоук-тесты, build tag `smoke`
 
 **Тестовая инфраструктура BDD:**
-- `test/support/live_stack.go` — LiveStack: полный стек с реальным TDLib и тестовыми чатами из фикстур
-- `test/support/fixtures.go` — загрузка фикстур тестовых чатов из JSON
+- `internal/test/support/live_stack.go` — LiveStack: полный стек с реальным TDLib и тестовыми чатами из фикстур
+- `internal/test/support/fixtures.go` — загрузка фикстур тестовых чатов из JSON
+- `test/bdd/shared/` — общий пакет: ScenarioCtx, RunEpic, flock, prefix, steps per epic
 
 ---
 
@@ -35,13 +36,14 @@
 | internal/repo/queue | ✅ 4 | — | — |
 | internal/repo/ruleset | ✅ 11 | — | — |
 | internal/repo/state | ✅ 11 | — | — |
-| internal/repo/telegram | — | ✅ | — |
+| internal/repo/telegram | ✅ 23 | ✅ | — |
+| internal/repo/term | ✅ 6 | — | — |
 | internal/service/album | ✅ 10 | ✅ | — |
-| internal/service/auth | ✅ 11 | — | — |
-| internal/service/dedup | ✅ 3 | ✅ | — |
-| internal/service/facade | ✅ 9 | — | — |
+| internal/service/auth | ✅ 21 | — | — |
+| internal/service/dedup | ✅ 10 | ✅ | — |
+| internal/service/facade | ✅ 14 | — | — |
 | internal/service/filters | ✅ 8 | ✅ | — |
-| internal/service/limiter | ✅ 1 | ✅ | — |
+| internal/service/limiter | ✅ 14 | ✅ | — |
 | internal/service/message | ✅ 10 | — | — |
 | internal/service/transform | ✅ 16 | ✅ | — |
 | internal/transport/grpc | ✅ 18 | — | — |
@@ -180,7 +182,50 @@
 
 ### Repo / Telegram (internal/repo/telegram)
 
-Тестовые файлы отсутствуют. Пакет содержит `client_adapter.go`, `repo.go`, `mapping.go`. Покрытие обеспечивается BDD-тестами через LiveStack с реальным TDLib.
+Файл: `repo_internal_test.go` ✅
+
+| ID | Тест | Статус |
+|----|------|--------|
+| REPO-U-027 | TestParseFloodWait | ✅ |
+| REPO-U-028 | TestIsRelevantUpdate | ✅ |
+| REPO-U-029 | TestMapTDLibState | ✅ |
+| REPO-U-030 | TestNew_InitializesChannels | ✅ |
+| REPO-U-031 | TestClose_ResetsClientAdapter | ✅ |
+| REPO-U-032 | TestSubmitPhone_WritesToChannel | ✅ |
+| REPO-U-033 | TestSubmitCode_WritesToChannel | ✅ |
+| REPO-U-034 | TestSubmitPassword_WritesToChannel | ✅ |
+| REPO-U-035 | TestCleanUp | ✅ |
+| REPO-U-036 | TestDispatchSendResult_SucceededDelivered | ✅ |
+| REPO-U-037 | TestDispatchSendResult_FailedDelivered | ✅ |
+| REPO-U-038 | TestDispatchSendResult_FailedWithNilError | ✅ |
+| REPO-U-039 | TestDispatchSendResult_NoSubscriberIsNoOp | ✅ |
+| REPO-U-040 | TestDispatchSendResult_IgnoresUnrelatedUpdates | ✅ |
+| REPO-U-041 | TestPendingSends_ConcurrentAddRemove | ✅ |
+| REPO-U-042 | TestSendMessageAndWait_SuccessPath | ✅ |
+| REPO-U-043 | TestSendMessageAndWait_SendMessageError | ✅ |
+| REPO-U-044 | TestSendMessageAndWait_ContextCancelled | ✅ |
+| REPO-U-045 | TestSendMessageAndWait_FloodWaitExhaustsRetries | ✅ |
+| REPO-U-046 | TestSendMessageAndWait_FloodWaitInterruptedByContext | ✅ |
+| REPO-U-047 | TestSendMessageAndWait_DeliversErrorThroughPendingChannel | ✅ |
+| REPO-U-048 | TestSendMessageAndWaitOnce_FloodWaitReturnedFromSend | ✅ |
+| REPO-U-049 | TestSendMessageAndWaitOnce_NonFloodErrorReturnsZeroWait | ✅ |
+
+Дополнительное покрытие через BDD-тесты (LiveStack с реальным TDLib).
+
+---
+
+### Repo / Term (internal/repo/term)
+
+Файл: `repo_test.go` ✅
+
+| ID | Тест | Статус |
+|----|------|--------|
+| REPO-U-050 | TestNew | ✅ |
+| REPO-U-051 | TestRepo_ReadLine | ✅ |
+| REPO-U-052 | TestRepo_ReadLine_SequentialCalls | ✅ |
+| REPO-U-053 | TestRepo_Println | ✅ |
+| REPO-U-054 | TestRepo_Printf | ✅ |
+| REPO-U-055 | TestRepo_ReadPassword_InvalidFD | ✅ |
 
 ---
 
@@ -220,6 +265,16 @@
 | SVC-U-019 | TestSubmitCodeRejection_WaitsForReEmit | ✅ |
 | SVC-U-020 | TestFlowWithout2FA | ✅ |
 | SVC-U-021 | TestClose_ClosesInputChan | ✅ |
+| SVC-U-069 | TestExtra_InitiallyNil | ✅ |
+| SVC-U-070 | TestExtra_ReturnsLastStateExtra | ✅ |
+| SVC-U-071 | TestLogOut_Success | ✅ |
+| SVC-U-072 | TestLogOut_RepoError_SkipsCleanUp | ✅ |
+| SVC-U-073 | TestClosedStateIsSkipped | ✅ |
+| SVC-U-074 | TestCancelBeforeEvent | ✅ |
+| SVC-U-075 | TestSubmitPhoneError_Logged | ✅ |
+| SVC-U-076 | TestSubmitPasswordError_Logged | ✅ |
+| SVC-U-077 | TestConcurrentSubscribe | ✅ |
+| SVC-U-078 | TestConcurrentStateReadWrite | ✅ |
 
 ---
 
@@ -232,24 +287,36 @@
 | SVC-U-022 | TestTracker_TryMark_first_time | ✅ |
 | SVC-U-023 | TestTracker_TryMark_duplicate | ✅ |
 | SVC-U-024 | TestTracker_TryMark_unknown_chat | ✅ |
+| SVC-U-079 | TestNewTracker_empty_destinations | ✅ |
+| SVC-U-080 | TestNewTracker_nil_slice | ✅ |
+| SVC-U-081 | TestTracker_TryMark_independent_destinations | ✅ |
+| SVC-U-082 | TestTracker_TryMark_table | ✅ |
+| SVC-U-083 | TestTracker_TryMark_concurrent_same_chat | ✅ |
+| SVC-U-084 | TestTracker_TryMark_concurrent_different_chats | ✅ |
+| SVC-U-085 | TestTracker_independent_instances | ✅ |
 
 ---
 
 ### Service / Facade (internal/service/facade)
 
-Файл: `service_test.go` ✅
+Файлы: `service_test.go`, `service_internal_test.go` ✅
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-025 | TestSendMessage_Success | ✅ |
-| SVC-U-026 | TestSendMessageAlbum_with_files_and_text | ✅ |
-| SVC-U-027 | TestSendMessageAlbum_empty | ✅ |
-| SVC-U-028 | TestGetStatus_Success | ✅ |
-| SVC-U-029 | TestGetStatus_GetOption_error | ✅ |
-| SVC-U-030 | TestGetStatus_GetMe_error | ✅ |
-| SVC-U-031 | TestForwardMessage_Success | ✅ |
-| SVC-U-032 | TestDeleteMessages_Success | ✅ |
-| SVC-U-033 | TestUpdateMessage_Success | ✅ |
+| SVC-U-025 | TestNew | ✅ |
+| SVC-U-026 | TestService_GetMessage | ✅ |
+| SVC-U-027 | TestService_SendMessage | ✅ |
+| SVC-U-028 | TestService_SendMessageAlbum | ✅ |
+| SVC-U-029 | TestService_ForwardMessage | ✅ |
+| SVC-U-030 | TestService_UpdateMessage | ✅ |
+| SVC-U-031 | TestService_DeleteMessages | ✅ |
+| SVC-U-032 | TestService_GetChatHistory | ✅ |
+| SVC-U-033 | TestService_GetMessages | ✅ |
+| SVC-U-086 | TestService_GetMessageLink | ✅ |
+| SVC-U-087 | TestService_GetMessageLinkInfo | ✅ |
+| SVC-U-088 | TestService_GetStatus | ✅ |
+| SVC-U-089 | TestInputMessageByFileExt | ✅ |
+| SVC-U-090 | TestReleaseVersion | ✅ |
 
 ---
 
@@ -276,7 +343,20 @@
 
 | ID | Тест | Статус |
 |----|------|--------|
-| SVC-U-042 | TestWaitForForward | ✅ |
+| SVC-U-042 | TestNew | ✅ |
+| SVC-U-091 | TestWaitForForward_FirstCallNoWait | ✅ |
+| SVC-U-092 | TestWaitForForward_SecondCallWaitsInterval | ✅ |
+| SVC-U-093 | TestWaitForForward_ThirdCallWaitsAnotherInterval | ✅ |
+| SVC-U-094 | TestWaitForForward_NoWaitAfterInterval | ✅ |
+| SVC-U-095 | TestWaitForForward_WaitOnlyRemainingTime | ✅ |
+| SVC-U-096 | TestWaitForForward_DifferentChatsIndependent | ✅ |
+| SVC-U-097 | TestWaitForForward_ChatIDValues | ✅ |
+| SVC-U-098 | TestWaitForForward_ContextCancelledReturnsEarly | ✅ |
+| SVC-U-099 | TestWaitForForward_ContextAlreadyCancelledStillProceeds | ✅ |
+| SVC-U-100 | TestWaitForForward_ContextCancelledDoesNotUpdateTimestamp | ✅ |
+| SVC-U-101 | TestWaitForForward_ConcurrentSameChatCompletes | ✅ |
+| SVC-U-102 | TestWaitForForward_SequentialSameChatSerialized | ✅ |
+| SVC-U-103 | TestWaitForForward_ConcurrentDifferentChatsParallel | ✅ |
 
 ---
 
@@ -410,7 +490,7 @@
 
 ### 01_delivery
 
-Steps: `01_delivery_steps_test.go`
+Steps: `test/bdd/shared/steps_01_delivery.go`
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
@@ -429,7 +509,7 @@ Steps: `01_delivery_steps_test.go`
 
 ### 02_filters
 
-Steps: `02_filters_steps_test.go`
+Steps: `test/bdd/shared/steps_02_filters.go`
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
@@ -447,7 +527,7 @@ Steps: `02_filters_steps_test.go`
 
 ### 03_transform
 
-Steps: `03_transform_steps_test.go`
+Steps: `test/bdd/shared/steps_03_transform.go`
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
@@ -468,7 +548,7 @@ Steps: `03_transform_steps_test.go`
 
 ### 04_media
 
-Steps: `04_media_steps_test.go`
+Steps: `test/bdd/shared/steps_04_media.go`
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
@@ -481,7 +561,7 @@ Steps: `04_media_steps_test.go`
 
 ### 05_sync
 
-Steps: `05_sync_steps_test.go`
+Steps: `test/bdd/shared/steps_05_sync.go`
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
@@ -499,7 +579,7 @@ Steps: `05_sync_steps_test.go`
 
 ### 06_auto
 
-Steps: `06_auto_steps_test.go`
+Steps: `test/bdd/shared/steps_06_auto.go`
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
@@ -536,46 +616,48 @@ Steps: `06_auto_steps_test.go`
 | internal/repo/queue | 4 | — | — |
 | internal/repo/ruleset | 11 | — | — |
 | internal/repo/state | 11 | — | — |
-| internal/repo/telegram | — | 443 | — |
+| internal/repo/telegram | 23 | 443 | — |
+| internal/repo/term | 6 | — | — |
 | internal/service/album | 10 | 40 | — |
-| internal/service/auth | 11 | — | — |
-| internal/service/dedup | 3 | 1 | — |
-| internal/service/facade | 9 | — | — |
+| internal/service/auth | 21 | — | — |
+| internal/service/dedup | 10 | 1 | — |
+| internal/service/facade | 14 | — | — |
 | internal/service/filters | 8 | 161 | — |
-| internal/service/limiter | 1 | 1 | — |
+| internal/service/limiter | 14 | 1 | — |
 | internal/service/message | 10 | — | — |
 | internal/service/transform | 16 | 105 | — |
 | internal/transport/grpc | 18 | — | — |
 | internal/transport/http | 12 | — | — |
 | internal/transport/http/graph | 5 | — | — |
 | internal/transport/term | 3 | — | — |
-| **Итого** | **168** | **443 scenarios** | **4** |
+| **Итого** | **232** | **443 scenarios** | **4** |
 
 ---
 
 ## Покрытие кода
 
-Снято командой `task cover`. Общее покрытие: **75.7%**.
+Снято командой `task cover`. Общее покрытие: **86.7%**.
 
 | Пакет | Покрытие | Примечание |
 |-------|----------|------------|
 | internal/controller | 100.0% | health endpoints |
 | internal/domain | 100.0% | типы, MaskPhoneNumber, DeepCopy |
-| internal/handler | 77.6% | диспетчер обновлений |
+| internal/handler | 100.0% | диспетчер обновлений |
 | internal/repo/queue | 92.2% | in-memory queue |
 | internal/repo/ruleset | 73.6% | YAML loader + валидация |
-| internal/repo/state | 81.8% | BadgerDB CRUD + copies |
-| internal/repo/telegram | 43.6% | TDLib clientAdapter + mapping; нет unit-тестов, покрытие через BDD |
-| internal/repo/term | 0.0% | readline adapter, нет тестов |
+| internal/repo/state | 82.9% | BadgerDB CRUD + copies |
+| internal/repo/telegram | 71.6% | TDLib clientAdapter + mapping; unit-тесты + BDD через LiveStack |
+| internal/repo/term | 91.7% | readline adapter |
 | internal/service/album | 100.0% | — |
-| internal/service/auth | 88.9% | auth flow orchestration |
+| internal/service/auth | 100.0% | auth flow orchestration |
 | internal/service/dedup | 100.0% | — |
-| internal/service/facade | 84.8% | proxy + GetStatus |
-| internal/service/filters | 81.8% | evaluate + submatch |
-| internal/service/limiter | 90.0% | WaitForForward |
+| internal/service/facade | 96.3% | proxy + GetStatus |
+| internal/service/filters | 100.0% | evaluate + submatch |
+| internal/service/limiter | 100.0% | WaitForForward |
 | internal/service/message | 100.0% | GetFormattedText, BuildInputContent |
-| internal/service/transform | 46.7% | transform pipeline, UTF-16 |
-| internal/transport/grpc | 87.3% | все RPC |
-| internal/transport/http | 80.8% | REST auth |
-| internal/transport/http/graph | 96.0% | GraphQL handler |
-| internal/transport/term | 51.8% | CLI auth + commands |
+| internal/service/transform | 99.4% | transform pipeline, UTF-16 |
+| internal/transport/grpc | 74.1% | RPC-обёртки |
+| internal/transport/http | 79.2% | REST auth |
+| internal/transport/http/graph | — | gqlgen-generated код, исключён из отчёта |
+| internal/transport/http/resolvers | 100.0% | GraphQL resolver |
+| internal/transport/term | 51.0% | CLI auth + commands |
