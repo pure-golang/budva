@@ -627,6 +627,7 @@ func TestService_GetStatus(t *testing.T) {
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
 		svc := facade.New(gw)
+		gw.EXPECT().GetOption(mock.Anything).Return(&client.OptionValueString{Value: "1.8.35"}, nil)
 		gw.EXPECT().GetMe().Return(&client.User{Id: 42}, nil)
 
 		// Act
@@ -636,10 +637,26 @@ func TestService_GetStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		assert.Equal(t, int64(42), resp.UserID)
-		// client.GetOption("version") отвечает синхронно статической строкой
-		assert.NotEmpty(t, resp.TDLibVersion)
+		assert.Equal(t, "1.8.35", resp.TDLibVersion)
 		// ReleaseVersion всегда заполнен: "unknown" или версия модуля из debug.BuildInfo
 		assert.NotEmpty(t, resp.ReleaseVersion)
+	})
+
+	t.Run("GetOption error", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		gw := mocks.NewTelegramRepo(t)
+		svc := facade.New(gw)
+		wantErr := errors.New("tdlib unavailable")
+		gw.EXPECT().GetOption(mock.Anything).Return(nil, wantErr)
+
+		// Act
+		resp, err := svc.GetStatus(context.Background())
+
+		// Assert
+		require.ErrorIs(t, err, wantErr)
+		assert.Nil(t, resp)
 	})
 
 	t.Run("GetMe error", func(t *testing.T) {
@@ -649,6 +666,7 @@ func TestService_GetStatus(t *testing.T) {
 		gw := mocks.NewTelegramRepo(t)
 		svc := facade.New(gw)
 		wantErr := errors.New("not authorized")
+		gw.EXPECT().GetOption(mock.Anything).Return(&client.OptionValueString{Value: "1.8.35"}, nil)
 		gw.EXPECT().GetMe().Return(nil, wantErr)
 
 		// Act

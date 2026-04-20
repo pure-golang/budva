@@ -587,6 +587,68 @@ func (_c *TelegramRepo_GetMessages_Call) RunAndReturn(run func(getMessagesReques
 	return _c
 }
 
+// GetOption provides a mock function for the type TelegramRepo
+func (_mock *TelegramRepo) GetOption(getOptionRequest *client.GetOptionRequest) (client.OptionValue, error) {
+	ret := _mock.Called(getOptionRequest)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetOption")
+	}
+
+	var r0 client.OptionValue
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(*client.GetOptionRequest) (client.OptionValue, error)); ok {
+		return returnFunc(getOptionRequest)
+	}
+	if returnFunc, ok := ret.Get(0).(func(*client.GetOptionRequest) client.OptionValue); ok {
+		r0 = returnFunc(getOptionRequest)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(client.OptionValue)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(*client.GetOptionRequest) error); ok {
+		r1 = returnFunc(getOptionRequest)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// TelegramRepo_GetOption_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOption'
+type TelegramRepo_GetOption_Call struct {
+	*mock.Call
+}
+
+// GetOption is a helper method to define mock.On call
+//   - getOptionRequest *client.GetOptionRequest
+func (_e *TelegramRepo_Expecter) GetOption(getOptionRequest interface{}) *TelegramRepo_GetOption_Call {
+	return &TelegramRepo_GetOption_Call{Call: _e.mock.On("GetOption", getOptionRequest)}
+}
+
+func (_c *TelegramRepo_GetOption_Call) Run(run func(getOptionRequest *client.GetOptionRequest)) *TelegramRepo_GetOption_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *client.GetOptionRequest
+		if args[0] != nil {
+			arg0 = args[0].(*client.GetOptionRequest)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *TelegramRepo_GetOption_Call) Return(optionValue client.OptionValue, err error) *TelegramRepo_GetOption_Call {
+	_c.Call.Return(optionValue, err)
+	return _c
+}
+
+func (_c *TelegramRepo_GetOption_Call) RunAndReturn(run func(getOptionRequest *client.GetOptionRequest) (client.OptionValue, error)) *TelegramRepo_GetOption_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SendMessage provides a mock function for the type TelegramRepo
 func (_mock *TelegramRepo) SendMessage(sendMessageRequest *client.SendMessageRequest) (*client.Message, error) {
 	ret := _mock.Called(sendMessageRequest)

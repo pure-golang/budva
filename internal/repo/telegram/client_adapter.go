@@ -12,8 +12,8 @@ import (
 //
 // Метод добавляется сюда только когда у него появился живой потребитель в repo.go
 // или в telegramRepo-интерфейсах сервисов. Статические пакетные функции go-tdlib
-// (client.ParseTextEntities, client.GetMarkdownText, client.GetOption)
-// не являются методами *client.Client и в интерфейс не входят.
+// (client.ParseTextEntities, client.GetMarkdownText) не являются методами
+// *client.Client и в интерфейс не входят.
 type clientAdapter interface {
 	// Операции с сообщениями.
 	SendMessage(*client.SendMessageRequest) (*client.Message, error)
@@ -260,4 +260,12 @@ func (r *Repo) LogOut() (*client.Ok, error) {
 // GetListener возвращает listener TDLib для подписки на обновления.
 func (r *Repo) GetListener() *client.Listener {
 	return r.clientAdapter.GetListener()
+}
+
+// --- Статические функции ---
+
+// GetOption возвращает значение опции TDLib. Тонкая обёртка над пакетной функцией
+// client.GetOption (не является методом *client.Client; доступна до авторизации).
+func (r *Repo) GetOption(req *client.GetOptionRequest) (client.OptionValue, error) {
+	return client.GetOption(req)
 }

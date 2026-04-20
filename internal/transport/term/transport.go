@@ -19,11 +19,11 @@ type authService interface {
 
 // telegramRepo — частично применяемый интерфейс к repo/telegram.
 // ClientDone — собственный метод Repo (канал lifecycle); GetMe — обёртка clientAdapter.
-// GetOption в TDLib — статическая функция (не метод *client.Client),
-// поэтому в интерфейс не входит и вызывается напрямую в printStatus.
+// GetOption — метод *Repo, обёртка над пакетной функцией client.GetOption.
 type telegramRepo interface {
 	ClientDone() <-chan struct{}
 	GetMe() (*client.User, error)
+	GetOption(*client.GetOptionRequest) (client.OptionValue, error)
 }
 
 type termIO interface {
@@ -123,7 +123,7 @@ func (t *Transport) runInputLoop(ctx context.Context) {
 
 func (t *Transport) printStatus(_ context.Context) {
 	var version string
-	opt, err := client.GetOption(&client.GetOptionRequest{Name: "version"})
+	opt, err := t.telegramRepo.GetOption(&client.GetOptionRequest{Name: "version"})
 	if err != nil {
 		t.logger.Error("Failed to get TDLib version", slog.Any("err", err))
 	} else if v, ok := opt.(*client.OptionValueString); ok {

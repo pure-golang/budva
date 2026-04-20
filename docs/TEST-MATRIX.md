@@ -636,7 +636,7 @@ Steps: `test/bdd/shared/steps_06_auto.go`
 
 ## Покрытие кода
 
-Снято командой `task cover`. Общее покрытие: **86.7%**.
+Снято командой `task cover`. Общее покрытие: **91.0%**.
 
 | Пакет | Покрытие | Примечание |
 |-------|----------|------------|
@@ -646,18 +646,17 @@ Steps: `test/bdd/shared/steps_06_auto.go`
 | internal/repo/queue | 92.2% | in-memory queue |
 | internal/repo/ruleset | 73.6% | YAML loader + валидация |
 | internal/repo/state | 82.9% | BadgerDB CRUD + copies |
-| internal/repo/telegram | 71.6% | TDLib clientAdapter + mapping; unit-тесты + BDD через LiveStack |
+| internal/repo/telegram | 88.6% | TDLib clientAdapter + mapping; unit-тесты + BDD через LiveStack |
 | internal/repo/term | 91.7% | readline adapter |
 | internal/service/album | 100.0% | — |
 | internal/service/auth | 100.0% | auth flow orchestration |
 | internal/service/dedup | 100.0% | — |
-| internal/service/facade | 96.3% | proxy + GetStatus |
+| internal/service/facade | 98.1% | proxy + GetStatus |
 | internal/service/filters | 100.0% | evaluate + submatch |
 | internal/service/limiter | 100.0% | WaitForForward |
 | internal/service/message | 100.0% | GetFormattedText, BuildInputContent |
 | internal/service/transform | 99.4% | transform pipeline, UTF-16 |
 | internal/transport/grpc | 74.1% | RPC-обёртки |
 | internal/transport/http | 79.2% | REST auth |
-| internal/transport/http/graph | — | gqlgen-generated код, исключён из отчёта |
 | internal/transport/http/resolvers | 100.0% | GraphQL resolver |
-| internal/transport/term | 51.0% | CLI auth + commands |
+| internal/transport/term | 79.2% | CLI auth + commands |

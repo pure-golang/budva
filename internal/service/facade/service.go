@@ -26,6 +26,7 @@ type telegramRepo interface {
 	GetMessages(*client.GetMessagesRequest) (*client.Messages, error)
 	GetMessageLinkInfo(*client.GetMessageLinkInfoRequest) (*client.MessageLinkInfo, error)
 	GetMe() (*client.User, error)
+	GetOption(*client.GetOptionRequest) (client.OptionValue, error)
 }
 
 // Service реализует фасад для внешнего доступа к Telegram.
@@ -147,11 +148,9 @@ func (s *Service) GetMessageLinkInfo(_ context.Context, url string) (*client.Mes
 	return s.telegramRepo.GetMessageLinkInfo(&client.GetMessageLinkInfoRequest{Url: url})
 }
 
-// GetStatus возвращает текущий статус сервиса. Поле TDLibVersion достаётся
-// статической функцией client.GetOption (она не является методом *client.Client
-// и в clientAdapter не входит).
+// GetStatus возвращает текущий статус сервиса.
 func (s *Service) GetStatus(_ context.Context) (*dtogql.StatusResponse, error) {
-	versionOpt, err := client.GetOption(&client.GetOptionRequest{Name: "version"})
+	versionOpt, err := s.telegramRepo.GetOption(&client.GetOptionRequest{Name: "version"})
 	if err != nil {
 		return nil, err
 	}

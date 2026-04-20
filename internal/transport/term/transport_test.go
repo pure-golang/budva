@@ -32,12 +32,19 @@ func (f *fakeAuth) State() domain.AuthorizationState { return f.state }
 func (f *fakeAuth) LogOut(_ context.Context) error   { return f.logoutErr }
 
 type fakeTelegram struct {
-	clientDone chan struct{}
+	clientDone    chan struct{}
+	getOptionFn   func(*client.GetOptionRequest) (client.OptionValue, error)
 }
 
 func (f *fakeTelegram) ClientDone() <-chan struct{} { return f.clientDone }
 func (f *fakeTelegram) GetMe() (*client.User, error) {
 	return &client.User{Id: 123}, nil
+}
+func (f *fakeTelegram) GetOption(req *client.GetOptionRequest) (client.OptionValue, error) {
+	if f.getOptionFn != nil {
+		return f.getOptionFn(req)
+	}
+	return nil, nil
 }
 
 type fakeTerm struct {
@@ -115,6 +122,56 @@ func TestRunInputLoop_Exit(t *testing.T) {
 			t.Error("shutdown was not called after exit command")
 		}
 	})
+}
+
+func TestPrintStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		getOptionFn func(*client.GetOptionRequest) (client.OptionValue, error)
+		wantVersion string
+	}{
+		{
+			name:        "with_version",
+			getOptionFn: func(*client.GetOptionRequest) (client.OptionValue, error) {
+				return &client.OptionValueString{Value: "1.8.35"}, nil
+			},
+			wantVersion: "1.8.35",
+		},
+		{
+			name:        "getOption_error",
+			getOptionFn: func(*client.GetOptionRequest) (client.OptionValue, error) {
+				return nil, errors.New("tdlib error")
+			},
+			wantVersion: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			auth := &fakeAuth{inputChan: make(chan string, 1)}
+			tg := &fakeTelegram{
+				clientDone:  make(chan struct{}),
+				getOptionFn: test.getOptionFn,
+			}
+			term := &capturingTerm{}
+			tr := New(auth, tg, term, "")
+
+			// Act
+			tr.printStatus(t.Context())
+
+			// Assert
+			out := term.joined()
+			if test.wantVersion != "" {
+				assert.Contains(t, out, test.wantVersion)
+			}
+			assert.Contains(t, out, "123") // User ID from fakeTelegram.GetMe
+		})
+	}
 }
 
 func TestProcessAuth_WaitPhone(t *testing.T) {
