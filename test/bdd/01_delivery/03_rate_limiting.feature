@@ -4,7 +4,7 @@ Feature: Rate limiting пересылки
   Я хочу ограничить частоту пересылки
   Чтобы не превысить лимиты Telegram API
 
-  Scenario: 01. Пересылка в один чат не чаще раза в 3 секунды
+  Scenario: 01_forwarding_to_one_chat_is_limited_to_once_every_3_seconds
     Given правило пересылки в режиме "копия"
     When пользователь отправляет два сообщения подряд
     Then оба сообщения доставлены в целевые чаты

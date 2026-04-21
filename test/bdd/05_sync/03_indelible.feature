@@ -6,7 +6,7 @@ Feature: Неудаляемые копии
 
   # Режим indelible: true — удаление оригинала не удаляет копии
 
-  Scenario Outline: 01. Удаление оригинала не удаляет копии
+  Scenario Outline: 01_deleting_original_does_not_delete_copies
     Given правило пересылки в режиме "копия" с опцией indelible
     And исходный чат типа "<тип источника>"
     And пользователь ранее отправил сообщение
@@ -21,7 +21,7 @@ Feature: Неудаляемые копии
       | исходная публичная группа |
       | исходная приватная группа |
 
-  Scenario Outline: 02. Неудаляемые копии из конкретного источника в конкретный целевой чат
+  Scenario Outline: 02_indelible_copies_from_specific_source_to_specific_target_chat
     Given правило пересылки в режиме "копия" с опцией indelible
     And исходный чат типа "<источник>"
     And целевой чат типа "<назначение>"

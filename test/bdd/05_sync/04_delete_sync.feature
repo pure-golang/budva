@@ -6,7 +6,7 @@ Feature: Синхронизация удалений
 
   # Режим indelible: false — удаление оригинала удаляет все копии
 
-  Scenario Outline: 01. Удаление оригинала удаляет все копии
+  Scenario Outline: 01_deleting_original_deletes_all_copies
     Given правило пересылки в режиме "копия" без опции indelible
     And исходный чат типа "<тип источника>"
     And пользователь ранее отправил сообщение
@@ -21,7 +21,7 @@ Feature: Синхронизация удалений
       | исходная публичная группа |
       | исходная приватная группа |
 
-  Scenario Outline: 02. Синхронизация удаления из конкретного источника в конкретный целевой чат
+  Scenario Outline: 02_deletion_sync_from_specific_source_to_specific_target_chat
     Given правило пересылки в режиме "копия" без опции indelible
     And исходный чат типа "<источник>"
     And целевой чат типа "<назначение>"

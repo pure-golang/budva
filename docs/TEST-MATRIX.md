@@ -277,16 +277,16 @@
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-001 | `01_copy.feature` | `01. Сообщение копируется во все целевые чаты` | ×4 |
-| BDD-002 | `01_copy.feature` | `02. Копирование из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-003 | `02_forward.feature` | `01. Сообщение пересылается во все целевые чаты` | ×4 |
-| BDD-004 | `02_forward.feature` | `02. Пересылка из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-005 | `03_rate_limiting.feature` | `01. Пересылка в один чат не чаще раза в 3 секунды` | ×1 |
-| BDD-006 | `04_reply_chain.feature` | `01. Ответ на сообщение сохраняет связь в целевом чате` | ×1 |
-| BDD-007 | `05_origin_unwrapping.feature` | `01. Пересланное из канала сообщение разворачивается до оригинала` | ×1 |
-| BDD-008 | `06_statistics.feature` | `01. Просмотренные и пересланные сообщения считаются` | ×1 |
-| BDD-009 | `07_system_messages.feature` | `01. Системное сообщение удаляется при включённом флаге` | ×1 |
-| BDD-010 | `07_system_messages.feature` | `02. Системное сообщение игнорируется при выключенном флаге` | ×1 |
+| BDD-001 | `01_copy.feature` | `01_message_is_copied_to_all_target_chats` | ×4 |
+| BDD-002 | `01_copy.feature` | `02_copy_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-003 | `02_forward.feature` | `01_message_is_forwarded_to_all_target_chats` | ×4 |
+| BDD-004 | `02_forward.feature` | `02_forward_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-005 | `03_rate_limiting.feature` | `01_forwarding_to_one_chat_is_limited_to_once_every_3_seconds` | ×1 |
+| BDD-006 | `04_reply_chain.feature` | `01_reply_to_message_keeps_relation_in_target_chat` | ×1 |
+| BDD-007 | `05_origin_unwrapping.feature` | `01_forwarded_channel_message_is_unwrapped_to_original` | ×1 |
+| BDD-008 | `06_statistics.feature` | `01_viewed_and_forwarded_messages_are_counted` | ×1 |
+| BDD-009 | `07_system_messages.feature` | `01_system_message_is_deleted_when_flag_is_enabled` | ×1 |
+| BDD-010 | `07_system_messages.feature` | `02_system_message_is_ignored_when_flag_is_disabled` | ×1 |
 
 Итого `01_delivery`: **46 scenario instances**.
 
@@ -296,15 +296,15 @@
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-011 | `01_exclude.feature` | `01. Сообщение без запрещённого паттерна проходит фильтр` | ×8 |
-| BDD-012 | `01_exclude.feature` | `02. Фильтр исключения из конкретного источника в конкретный целевой чат` | ×32 |
-| BDD-013 | `01_exclude.feature` | `03. Сообщение с запрещённым паттерном блокируется` | ×8 |
-| BDD-014 | `01_exclude.feature` | `04. Блокировка запрещённого паттерна из конкретного источника в конкретный целевой чат` | ×32 |
-| BDD-015 | `02_include.feature` | `01. Сообщение с разрешённым паттерном проходит фильтр` | ×8 |
-| BDD-016 | `02_include.feature` | `02. Фильтр включения из конкретного источника в конкретный целевой чат` | ×32 |
-| BDD-017 | `03_submatch.feature` | `01. Сообщение с тикером проходит submatch-фильтр` | ×8 |
-| BDD-018 | `03_submatch.feature` | `02. Submatch-фильтр из конкретного источника в конкретный целевой чат` | ×32 |
-| BDD-019 | `04_check_other_dedup.feature` | `01. Сообщение отправляется в check-чат только один раз` | ×1 |
+| BDD-011 | `01_exclude.feature` | `01_message_without_blocked_pattern_passes_filter` | ×8 |
+| BDD-012 | `01_exclude.feature` | `02_exclude_filter_from_specific_source_to_specific_target_chat` | ×32 |
+| BDD-013 | `01_exclude.feature` | `03_message_with_blocked_pattern_is_blocked` | ×8 |
+| BDD-014 | `01_exclude.feature` | `04_message_with_blocked_pattern_is_blocked_from_specific_source_to_specific_target_chat` | ×32 |
+| BDD-015 | `02_include.feature` | `01_message_with_allowed_pattern_passes_filter` | ×8 |
+| BDD-016 | `02_include.feature` | `02_include_filter_from_specific_source_to_specific_target_chat` | ×32 |
+| BDD-017 | `03_submatch.feature` | `01_message_with_ticker_passes_submatch_filter` | ×8 |
+| BDD-018 | `03_submatch.feature` | `02_submatch_filter_from_specific_source_to_specific_target_chat` | ×32 |
+| BDD-019 | `04_check_other_dedup.feature` | `01_message_is_sent_to_check_chat_only_once` | ×1 |
 
 Итого `02_filters`: **161 scenario instances**.
 
@@ -314,18 +314,18 @@
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-020 | `01_replace_own_links.feature` | `01. Ссылка на своё сообщение заменяется на ссылку в целевом чате` | ×3 |
-| BDD-021 | `01_replace_own_links.feature` | `02. Замена ссылок из конкретного источника в конкретный целевой чат` | ×12 |
-| BDD-022 | `02_remove_external_links.feature` | `01. Сообщение с внешней ссылкой копируется без неё` | ×3 |
-| BDD-023 | `02_remove_external_links.feature` | `02. Удаление внешних ссылок из конкретного источника в конкретный целевой чат` | ×12 |
-| BDD-024 | `03_replace_fragments.feature` | `01. Фрагменты текста заменяются по правилам` | ×4 |
-| BDD-025 | `03_replace_fragments.feature` | `02. Замена фрагментов из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-026 | `04_source_link.feature` | `01. К копии добавляется ссылка на оригинал` | ×3 |
-| BDD-027 | `04_source_link.feature` | `02. Ссылка на оригинал из конкретного источника в конкретный целевой чат` | ×12 |
-| BDD-028 | `05_source_sign.feature` | `01. К копии добавляется подпись источника` | ×4 |
-| BDD-029 | `05_source_sign.feature` | `02. Подпись источника из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-030 | `06_translate.feature` | `01. Сообщение копируется с переводом` | ×4 |
-| BDD-031 | `06_translate.feature` | `02. Перевод из конкретного источника в конкретный целевой чат` | ×16 |
+| BDD-020 | `01_replace_own_links.feature` | `01_own_message_link_is_replaced_with_link_in_target_chat` | ×3 |
+| BDD-021 | `01_replace_own_links.feature` | `02_replace_links_from_specific_source_to_specific_target_chat` | ×12 |
+| BDD-022 | `02_remove_external_links.feature` | `01_message_with_external_link_is_copied_without_it` | ×3 |
+| BDD-023 | `02_remove_external_links.feature` | `02_remove_external_links_from_specific_source_to_specific_target_chat` | ×12 |
+| BDD-024 | `03_replace_fragments.feature` | `01_text_fragments_are_replaced_by_rules` | ×4 |
+| BDD-025 | `03_replace_fragments.feature` | `02_replace_fragments_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-026 | `04_source_link.feature` | `01_link_to_original_is_added_to_copy` | ×3 |
+| BDD-027 | `04_source_link.feature` | `02_link_to_original_from_specific_source_to_specific_target_chat` | ×12 |
+| BDD-028 | `05_source_sign.feature` | `01_source_signature_is_added_to_copy` | ×4 |
+| BDD-029 | `05_source_sign.feature` | `02_source_signature_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-030 | `06_translate.feature` | `01_message_is_copied_with_translation` | ×4 |
+| BDD-031 | `06_translate.feature` | `02_translation_from_specific_source_to_specific_target_chat` | ×16 |
 
 Итого `03_transform`: **105 scenario instances**.
 
@@ -335,10 +335,10 @@
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-032 | `01_album_copy.feature` | `01. Медиа-альбом копируется как единое целое` | ×4 |
-| BDD-033 | `01_album_copy.feature` | `02. Копирование альбома из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-034 | `02_album_forward.feature` | `01. Медиа-альбом пересылается как единое целое` | ×4 |
-| BDD-035 | `02_album_forward.feature` | `02. Пересылка альбома из конкретного источника в конкретный целевой чат` | ×16 |
+| BDD-032 | `01_album_copy.feature` | `01_media_album_is_copied_as_single_unit` | ×4 |
+| BDD-033 | `01_album_copy.feature` | `02_copy_album_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-034 | `02_album_forward.feature` | `01_media_album_is_forwarded_as_single_unit` | ×4 |
+| BDD-035 | `02_album_forward.feature` | `02_forward_album_from_specific_source_to_specific_target_chat` | ×16 |
 
 Итого `04_media`: **40 scenario instances**.
 
@@ -348,15 +348,15 @@
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-036 | `01_versioning.feature` | `01. Редактирование создаёт новую версию со ссылками` | ×3 |
-| BDD-037 | `01_versioning.feature` | `02. Версионирование из конкретного источника в конкретный целевой чат` | ×12 |
-| BDD-038 | `02_edit_update.feature` | `01. Редактирование обновляет существующую копию` | ×4 |
-| BDD-039 | `02_edit_update.feature` | `02. Обновление копии из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-040 | `03_indelible.feature` | `01. Удаление оригинала не удаляет копии` | ×4 |
-| BDD-041 | `03_indelible.feature` | `02. Неудаляемые копии из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-042 | `04_delete_sync.feature` | `01. Удаление оригинала удаляет все копии` | ×4 |
-| BDD-043 | `04_delete_sync.feature` | `02. Синхронизация удаления из конкретного источника в конкретный целевой чат` | ×16 |
-| BDD-044 | `05_retry_eventual_consistency.feature` | `01. Удаление повторяется если permanent ID ещё не в хранилище` | ×1 |
+| BDD-036 | `01_versioning.feature` | `01_editing_creates_new_version_with_links` | ×3 |
+| BDD-037 | `01_versioning.feature` | `02_versioning_from_specific_source_to_specific_target_chat` | ×12 |
+| BDD-038 | `02_edit_update.feature` | `01_editing_updates_existing_copy` | ×4 |
+| BDD-039 | `02_edit_update.feature` | `02_update_copy_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-040 | `03_indelible.feature` | `01_deleting_original_does_not_delete_copies` | ×4 |
+| BDD-041 | `03_indelible.feature` | `02_indelible_copies_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-042 | `04_delete_sync.feature` | `01_deleting_original_deletes_all_copies` | ×4 |
+| BDD-043 | `04_delete_sync.feature` | `02_deletion_sync_from_specific_source_to_specific_target_chat` | ×16 |
+| BDD-044 | `05_retry_eventual_consistency.feature` | `01_deletion_is_retried_if_permanent_id_is_missing_in_storage` | ×1 |
 
 Итого `05_sync`: **76 scenario instances**.
 
@@ -366,8 +366,8 @@
 
 | ID | Feature | Сценарий | Кол-во |
 |----|---------|----------|--------|
-| BDD-045 | `01_auto_answers.feature` | `01. Бот автоматически отвечает на callback-запрос` | ×3 |
-| BDD-046 | `01_auto_answers.feature` | `02. Автоответ из конкретного источника в конкретный целевой чат` | ×12 |
+| BDD-045 | `01_auto_answers.feature` | `01_bot_automatically_answers_callback_request` | ×3 |
+| BDD-046 | `01_auto_answers.feature` | `02_auto_answer_from_specific_source_to_specific_target_chat` | ×12 |
 
 Итого `06_auto`: **15 scenario instances**.
 

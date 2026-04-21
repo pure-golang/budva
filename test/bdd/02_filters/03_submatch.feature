@@ -4,7 +4,7 @@ Feature: Фильтр по подстроке
   Я хочу фильтровать сообщения по подстроке (например, тикер акции)
   Чтобы в целевые чаты попадали только сообщения с нужными тикерами
 
-  Scenario Outline: 01. Сообщение с тикером проходит submatch-фильтр
+  Scenario Outline: 01_message_with_ticker_passes_submatch_filter
     Given правило пересылки в режиме "<режим>"
     And фильтр submatch с паттерном "$TSLA"
     And исходный чат типа "<тип источника>"
@@ -22,7 +22,7 @@ Feature: Фильтр по подстроке
       | форвард | исходная публичная группа |
       | форвард | исходная приватная группа |
 
-  Scenario Outline: 02. Submatch-фильтр из конкретного источника в конкретный целевой чат
+  Scenario Outline: 02_submatch_filter_from_specific_source_to_specific_target_chat
     Given правило пересылки в режиме "<режим>"
     And фильтр submatch с паттерном "$TSLA"
     And исходный чат типа "<источник>"
