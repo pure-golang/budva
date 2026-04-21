@@ -333,3 +333,343 @@ func TestClientMessageToProto_WithForwardInfo(t *testing.T) {
 	assert.True(t, result.GetForward())
 	assert.Equal(t, "hello", result.GetText())
 }
+
+func TestClientMessageToProto_PhotoContent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessagePhoto{Caption: &client.FormattedText{Text: "photo caption"}},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "photo caption", result.GetText())
+}
+
+func TestClientMessageToProto_PhotoContent_NilCaption(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessagePhoto{Caption: nil},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "", result.GetText())
+}
+
+func TestClientMessageToProto_VideoContent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessageVideo{Caption: &client.FormattedText{Text: "video caption"}},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "video caption", result.GetText())
+}
+
+func TestClientMessageToProto_VideoContent_NilCaption(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessageVideo{Caption: nil},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "", result.GetText())
+}
+
+func TestClientMessageToProto_DocumentContent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessageDocument{Caption: &client.FormattedText{Text: "doc caption"}},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "doc caption", result.GetText())
+}
+
+func TestClientMessageToProto_DocumentContent_NilCaption(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessageDocument{Caption: nil},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "", result.GetText())
+}
+
+func TestClientMessageToProto_UnknownContent(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessageSticker{},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "", result.GetText())
+	assert.Equal(t, int64(100), result.GetChatId())
+}
+
+func TestClientMessageToProto_NilText(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	msg := &client.Message{
+		ChatId:  100,
+		Id:      1,
+		Content: &client.MessageText{Text: nil},
+	}
+
+	// Act
+	result := clientMessageToProto(msg)
+
+	// Assert
+	assert.Equal(t, "", result.GetText())
+}
+
+func TestGetMessages_WithNilInSlice(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessages(mock.Anything, int64(100), []int64{1, 2}).
+		Return([]*client.Message{textMessage(100, 1, "hello"), nil}, nil)
+	tr := New(facadeMock)
+
+	// Act
+	resp, err := tr.GetMessages(context.Background(), &pb.GetMessagesRequest{
+		ChatId:     100,
+		MessageIds: []int64{1, 2},
+	})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, resp.GetMessages(), 1)
+}
+
+func TestGetChatHistory_Error(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetChatHistory(mock.Anything, int64(100), int64(0), int32(0), int32(10)).
+		Return(nil, errors.New("history failed"))
+	tr := New(facadeMock)
+
+	// Act
+	resp, err := tr.GetChatHistory(context.Background(), &pb.GetChatHistoryRequest{
+		ChatId: 100, Limit: 10,
+	})
+
+	// Assert
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestSendMessageAlbum_FacadeError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().SendMessageAlbum(mock.Anything, int64(100), mock.Anything).
+		Return(errors.New("album failed"))
+	tr := New(facadeMock)
+
+	// Act
+	_, err := tr.SendMessageAlbum(context.Background(), &pb.SendMessageAlbumRequest{
+		Messages: []*pb.NewMessage{{ChatId: 100, Text: "one"}},
+	})
+
+	// Assert
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestForwardMessage_Error(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().ForwardMessage(mock.Anything, int64(100), int64(1)).
+		Return(errors.New("forward failed"))
+	tr := New(facadeMock)
+
+	// Act
+	_, err := tr.ForwardMessage(context.Background(), &pb.ForwardMessageRequest{
+		ChatId: 100, MessageId: 1,
+	})
+
+	// Assert
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestGetMessage_Error(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessage(mock.Anything, int64(100), int64(1)).
+		Return(nil, errors.New("not found"))
+	tr := New(facadeMock)
+
+	// Act
+	_, err := tr.GetMessage(context.Background(), &pb.GetMessageRequest{ChatId: 100, MessageId: 1})
+
+	// Assert
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestUpdateMessage_FacadeError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().UpdateMessage(mock.Anything, int64(100), int64(1), "text").
+		Return(errors.New("update failed"))
+	tr := New(facadeMock)
+
+	// Act
+	_, err := tr.UpdateMessage(context.Background(), &pb.UpdateMessageRequest{
+		Message: &pb.Message{ChatId: 100, Id: 1, Text: "text"},
+	})
+
+	// Assert
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestDeleteMessages_Error(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().DeleteMessages(mock.Anything, int64(100), []int64{1}).
+		Return(errors.New("delete failed"))
+	tr := New(facadeMock)
+
+	// Act
+	_, err := tr.DeleteMessages(context.Background(), &pb.DeleteMessagesRequest{
+		ChatId: 100, MessageIds: []int64{1},
+	})
+
+	// Assert
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestGetMessageLink_Error(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessageLink(mock.Anything, int64(100), int64(1)).
+		Return("", errors.New("link failed"))
+	tr := New(facadeMock)
+
+	// Act
+	_, err := tr.GetMessageLink(context.Background(), &pb.GetMessageLinkRequest{ChatId: 100, MessageId: 1})
+
+	// Assert
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestGetMessageLinkInfo_Error(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessageLinkInfo(mock.Anything, "https://t.me/c/1/1").
+		Return(nil, errors.New("info failed"))
+	tr := New(facadeMock)
+
+	// Act
+	_, err := tr.GetMessageLinkInfo(context.Background(), &pb.GetMessageLinkInfoRequest{Link: "https://t.me/c/1/1"})
+
+	// Assert
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestGetMessageLinkInfo_NilInfo(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessageLinkInfo(mock.Anything, "https://t.me/c/1/1").
+		Return(nil, nil)
+	tr := New(facadeMock)
+
+	// Act
+	resp, err := tr.GetMessageLinkInfo(context.Background(), &pb.GetMessageLinkInfoRequest{Link: "https://t.me/c/1/1"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), resp.GetMessage().GetChatId())
+	assert.Equal(t, int64(0), resp.GetMessage().GetId())
+}
+
+func TestGetMessageLinkInfo_NilMessage(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	facadeMock := mocks.NewFacadeService(t)
+	facadeMock.EXPECT().GetMessageLinkInfo(mock.Anything, "https://t.me/c/1/1").
+		Return(&client.MessageLinkInfo{ChatId: 42, Message: nil}, nil)
+	tr := New(facadeMock)
+
+	// Act
+	resp, err := tr.GetMessageLinkInfo(context.Background(), &pb.GetMessageLinkInfoRequest{Link: "https://t.me/c/1/1"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), resp.GetMessage().GetChatId())
+	assert.Equal(t, int64(0), resp.GetMessage().GetId())
+}

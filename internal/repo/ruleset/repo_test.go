@@ -1,9 +1,11 @@
 package ruleset
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -324,6 +326,187 @@ forwardRules:
 	assert.Contains(t, err.Error(), "To[0] must be positive")
 }
 
+func TestRepo_WatchContext_FileWrite_CallsOnChange(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, testRuleset)
+	r := New(config.RulesetConfig{Path: path})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	called := make(chan struct{}, 1)
+	err := r.WatchContext(ctx, func() {
+		select {
+		case called <- struct{}{}:
+		default:
+		}
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+
+	// Act — записываем файл заново, чтобы fsnotify сгенерировал Write-событие
+	require.NoError(t, os.WriteFile(path, []byte(testRuleset), 0o600))
+
+	// Assert
+	select {
+	case <-called:
+		// OK
+	case <-time.After(3 * time.Second):
+		t.Fatal("onChange was not called after file write")
+	}
+}
+
+func TestRepo_WatchContext_ContextCancel_Stops(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, testRuleset)
+	r := New(config.RulesetConfig{Path: path})
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	err := r.WatchContext(ctx, func() {})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+
+	// Act
+	cancel()
+
+	// Assert — отмена контекста не вызывает паники, Close не блокирует
+}
+
+func TestRepo_WatchContext_InvalidPath_Error(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New(config.RulesetConfig{Path: "/nonexistent/path/to/file.yml"})
+
+	// Act
+	err := r.WatchContext(context.Background(), func() {})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "watch file")
+}
+
+func TestRepo_Close_WithoutWatcher(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New(config.RulesetConfig{Path: "/tmp/any.yml"})
+
+	// Act / Assert — Close без WatchContext не паникует
+	require.NoError(t, r.Close())
+}
+
+func TestRepo_Close_WithWatcher(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	path := writeRuleset(t, testRuleset)
+	r := New(config.RulesetConfig{Path: path})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := r.WatchContext(ctx, func() {})
+	require.NoError(t, err)
+
+	// Act / Assert
+	require.NoError(t, r.Close())
+}
+
+func TestUtf16Len_SurrogatePairs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		s    string
+		want int
+	}{
+		{name: "ascii", s: "hello", want: 5},
+		{name: "empty", s: "", want: 0},
+		{name: "emoji_single", s: "😀", want: 2},    // U+1F600 — surrogate pair
+		{name: "emoji_flag", s: "🇷🇺", want: 4},     // два символа-компонента флага, каждый — surrogate pair
+		{name: "mixed", s: "hi😀", want: 4},         // 2 ASCII + 2 surrogate
+		{name: "cjk_basic", s: "日本語", want: 3},    // U+65E5, U+672C, U+8A9E — BMP, каждый 1 unit
+		{name: "linear_b", s: "\U00010000", want: 2}, // U+10000 — минимальный surrogate pair
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got := utf16Len(tt.s)
+
+			// Assert
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRepo_Load_NegateChatIDs_PrevNext(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — источник с prev.for и next.for для проверки negateChatIDs
+	path := writeRuleset(t, `
+sources:
+  1001000:
+    prev:
+      title: "Prev"
+      for: [2001000]
+    next:
+      title: "Next"
+      for: [2001000]
+destinations:
+  2001000: {}
+forwardRules:
+  rule1:
+    from: 1001000
+    to: [2001000]
+    sendCopy: true
+`)
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	rs, err := r.Load()
+
+	// Assert
+	require.NoError(t, err)
+	src := rs.Sources[-1001000]
+	require.NotNil(t, src)
+	require.NotNil(t, src.Prev)
+	assert.Contains(t, src.Prev.For, int64(-2001000))
+	require.NotNil(t, src.Next)
+	assert.Contains(t, src.Next.For, int64(-2001000))
+}
+
+func TestRepo_Load_Enrich_MissingSource(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — ForwardRule.From не определён в Sources, enrich создаст синтетический Source
+	path := writeRuleset(t, `
+sources: {}
+destinations:
+  2001000: {}
+forwardRules:
+  rule1:
+    from: 1001000
+    to: [2001000]
+    sendCopy: true
+`)
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	rs, err := r.Load()
+
+	// Assert — enrich добавил синтетический источник
+	require.NoError(t, err)
+	assert.Contains(t, rs.Sources, int64(-1001000))
+}
+
 func TestRepo_Load_FromEqualsTo(t *testing.T) {
 	t.Parallel()
 
@@ -347,4 +530,25 @@ forwardRules:
 	// Assert
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must differ from From")
+}
+
+func TestRepo_Load_InvalidYAML(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — файл содержит невалидный YAML
+	path := writeRuleset(t, ":\tinvalid: yaml: content\t[broken")
+	r := New(config.RulesetConfig{Path: path})
+
+	// Act
+	_, err := r.Load()
+
+	// Assert
+	require.Error(t, err)
+}
+
+func TestNegateChatIDs_NilOpt(t *testing.T) {
+	t.Parallel()
+
+	// Arrange / Act / Assert — нетипизированный nil не вызывает паники
+	negateChatIDs(nil)
 }

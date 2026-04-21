@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +100,66 @@ func TestIncrementCounters(t *testing.T) {
 	assert.Equal(t, uint64(1), v1)
 	assert.Equal(t, uint64(2), v2)
 	assert.Equal(t, uint64(1), f1)
+}
+
+func TestDeleteNewMessageID(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := newTestRepo(t)
+	require.NoError(t, r.SetNewMessageID(-200, 500, 600))
+	require.Equal(t, int64(600), r.GetNewMessageID(-200, 500))
+
+	// Act
+	require.NoError(t, r.DeleteNewMessageID(-200, 500))
+
+	// Assert
+	assert.Equal(t, int64(0), r.GetNewMessageID(-200, 500))
+}
+
+func TestDeleteTmpMessageID(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := newTestRepo(t)
+	require.NoError(t, r.SetTmpMessageID(-200, 600, 500))
+	require.Equal(t, int64(500), r.GetTmpMessageID(-200, 600))
+
+	// Act
+	require.NoError(t, r.DeleteTmpMessageID(-200, 600))
+
+	// Assert
+	assert.Equal(t, int64(0), r.GetTmpMessageID(-200, 600))
+}
+
+func TestGetNewMessageID_InvalidStoredValue(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — в БД записано нечисловое значение для ключа
+	r := newTestRepo(t)
+	key := fmt.Sprintf("%s:%d:%d", newMessageIDPrefix, int64(-200), int64(500))
+	require.NoError(t, r.Set(key, "not-a-number"))
+
+	// Act
+	id := r.GetNewMessageID(-200, 500)
+
+	// Assert — ParseInt error → возвращает 0
+	assert.Equal(t, int64(0), id)
+}
+
+func TestGetTmpMessageID_InvalidStoredValue(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — в БД записано нечисловое значение для ключа
+	r := newTestRepo(t)
+	key := fmt.Sprintf("%s:%d:%d", tmpMessageIDPrefix, int64(-200), int64(600))
+	require.NoError(t, r.Set(key, "not-a-number"))
+
+	// Act
+	id := r.GetTmpMessageID(-200, 600)
+
+	// Assert — ParseInt error → возвращает 0
+	assert.Equal(t, int64(0), id)
 }
 
 func TestAnswerMessageID(t *testing.T) {

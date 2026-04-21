@@ -69,3 +69,161 @@ func TestRepo_StartContext_processes_tasks(t *testing.T) {
 	// Assert — дождаться выполнения
 	require.Eventually(t, called.Load, 3*time.Second, 100*time.Millisecond)
 }
+
+func TestRepo_StartContext_stops_on_cancel(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Act
+	err := r.StartContext(ctx)
+	require.NoError(t, err)
+	cancel()
+
+	// Assert — отмена контекста не вызывает паники; очередь пуста
+	require.Equal(t, 0, r.Len())
+}
+
+func TestRepo_Close(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+
+	// Act / Assert — всегда возвращает nil
+	require.NoError(t, r.Close())
+}
+
+func TestRepo_ProcessAll(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+	var counter atomic.Int32
+	r.Add(func() { counter.Add(1) })
+	r.Add(func() { counter.Add(1) })
+	r.Add(func() { counter.Add(1) })
+
+	// Act
+	r.ProcessAll()
+
+	// Assert
+	require.Equal(t, int32(3), counter.Load())
+	require.Equal(t, 0, r.Len())
+}
+
+func TestRepo_ProcessAll_executes_tasks_added_during_processing(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+	var counter atomic.Int32
+	r.Add(func() {
+		counter.Add(1)
+		if counter.Load() == 1 {
+			r.Add(func() { counter.Add(10) })
+		}
+	})
+
+	// Act
+	r.ProcessAll()
+
+	// Assert — задача добавленная во время выполнения тоже выполнена
+	require.Equal(t, int32(11), counter.Load())
+	require.Equal(t, 0, r.Len())
+}
+
+func TestRepo_ProcessBatch(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+	var counter atomic.Int32
+	r.Add(func() { counter.Add(1) })
+	r.Add(func() { counter.Add(1) })
+
+	// Act
+	r.ProcessBatch()
+
+	// Assert
+	require.Equal(t, int32(2), counter.Load())
+	require.Equal(t, 0, r.Len())
+}
+
+func TestRepo_ProcessBatch_ignores_tasks_added_during_processing(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+	var counter atomic.Int32
+	r.Add(func() {
+		counter.Add(1)
+		r.Add(func() { counter.Add(10) })
+	})
+
+	// Act
+	r.ProcessBatch()
+
+	// Assert — задача добавленная во время выполнения НЕ выполнена
+	require.Equal(t, int32(1), counter.Load())
+	require.Equal(t, 1, r.Len())
+}
+
+func TestRepo_ProcessQueue_empty(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+
+	// Act / Assert — нет паники на пустой очереди
+	r.processQueue()
+	require.Equal(t, 0, r.Len())
+}
+
+func TestRepo_ProcessAll_empty_queue(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+
+	// Act / Assert — нет паники на пустой очереди
+	r.ProcessAll()
+	require.Equal(t, 0, r.Len())
+}
+
+func TestRepo_ProcessBatch_empty_queue(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	r := New()
+
+	// Act / Assert — нет паники на пустой очереди
+	r.ProcessBatch()
+	require.Equal(t, 0, r.Len())
+}
+
+func TestRepo_ProcessBatch_NilFront(t *testing.T) {
+	t.Parallel()
+
+	// Arrange — первая задача крадёт вторую; итерация 2 получит nil и выходит
+	r := New()
+	var counter atomic.Int32
+	r.Add(func() {
+		counter.Add(1)
+		r.mu.Lock()
+		if front := r.queue.Front(); front != nil {
+			r.queue.Remove(front)
+		}
+		r.mu.Unlock()
+	})
+	r.Add(func() { counter.Add(10) })
+
+	// Act
+	r.ProcessBatch()
+
+	// Assert — вторая задача украдена изнутри первой, guard сработал
+	require.Equal(t, int32(1), counter.Load())
+	require.Equal(t, 0, r.Len())
+}

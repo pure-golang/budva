@@ -1,4 +1,4 @@
-package facade_test
+package facade
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/service/facade"
 	"github.com/pure-golang/budva-claude/internal/service/facade/mocks"
 )
 
@@ -22,7 +21,7 @@ func TestNew(t *testing.T) {
 	gw := mocks.NewTelegramRepo(t)
 
 	// Act
-	svc := facade.New(gw)
+	svc := New(gw)
 
 	// Assert
 	require.NotNil(t, svc)
@@ -36,7 +35,7 @@ func TestService_GetMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		want := &client.Message{Id: 42}
 		gw.EXPECT().GetMessage(mock.MatchedBy(func(req *client.GetMessageRequest) bool {
 			return req.ChatId == 100 && req.MessageId == 42
@@ -55,7 +54,7 @@ func TestService_GetMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("not found")
 		gw.EXPECT().GetMessage(mock.Anything).Return(nil, wantErr)
 
@@ -76,7 +75,7 @@ func TestService_SendMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().SendMessage(mock.MatchedBy(func(req *client.SendMessageRequest) bool {
 			if req.ChatId != 100 {
 				return false
@@ -97,7 +96,7 @@ func TestService_SendMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("send failed")
 		gw.EXPECT().SendMessage(mock.Anything).Return(nil, wantErr)
 
@@ -117,7 +116,7 @@ func TestService_SendMessageAlbum(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		items := []domain.AlbumItem{
 			{Text: "photo caption", FilePath: "/tmp/image.jpg"},
 			{Text: "just text"},
@@ -152,7 +151,7 @@ func TestService_SendMessageAlbum(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().SendMessageAlbum(mock.MatchedBy(func(req *client.SendMessageAlbumRequest) bool {
 			return req.ChatId == 200 && len(req.InputMessageContents) == 0
 		})).Return(&client.Messages{}, nil)
@@ -293,7 +292,7 @@ func TestService_SendMessageAlbum(t *testing.T) {
 
 				// Arrange
 				gw := mocks.NewTelegramRepo(t)
-				svc := facade.New(gw)
+				svc := New(gw)
 				gw.EXPECT().SendMessageAlbum(mock.MatchedBy(func(req *client.SendMessageAlbumRequest) bool {
 					return len(req.InputMessageContents) == 1 && tt.check(req.InputMessageContents[0])
 				})).Return(&client.Messages{}, nil)
@@ -312,7 +311,7 @@ func TestService_SendMessageAlbum(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("album failed")
 		gw.EXPECT().SendMessageAlbum(mock.Anything).Return(nil, wantErr)
 
@@ -332,7 +331,7 @@ func TestService_ForwardMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().ForwardMessages(mock.MatchedBy(func(req *client.ForwardMessagesRequest) bool {
 			return req.ChatId == 100 && req.FromChatId == 100 &&
 				len(req.MessageIds) == 1 && req.MessageIds[0] == 5
@@ -350,7 +349,7 @@ func TestService_ForwardMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("forward failed")
 		gw.EXPECT().ForwardMessages(mock.Anything).Return(nil, wantErr)
 
@@ -370,7 +369,7 @@ func TestService_UpdateMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().EditMessageText(mock.MatchedBy(func(req *client.EditMessageTextRequest) bool {
 			if req.ChatId != 100 || req.MessageId != 5 {
 				return false
@@ -391,7 +390,7 @@ func TestService_UpdateMessage(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("edit failed")
 		gw.EXPECT().EditMessageText(mock.Anything).Return(nil, wantErr)
 
@@ -411,7 +410,7 @@ func TestService_DeleteMessages(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().DeleteMessages(mock.MatchedBy(func(req *client.DeleteMessagesRequest) bool {
 			return req.ChatId == 100 && req.Revoke &&
 				len(req.MessageIds) == 2 && req.MessageIds[0] == 1 && req.MessageIds[1] == 2
@@ -429,7 +428,7 @@ func TestService_DeleteMessages(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().DeleteMessages(mock.MatchedBy(func(req *client.DeleteMessagesRequest) bool {
 			return req.ChatId == 100 && req.Revoke && len(req.MessageIds) == 0
 		})).Return(&client.Ok{}, nil)
@@ -446,7 +445,7 @@ func TestService_DeleteMessages(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("delete failed")
 		gw.EXPECT().DeleteMessages(mock.Anything).Return(nil, wantErr)
 
@@ -466,7 +465,7 @@ func TestService_GetChatHistory(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantMsgs := []*client.Message{{Id: 1}, {Id: 2}}
 		gw.EXPECT().GetChatHistory(mock.MatchedBy(func(req *client.GetChatHistoryRequest) bool {
 			return req.ChatId == 100 && req.FromMessageId == 5 && req.Offset == -1 && req.Limit == 50
@@ -485,7 +484,7 @@ func TestService_GetChatHistory(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("history failed")
 		gw.EXPECT().GetChatHistory(mock.Anything).Return(nil, wantErr)
 
@@ -506,7 +505,7 @@ func TestService_GetMessages(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantMsgs := []*client.Message{{Id: 1}, {Id: 2}}
 		gw.EXPECT().GetMessages(mock.MatchedBy(func(req *client.GetMessagesRequest) bool {
 			return req.ChatId == 100 && len(req.MessageIds) == 2 &&
@@ -526,7 +525,7 @@ func TestService_GetMessages(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("get messages failed")
 		gw.EXPECT().GetMessages(mock.Anything).Return(nil, wantErr)
 
@@ -547,7 +546,7 @@ func TestService_GetMessageLink(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().GetMessageLink(mock.MatchedBy(func(req *client.GetMessageLinkRequest) bool {
 			return req.ChatId == 100 && req.MessageId == 5 && !req.ForAlbum
 		})).Return(&client.MessageLink{Link: "https://t.me/x/5"}, nil)
@@ -565,7 +564,7 @@ func TestService_GetMessageLink(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("link failed")
 		gw.EXPECT().GetMessageLink(mock.Anything).Return(nil, wantErr)
 
@@ -586,7 +585,7 @@ func TestService_GetMessageLinkInfo(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		want := &client.MessageLinkInfo{ChatId: 100, IsPublic: true}
 		gw.EXPECT().GetMessageLinkInfo(mock.MatchedBy(func(req *client.GetMessageLinkInfoRequest) bool {
 			return req.Url == "https://t.me/x/5"
@@ -605,7 +604,7 @@ func TestService_GetMessageLinkInfo(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("link info failed")
 		gw.EXPECT().GetMessageLinkInfo(mock.Anything).Return(nil, wantErr)
 
@@ -626,7 +625,7 @@ func TestService_GetStatus(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		gw.EXPECT().GetOption(mock.Anything).Return(&client.OptionValueString{Value: "1.8.35"}, nil)
 		gw.EXPECT().GetMe().Return(&client.User{Id: 42}, nil)
 
@@ -647,7 +646,7 @@ func TestService_GetStatus(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("tdlib unavailable")
 		gw.EXPECT().GetOption(mock.Anything).Return(nil, wantErr)
 
@@ -664,7 +663,7 @@ func TestService_GetStatus(t *testing.T) {
 
 		// Arrange
 		gw := mocks.NewTelegramRepo(t)
-		svc := facade.New(gw)
+		svc := New(gw)
 		wantErr := errors.New("not authorized")
 		gw.EXPECT().GetOption(mock.Anything).Return(&client.OptionValueString{Value: "1.8.35"}, nil)
 		gw.EXPECT().GetMe().Return(nil, wantErr)
@@ -676,4 +675,182 @@ func TestService_GetStatus(t *testing.T) {
 		require.ErrorIs(t, err, wantErr)
 		assert.Nil(t, resp)
 	})
+}
+
+func TestInputMessageByFileExt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		filePath string
+		assertOn func(t *testing.T, c client.InputMessageContent, path string)
+	}{
+		{
+			name:     "photo_jpg",
+			filePath: "/x/a.jpg",
+			assertOn: func(t *testing.T, c client.InputMessageContent, path string) {
+				photo, ok := c.(*client.InputMessagePhoto)
+				require.True(t, ok)
+				local, ok := photo.Photo.(*client.InputFileLocal)
+				require.True(t, ok)
+				assert.Equal(t, path, local.Path)
+				assert.Equal(t, "cap", photo.Caption.Text)
+			},
+		},
+		{
+			name:     "photo_jpeg_uppercase",
+			filePath: "/x/a.JPEG",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessagePhoto)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "photo_png",
+			filePath: "/x/a.png",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessagePhoto)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "photo_webp",
+			filePath: "/x/a.webp",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessagePhoto)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "video_mp4",
+			filePath: "/x/a.mp4",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageVideo)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "video_mov",
+			filePath: "/x/a.mov",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageVideo)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "video_avi",
+			filePath: "/x/a.avi",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageVideo)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "video_mkv",
+			filePath: "/x/a.mkv",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageVideo)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "audio_mp3",
+			filePath: "/x/a.mp3",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageAudio)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "audio_ogg",
+			filePath: "/x/a.ogg",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageAudio)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "audio_m4a",
+			filePath: "/x/a.m4a",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageAudio)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "audio_flac",
+			filePath: "/x/a.flac",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageAudio)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "audio_wav",
+			filePath: "/x/a.wav",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageAudio)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "animation_gif",
+			filePath: "/x/a.gif",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageAnimation)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "document_pdf",
+			filePath: "/x/a.pdf",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageDocument)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "document_unknown_ext",
+			filePath: "/x/a.xyz",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageDocument)
+				assert.True(t, ok)
+			},
+		},
+		{
+			name:     "document_no_extension",
+			filePath: "/x/plainfile",
+			assertOn: func(t *testing.T, c client.InputMessageContent, _ string) {
+				_, ok := c.(*client.InputMessageDocument)
+				assert.True(t, ok)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			caption := &client.FormattedText{Text: "cap"}
+
+			// Act
+			got := inputMessageByFileExt(tt.filePath, caption)
+
+			// Assert
+			tt.assertOn(t, got, tt.filePath)
+		})
+	}
+}
+
+func TestReleaseVersion(t *testing.T) {
+	t.Parallel()
+
+	// Arrange, Act
+	got := releaseVersion()
+
+	// Assert
+	// В тестовом бинарнике debug.ReadBuildInfo() может возвращать "(devel)"
+	// или пустую main version; в любом случае функция должна вернуть non-empty string
+	assert.NotEmpty(t, got)
 }

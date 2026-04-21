@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
@@ -32,12 +33,16 @@ func (f *fakeAuth) State() domain.AuthorizationState { return f.state }
 func (f *fakeAuth) LogOut(_ context.Context) error   { return f.logoutErr }
 
 type fakeTelegram struct {
-	clientDone    chan struct{}
-	getOptionFn   func(*client.GetOptionRequest) (client.OptionValue, error)
+	clientDone  chan struct{}
+	getOptionFn func(*client.GetOptionRequest) (client.OptionValue, error)
+	getMeFn     func() (*client.User, error)
 }
 
 func (f *fakeTelegram) ClientDone() <-chan struct{} { return f.clientDone }
 func (f *fakeTelegram) GetMe() (*client.User, error) {
+	if f.getMeFn != nil {
+		return f.getMeFn()
+	}
 	return &client.User{Id: 123}, nil
 }
 func (f *fakeTelegram) GetOption(req *client.GetOptionRequest) (client.OptionValue, error) {
@@ -365,4 +370,298 @@ func TestProcessAuth_WaitPassword(t *testing.T) {
 			assert.Equal(t, test.userInput, <-inputChan)
 		})
 	}
+}
+
+func TestProcessAuth_WaitPhone_ReadPasswordError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{inputChan: make(chan string, 1)}
+	term := &fakeTerm{
+		readPasswordFn: func() (string, error) { return "", errors.New("input error") },
+	}
+	tr := New(auth, nil, term, "")
+
+	// Act — не паникует, ошибка логируется
+	tr.processAuth(domain.AuthStateWaitPhone, nil)
+
+	// Assert — ничего не отправлено в канал
+	assert.Equal(t, 0, len(auth.inputChan))
+}
+
+func TestProcessAuth_WaitCode_ReadPasswordError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{inputChan: make(chan string, 1)}
+	term := &fakeTerm{
+		readPasswordFn: func() (string, error) { return "", errors.New("input error") },
+	}
+	tr := New(auth, nil, term, "")
+
+	// Act
+	tr.processAuth(domain.AuthStateWaitCode, nil)
+
+	// Assert — ничего не отправлено
+	assert.Equal(t, 0, len(auth.inputChan))
+}
+
+func TestProcessAuth_WaitPassword_ReadPasswordError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{inputChan: make(chan string, 1)}
+	term := &fakeTerm{
+		readPasswordFn: func() (string, error) { return "", errors.New("input error") },
+	}
+	tr := New(auth, nil, term, "")
+
+	// Act
+	tr.processAuth(domain.AuthStateWaitPassword, nil)
+
+	// Assert — ничего не отправлено
+	assert.Equal(t, 0, len(auth.inputChan))
+}
+
+func TestHandleExit(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{inputChan: make(chan string, 1)}
+	term := &capturingTerm{}
+	tr := New(auth, nil, term, "")
+	shutdownCalled := false
+	tr.shutdown = func() { shutdownCalled = true }
+
+	// Act
+	tr.handleExit(nil)
+
+	// Assert
+	assert.True(t, shutdownCalled)
+	assert.Contains(t, term.joined(), "Shutting down")
+}
+
+func TestHandleExit_NoShutdown(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{inputChan: make(chan string, 1)}
+	term := &capturingTerm{}
+	tr := New(auth, nil, term, "")
+	tr.shutdown = nil
+
+	// Act / Assert — не паникует без shutdown
+	tr.handleExit(nil)
+}
+
+func TestClose(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{
+		subscribeFn: func(func(domain.AuthorizationState, any)) {},
+		inputChan:   make(chan string, 1),
+	}
+	tg := &fakeTelegram{clientDone: make(chan struct{})}
+	term := &fakeTerm{
+		readLineFn: func() (string, error) { return "", nil },
+	}
+	tr := New(auth, tg, term, "")
+
+	// Act / Assert — не паникует
+	require.NoError(t, tr.Close())
+}
+
+func TestRun(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		ctx, cancel := context.WithCancel(t.Context())
+
+		auth := &fakeAuth{
+			subscribeFn: func(func(domain.AuthorizationState, any)) {},
+			inputChan:   make(chan string, 1),
+		}
+		tg := &fakeTelegram{clientDone: make(chan struct{})}
+		term := &fakeTerm{
+			readLineFn: func() (string, error) { return "", nil },
+		}
+		tr := New(auth, tg, term, "")
+
+		// Act — Run блокирует, запускаем в горутине
+		done := make(chan error, 1)
+		go func() {
+			done <- tr.Run(ctx, cancel)
+		}()
+
+		// Отменяем контекст, чтобы runInputLoop вышел
+		cancel()
+
+		// Assert
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(1 * time.Second):
+			t.Error("Run did not return after context cancellation")
+		}
+	})
+}
+
+func TestRunInputLoop_ContextDone(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		ctx, cancel := context.WithCancel(t.Context())
+
+		auth := &fakeAuth{
+			subscribeFn: func(func(domain.AuthorizationState, any)) {},
+			inputChan:   make(chan string, 1),
+		}
+		tg := &fakeTelegram{clientDone: make(chan struct{})}
+		term := &fakeTerm{
+			readLineFn: func() (string, error) { return "", nil },
+		}
+		tr := New(auth, tg, term, "")
+
+		done := make(chan struct{})
+		go func() {
+			tr.runInputLoop(ctx)
+			close(done)
+		}()
+
+		// Act
+		cancel()
+
+		// Assert
+		select {
+		case <-done:
+			// OK — вышел по ctx.Done()
+		case <-time.After(1 * time.Second):
+			t.Error("runInputLoop did not exit after context cancellation")
+		}
+	})
+}
+
+func TestRunInputLoop_AuthStateChannel(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	inputChan := make(chan string, 1)
+	subscribed := make(chan struct{})
+	var capturedListener func(domain.AuthorizationState, any)
+	auth := &fakeAuth{
+		subscribeFn: func(listener func(domain.AuthorizationState, any)) {
+			capturedListener = listener
+			close(subscribed)
+		},
+		inputChan: inputChan,
+	}
+	tg := &fakeTelegram{clientDone: make(chan struct{})}
+	term := &capturingTerm{
+		readPasswordFn: func() (string, error) { return "+1234567890", nil },
+	}
+	tr := New(auth, tg, term, "")
+
+	go tr.Run(ctx, cancel)
+
+	// Ждём вызова Subscribe
+	select {
+	case <-subscribed:
+	case <-time.After(time.Second):
+		t.Fatal("Subscribe was not called")
+	}
+
+	// Act — симулируем переход состояния через подписчика
+	capturedListener(domain.AuthStateWaitPhone, nil)
+
+	// Assert — WaitPhone отправляет номер в канал
+	select {
+	case phone := <-inputChan:
+		assert.Equal(t, "+1234567890", phone)
+	case <-time.After(time.Second):
+		t.Error("phone was not sent to inputChan")
+	}
+}
+
+func TestRunInputLoop_ReadLineError(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		clientDone := make(chan struct{})
+		close(clientDone)
+
+		auth := &fakeAuth{
+			subscribeFn: func(func(domain.AuthorizationState, any)) {},
+			inputChan:   make(chan string, 1),
+		}
+		tg := &fakeTelegram{clientDone: clientDone}
+		exited := make(chan struct{})
+		tm := &fakeTerm{
+			readLineFn: func() (string, error) {
+				return "", errors.New("terminal closed")
+			},
+		}
+		tr := New(auth, tg, tm, "")
+
+		// Act
+		go func() {
+			tr.runInputLoop(ctx)
+			close(exited)
+		}()
+
+		// Assert — runInputLoop завершается при ошибке ReadLine
+		select {
+		case <-exited:
+			// OK
+		case <-time.After(1 * time.Second):
+			t.Error("runInputLoop did not exit after ReadLine error")
+		}
+	})
+}
+
+func TestPrintStatus_GetMeError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{inputChan: make(chan string, 1)}
+	tg := &fakeTelegram{
+		clientDone: make(chan struct{}),
+		getMeFn: func() (*client.User, error) {
+			return nil, errors.New("get me error")
+		},
+	}
+	term := &capturingTerm{}
+	tr := New(auth, tg, term, "")
+
+	// Act
+	tr.printStatus(t.Context())
+
+	// Assert — User ID равен 0 при ошибке GetMe
+	assert.Contains(t, term.joined(), "User ID: 0")
+}
+
+func TestProcessCommand_WithArgs(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	auth := &fakeAuth{inputChan: make(chan string, 1)}
+	term := &capturingTerm{}
+	tr := New(auth, nil, term, "")
+	shutdownCalled := false
+	tr.shutdown = func() { shutdownCalled = true }
+
+	// Act — команда с аргументами (exit игнорирует аргументы)
+	tr.processCommand("exit extra arg")
+
+	// Assert
+	assert.True(t, shutdownCalled)
 }

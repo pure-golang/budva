@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -207,16 +208,18 @@ func TestPopMessages_AllowsReuseOfKey(t *testing.T) {
 func TestLastReceivedAge_AfterAdd(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := album.New()
-	svc.AddMessage("album:1", &client.Message{Id: 100})
-	time.Sleep(10 * time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		svc := album.New()
+		svc.AddMessage("album:1", &client.Message{Id: 100})
+		time.Sleep(10 * time.Millisecond)
 
-	// Act
-	age := svc.LastReceivedAge("album:1")
+		// Act
+		age := svc.LastReceivedAge("album:1")
 
-	// Assert
-	assert.GreaterOrEqual(t, age, 10*time.Millisecond)
+		// Assert
+		assert.GreaterOrEqual(t, age, 10*time.Millisecond)
+	})
 }
 
 func TestLastReceivedAge_NonexistentKey(t *testing.T) {
@@ -250,34 +253,38 @@ func TestLastReceivedAge_AfterPopReturnsZero(t *testing.T) {
 func TestLastReceivedAge_UpdatedOnNewMessage(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := album.New()
-	svc.AddMessage("album:1", &client.Message{Id: 100})
-	time.Sleep(30 * time.Millisecond)
-	svc.AddMessage("album:1", &client.Message{Id: 101})
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		svc := album.New()
+		svc.AddMessage("album:1", &client.Message{Id: 100})
+		time.Sleep(30 * time.Millisecond)
+		svc.AddMessage("album:1", &client.Message{Id: 101})
 
-	// Act
-	age := svc.LastReceivedAge("album:1")
+		// Act
+		age := svc.LastReceivedAge("album:1")
 
-	// Assert
-	assert.Less(t, age, 30*time.Millisecond)
+		// Assert
+		assert.Less(t, age, 30*time.Millisecond)
+	})
 }
 
 func TestLastReceivedAge_MonotonicGrowthBetweenAdds(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	svc := album.New()
-	svc.AddMessage("album:1", &client.Message{Id: 100})
-	time.Sleep(5 * time.Millisecond)
-	age1 := svc.LastReceivedAge("album:1")
-	time.Sleep(10 * time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		// Arrange
+		svc := album.New()
+		svc.AddMessage("album:1", &client.Message{Id: 100})
+		time.Sleep(5 * time.Millisecond)
+		age1 := svc.LastReceivedAge("album:1")
+		time.Sleep(10 * time.Millisecond)
 
-	// Act
-	age2 := svc.LastReceivedAge("album:1")
+		// Act
+		age2 := svc.LastReceivedAge("album:1")
 
-	// Assert
-	assert.Greater(t, age2, age1)
+		// Assert
+		assert.Greater(t, age2, age1)
+	})
 }
 
 func TestMakeKey(t *testing.T) {
