@@ -43,13 +43,13 @@ func acquireTDLibLock() (release func(), err error) {
 	if err != nil {
 		return nil, fmt.Errorf("open tdlib lock file: %w", err)
 	}
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
-		_ = f.Close()
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil { //nolint:gosec // fd — малое значение, overflow невозможен
+		_ = f.Close() //nolint:errcheck // close в error path, ошибка не влияет на основной результат
 		return nil, fmt.Errorf("acquire tdlib lock: %w", err)
 	}
 	return func() {
-		_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
-		_ = f.Close()
+		_ = unix.Flock(int(f.Fd()), unix.LOCK_UN) //nolint:errcheck,gosec // unlock в cleanup, fd безопасен
+		_ = f.Close()                             //nolint:errcheck // close в cleanup, ошибка не влияет на результат
 	}, nil
 }
 

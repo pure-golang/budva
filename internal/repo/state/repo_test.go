@@ -218,7 +218,7 @@ func TestRepo_runGC_ticker(t *testing.T) {
 		// Cleanup — останавливаем GC горутину
 		close(r.stop)
 		r.stop = nil
-		_ = r.db.Close()
+		require.NoError(t, r.db.Close())
 		r.db = nil
 		synctest.Wait()
 	})
@@ -260,7 +260,7 @@ func TestRepo_runGC_GCError(t *testing.T) {
 		synctest.Wait()
 
 		// Закрываем БД до тика — RunValueLogGC вернёт реальную ошибку
-		_ = r.db.Close()
+		require.NoError(t, r.db.Close())
 
 		// Act — продвигаем время: тик срабатывает, runGC логирует ошибку
 		time.Sleep(5*time.Minute + time.Second)

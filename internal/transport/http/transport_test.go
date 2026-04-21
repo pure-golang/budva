@@ -26,7 +26,7 @@ func (w *errWriter) Header() http.Header {
 	return w.header
 }
 func (w *errWriter) Write([]byte) (int, error) { return 0, errors.New("write error") }
-func (w *errWriter) WriteHeader(int)            {}
+func (w *errWriter) WriteHeader(int)           {}
 
 func newTestTransport(t *testing.T) (*Transport, *mocks.AuthService) {
 	t.Helper()
@@ -96,43 +96,6 @@ func TestPostPhone_Success(t *testing.T) {
 	assert.Equal(t, "+1234567890", got)
 }
 
-func TestPostPhone_EmptyPhone(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	body := strings.NewReader(`{"phone":""}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/phone", body)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	// Act
-	mux.ServeHTTP(w, req)
-
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestPostPhone_InvalidJSON(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	body := strings.NewReader(`invalid`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/phone", body)
-	w := httptest.NewRecorder()
-
-	// Act
-	mux.ServeHTTP(w, req)
-
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
 func TestPostCode_Success(t *testing.T) {
 	t.Parallel()
 
@@ -156,25 +119,6 @@ func TestPostCode_Success(t *testing.T) {
 	assert.Equal(t, "12345", got)
 }
 
-func TestPostCode_EmptyCode(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	body := strings.NewReader(`{"code":""}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/code", body)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	// Act
-	mux.ServeHTTP(w, req)
-
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
 func TestPostPassword_Success(t *testing.T) {
 	t.Parallel()
 
@@ -196,25 +140,6 @@ func TestPostPassword_Success(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, w.Code)
 	got := <-inputChan
 	assert.Equal(t, "secret123", got)
-}
-
-func TestPostPassword_EmptyPassword(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	body := strings.NewReader(`{"password":""}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/password", body)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	// Act
-	mux.ServeHTTP(w, req)
-
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestResponseContentType(t *testing.T) {
@@ -258,91 +183,102 @@ func TestGetState_PasswordHint(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"password_hint":"pet name"`)
 }
 
-func TestPostPhone_NoBody(t *testing.T) {
+func TestPostRejectsEmptyField(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/phone", nil)
-	w := httptest.NewRecorder()
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{name: "phone", path: "/api/auth/telegram/phone", body: `{"phone":""}`},
+		{name: "code", path: "/api/auth/telegram/code", body: `{"code":""}`},
+		{name: "password", path: "/api/auth/telegram/password", body: `{"password":""}`},
+	}
 
-	// Act
-	mux.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+			// Arrange
+			tr, _ := newTestTransport(t)
+			mux := http.NewServeMux()
+			tr.EnrichRoutes(mux)
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			// Act
+			mux.ServeHTTP(w, req)
+
+			// Assert
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
 }
 
-func TestPostCode_InvalidJSON(t *testing.T) {
+func TestPostRejectsInvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	body := strings.NewReader(`not json`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/code", body)
-	w := httptest.NewRecorder()
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "phone", path: "/api/auth/telegram/phone"},
+		{name: "code", path: "/api/auth/telegram/code"},
+		{name: "password", path: "/api/auth/telegram/password"},
+	}
 
-	// Act
-	mux.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+			// Arrange
+			tr, _ := newTestTransport(t)
+			mux := http.NewServeMux()
+			tr.EnrichRoutes(mux)
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(`not json`))
+			w := httptest.NewRecorder()
+
+			// Act
+			mux.ServeHTTP(w, req)
+
+			// Assert
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
 }
 
-func TestPostCode_NoBody(t *testing.T) {
+func TestPostRejectsNoBody(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/code", nil)
-	w := httptest.NewRecorder()
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "phone", path: "/api/auth/telegram/phone"},
+		{name: "code", path: "/api/auth/telegram/code"},
+		{name: "password", path: "/api/auth/telegram/password"},
+	}
 
-	// Act
-	mux.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
+			// Arrange
+			tr, _ := newTestTransport(t)
+			mux := http.NewServeMux()
+			tr.EnrichRoutes(mux)
+			req := httptest.NewRequest(http.MethodPost, tt.path, nil)
+			w := httptest.NewRecorder()
 
-func TestPostPassword_InvalidJSON(t *testing.T) {
-	t.Parallel()
+			// Act
+			mux.ServeHTTP(w, req)
 
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	body := strings.NewReader(`not json`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/password", body)
-	w := httptest.NewRecorder()
-
-	// Act
-	mux.ServeHTTP(w, req)
-
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestPostPassword_NoBody(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tr, _ := newTestTransport(t)
-	mux := http.NewServeMux()
-	tr.EnrichRoutes(mux)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/password", nil)
-	w := httptest.NewRecorder()
-
-	// Act
-	mux.ServeHTTP(w, req)
-
-	// Assert
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+			// Assert
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
 }
 
 func TestEnrichRoutes_WithResolver(t *testing.T) {
@@ -379,58 +315,57 @@ func TestHandleGetState_EncodeError(t *testing.T) {
 	tr.handleGetState(w, req)
 }
 
-func TestHandlePostPhone_EncodeError(t *testing.T) {
+func TestHandlePostEncodeError(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	auth := mocks.NewAuthService(t)
-	inputChan := make(chan string, 1)
-	auth.EXPECT().InputChan().Return(inputChan)
-	tr := New(auth, nil)
-	w := &errWriter{}
-	body := strings.NewReader(`{"phone":"+1234567890"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/phone", body)
-	req.Header.Set("Content-Type", "application/json")
+	tests := []struct {
+		name   string
+		body   string
+		invoke func(*Transport, http.ResponseWriter, *http.Request)
+	}{
+		{
+			name: "phone",
+			body: `{"phone":"+1234567890"}`,
+			invoke: func(tr *Transport, w http.ResponseWriter, req *http.Request) {
+				tr.handlePostPhone(w, req)
+			},
+		},
+		{
+			name: "code",
+			body: `{"code":"12345"}`,
+			invoke: func(tr *Transport, w http.ResponseWriter, req *http.Request) {
+				tr.handlePostCode(w, req)
+			},
+		},
+		{
+			name: "password",
+			body: `{"password":"secret"}`,
+			invoke: func(tr *Transport, w http.ResponseWriter, req *http.Request) {
+				tr.handlePostPassword(w, req)
+			},
+		},
+	}
 
-	// Act / Assert — не паникует при ошибке записи
-	tr.handlePostPhone(w, req)
-	<-inputChan // consume the sent value
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestHandlePostCode_EncodeError(t *testing.T) {
-	t.Parallel()
+			// Arrange
+			auth := mocks.NewAuthService(t)
+			inputChan := make(chan string, 1)
+			auth.EXPECT().InputChan().Return(inputChan)
+			tr := New(auth, nil)
+			w := &errWriter{}
+			req := httptest.NewRequest(http.MethodPost, "/ignored", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
 
-	// Arrange
-	auth := mocks.NewAuthService(t)
-	inputChan := make(chan string, 1)
-	auth.EXPECT().InputChan().Return(inputChan)
-	tr := New(auth, nil)
-	w := &errWriter{}
-	body := strings.NewReader(`{"code":"12345"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/code", body)
-	req.Header.Set("Content-Type", "application/json")
+			// Act
+			tt.invoke(tr, w, req)
 
-	// Act / Assert — не паникует при ошибке записи
-	tr.handlePostCode(w, req)
-	<-inputChan
-}
-
-func TestHandlePostPassword_EncodeError(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	auth := mocks.NewAuthService(t)
-	inputChan := make(chan string, 1)
-	auth.EXPECT().InputChan().Return(inputChan)
-	tr := New(auth, nil)
-	w := &errWriter{}
-	body := strings.NewReader(`{"password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/telegram/password", body)
-	req.Header.Set("Content-Type", "application/json")
-
-	// Act / Assert — не паникует при ошибке записи
-	tr.handlePostPassword(w, req)
-	<-inputChan
+			// Assert
+			<-inputChan
+		})
+	}
 }
 
 func TestGetState_WaitPassword_ExtraNotWaitPasswordState(t *testing.T) {

@@ -82,9 +82,9 @@ func (c *capturingTerm) ReadPassword() (string, error) {
 	return "", nil
 }
 
-func (c *capturingTerm) Println(a ...any)              { c.output = append(c.output, fmt.Sprint(a...)) }
-func (c *capturingTerm) Printf(f string, a ...any)     { c.output = append(c.output, fmt.Sprintf(f, a...)) }
-func (c *capturingTerm) joined() string                { return strings.Join(c.output, "\n") }
+func (c *capturingTerm) Println(a ...any)          { c.output = append(c.output, fmt.Sprint(a...)) }
+func (c *capturingTerm) Printf(f string, a ...any) { c.output = append(c.output, fmt.Sprintf(f, a...)) }
+func (c *capturingTerm) joined() string            { return strings.Join(c.output, "\n") }
 
 func TestRunInputLoop_Exit(t *testing.T) {
 	t.Parallel()
@@ -138,14 +138,14 @@ func TestPrintStatus(t *testing.T) {
 		wantVersion string
 	}{
 		{
-			name:        "with_version",
+			name: "with_version",
 			getOptionFn: func(*client.GetOptionRequest) (client.OptionValue, error) {
 				return &client.OptionValueString{Value: "1.8.35"}, nil
 			},
 			wantVersion: "1.8.35",
 		},
 		{
-			name:        "getOption_error",
+			name: "getOption_error",
 			getOptionFn: func(*client.GetOptionRequest) (client.OptionValue, error) {
 				return nil, errors.New("tdlib error")
 			},
@@ -567,7 +567,7 @@ func TestRunInputLoop_AuthStateChannel(t *testing.T) {
 	}
 	tr := New(auth, tg, term, "")
 
-	go tr.Run(ctx, cancel)
+	go tr.Run(ctx, cancel) //nolint:errcheck // результат горутины не отслеживается в тесте
 
 	// Ждём вызова Subscribe
 	select {

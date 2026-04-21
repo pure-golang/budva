@@ -3,13 +3,13 @@ package transform
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/zelenin/go-tdlib/client"
-	"log/slog"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
 	"github.com/pure-golang/budva-claude/internal/service/transform/mocks"
@@ -396,76 +396,44 @@ func TestTransform_AutoAnswer_NoReplyMarkupSkipped(t *testing.T) {
 	assert.Equal(t, "hello", result.Text)
 }
 
-func TestTransform_AutoAnswer_ErrorKeepsText(t *testing.T) {
+func TestTransform_AutoAnswer_InvalidAnswerKeepsText(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	tg := mocks.NewTelegramRepo(t)
-	st := mocks.NewStateRepo(t)
-	svc := New(tg, st)
-	src := &domain.Source{ChatID: 100, AutoAnswer: true}
-	tg.EXPECT().GetCallbackQueryAnswer(mock.Anything).Return(nil, errors.New("boom"))
-	p := domain.TransformParams{
-		Text:        &client.FormattedText{Text: "hello"},
-		Source:      src,
-		DstChatID:   200,
-		ReplyMarkup: []byte{0x01},
+	tests := []struct {
+		name   string
+		answer *client.CallbackQueryAnswer
+		err    error
+	}{
+		{name: "repo_error", err: errors.New("boom")},
+		{name: "empty_answer", answer: &client.CallbackQueryAnswer{Text: ""}},
+		{name: "nil_answer"},
 	}
 
-	// Act
-	result, err := svc.Transform(context.Background(), p)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "hello", result.Text)
-}
+			// Arrange
+			tg := mocks.NewTelegramRepo(t)
+			st := mocks.NewStateRepo(t)
+			svc := New(tg, st)
+			src := &domain.Source{ChatID: 100, AutoAnswer: true}
+			tg.EXPECT().GetCallbackQueryAnswer(mock.Anything).Return(tt.answer, tt.err)
+			p := domain.TransformParams{
+				Text:        &client.FormattedText{Text: "hello"},
+				Source:      src,
+				DstChatID:   200,
+				ReplyMarkup: []byte{0x01},
+			}
 
-func TestTransform_AutoAnswer_EmptyAnswerKeepsText(t *testing.T) {
-	t.Parallel()
+			// Act
+			result, err := svc.Transform(context.Background(), p)
 
-	// Arrange
-	tg := mocks.NewTelegramRepo(t)
-	st := mocks.NewStateRepo(t)
-	svc := New(tg, st)
-	src := &domain.Source{ChatID: 100, AutoAnswer: true}
-	tg.EXPECT().GetCallbackQueryAnswer(mock.Anything).Return(&client.CallbackQueryAnswer{Text: ""}, nil)
-	p := domain.TransformParams{
-		Text:        &client.FormattedText{Text: "hello"},
-		Source:      src,
-		DstChatID:   200,
-		ReplyMarkup: []byte{0x01},
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, "hello", result.Text)
+		})
 	}
-
-	// Act
-	result, err := svc.Transform(context.Background(), p)
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "hello", result.Text)
-}
-
-func TestTransform_AutoAnswer_NilAnswerKeepsText(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tg := mocks.NewTelegramRepo(t)
-	st := mocks.NewStateRepo(t)
-	svc := New(tg, st)
-	src := &domain.Source{ChatID: 100, AutoAnswer: true}
-	tg.EXPECT().GetCallbackQueryAnswer(mock.Anything).Return(nil, nil)
-	p := domain.TransformParams{
-		Text:        &client.FormattedText{Text: "hello"},
-		Source:      src,
-		DstChatID:   200,
-		ReplyMarkup: []byte{0x01},
-	}
-
-	// Act
-	result, err := svc.Transform(context.Background(), p)
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "hello", result.Text)
 }
 
 func TestTransform_ReplaceMyselfLinks_BasicGroupSkipped(t *testing.T) {
@@ -1054,67 +1022,41 @@ func TestAddNextLink_ChatNotInFor(t *testing.T) {
 	assert.Equal(t, "original", result.Text)
 }
 
-func TestAddNextLink_LinkError(t *testing.T) {
+func TestAddNextLink_InvalidLinkKeepsOriginal(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	tg := mocks.NewTelegramRepo(t)
-	st := mocks.NewStateRepo(t)
-	svc := New(tg, st)
-	src := &domain.Source{
-		ChatID: 100,
-		Next:   &domain.Next{Title: "Next", For: []int64{200}},
+	tests := []struct {
+		name string
+		link *client.MessageLink
+		err  error
+	}{
+		{name: "link_error", err: errors.New("boom")},
+		{name: "empty_link", link: &client.MessageLink{Link: ""}},
+		{name: "nil_link"},
 	}
-	tg.EXPECT().GetMessageLink(mock.Anything).Return(nil, errors.New("boom"))
-	text := &client.FormattedText{Text: "original"}
 
-	// Act
-	result := svc.AddNextLink(context.Background(), text, src, 200, 60)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Assert
-	assert.Equal(t, "original", result.Text)
-}
+			// Arrange
+			tg := mocks.NewTelegramRepo(t)
+			st := mocks.NewStateRepo(t)
+			svc := New(tg, st)
+			src := &domain.Source{
+				ChatID: 100,
+				Next:   &domain.Next{Title: "Next", For: []int64{200}},
+			}
+			tg.EXPECT().GetMessageLink(mock.Anything).Return(tt.link, tt.err)
+			text := &client.FormattedText{Text: "original"}
 
-func TestAddNextLink_EmptyLink(t *testing.T) {
-	t.Parallel()
+			// Act
+			result := svc.AddNextLink(context.Background(), text, src, 200, 60)
 
-	// Arrange
-	tg := mocks.NewTelegramRepo(t)
-	st := mocks.NewStateRepo(t)
-	svc := New(tg, st)
-	src := &domain.Source{
-		ChatID: 100,
-		Next:   &domain.Next{Title: "Next", For: []int64{200}},
+			// Assert
+			assert.Equal(t, "original", result.Text)
+		})
 	}
-	tg.EXPECT().GetMessageLink(mock.Anything).Return(&client.MessageLink{Link: ""}, nil)
-	text := &client.FormattedText{Text: "original"}
-
-	// Act
-	result := svc.AddNextLink(context.Background(), text, src, 200, 60)
-
-	// Assert
-	assert.Equal(t, "original", result.Text)
-}
-
-func TestAddNextLink_NilLink(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	tg := mocks.NewTelegramRepo(t)
-	st := mocks.NewStateRepo(t)
-	svc := New(tg, st)
-	src := &domain.Source{
-		ChatID: 100,
-		Next:   &domain.Next{Title: "Next", For: []int64{200}},
-	}
-	tg.EXPECT().GetMessageLink(mock.Anything).Return(nil, nil)
-	text := &client.FormattedText{Text: "original"}
-
-	// Act
-	result := svc.AddNextLink(context.Background(), text, src, 200, 60)
-
-	// Assert
-	assert.Equal(t, "original", result.Text)
 }
 
 func TestAddText_ValidMarkdown(t *testing.T) {

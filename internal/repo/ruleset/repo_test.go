@@ -344,7 +344,7 @@ func TestRepo_WatchContext_FileWrite_CallsOnChange(t *testing.T) {
 		}
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = r.Close() })
+	t.Cleanup(func() { assert.NoError(t, r.Close()) })
 
 	// Act — записываем файл заново, чтобы fsnotify сгенерировал Write-событие
 	require.NoError(t, os.WriteFile(path, []byte(testRuleset), 0o600))
@@ -369,7 +369,7 @@ func TestRepo_WatchContext_ContextCancel_Stops(t *testing.T) {
 
 	err := r.WatchContext(ctx, func() {})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = r.Close() })
+	t.Cleanup(func() { assert.NoError(t, r.Close()) })
 
 	// Act
 	cancel()
@@ -427,10 +427,10 @@ func TestUtf16Len_SurrogatePairs(t *testing.T) {
 	}{
 		{name: "ascii", s: "hello", want: 5},
 		{name: "empty", s: "", want: 0},
-		{name: "emoji_single", s: "😀", want: 2},    // U+1F600 — surrogate pair
-		{name: "emoji_flag", s: "🇷🇺", want: 4},     // два символа-компонента флага, каждый — surrogate pair
-		{name: "mixed", s: "hi😀", want: 4},         // 2 ASCII + 2 surrogate
-		{name: "cjk_basic", s: "日本語", want: 3},    // U+65E5, U+672C, U+8A9E — BMP, каждый 1 unit
+		{name: "emoji_single", s: "😀", want: 2},      // U+1F600 — surrogate pair
+		{name: "emoji_flag", s: "🇷🇺", want: 4},       // два символа-компонента флага, каждый — surrogate pair
+		{name: "mixed", s: "hi😀", want: 4},           // 2 ASCII + 2 surrogate
+		{name: "cjk_basic", s: "日本語", want: 3},       // U+65E5, U+672C, U+8A9E — BMP, каждый 1 unit
 		{name: "linear_b", s: "\U00010000", want: 2}, // U+10000 — минимальный surrogate pair
 	}
 

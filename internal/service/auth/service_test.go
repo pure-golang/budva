@@ -230,37 +230,51 @@ func TestCancelDuringWait(t *testing.T) {
 	})
 }
 
-func TestClosingStateIsSkipped(t *testing.T) {
+func TestSpecialStatesAreSkipped(t *testing.T) {
 	t.Parallel()
 
-	synctest.Test(t, func(t *testing.T) {
-		// Arrange
-		repo := mocks.NewTelegramRepo(t)
-		states := make(chan domain.AuthStateEvent, 10)
-		repo.EXPECT().AuthStates().Return(states)
-		svc := auth.New(repo)
+	tests := []struct {
+		name  string
+		state domain.AuthorizationState
+	}{
+		{name: "closing", state: domain.AuthStateClosing},
+		{name: "closed", state: domain.AuthStateClosed},
+	}
 
-		var mu sync.Mutex
-		var received []domain.AuthorizationState
-		svc.Subscribe(func(state domain.AuthorizationState, _ any) {
-			mu.Lock()
-			received = append(received, state)
-			mu.Unlock()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				// Arrange
+				repo := mocks.NewTelegramRepo(t)
+				states := make(chan domain.AuthStateEvent, 10)
+				repo.EXPECT().AuthStates().Return(states)
+				svc := auth.New(repo)
+
+				var mu sync.Mutex
+				var received []domain.AuthorizationState
+				svc.Subscribe(func(state domain.AuthorizationState, _ any) {
+					mu.Lock()
+					received = append(received, state)
+					mu.Unlock()
+				})
+
+				svc.Start(t.Context())
+
+				// Act
+				states <- domain.AuthStateEvent{State: tt.state}
+				synctest.Wait()
+				states <- domain.AuthStateEvent{State: domain.AuthStateReady}
+				synctest.Wait()
+
+				// Assert
+				mu.Lock()
+				assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
+				mu.Unlock()
+			})
 		})
-
-		svc.Start(t.Context())
-
-		// Act — Closing не должен попадать в listeners
-		states <- domain.AuthStateEvent{State: domain.AuthStateClosing}
-		synctest.Wait()
-		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		synctest.Wait()
-
-		// Assert — только Ready, без Closing
-		mu.Lock()
-		assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
-		mu.Unlock()
-	})
+	}
 }
 
 func TestSubmitCodeRejection_WaitsForReEmit(t *testing.T) {
@@ -419,39 +433,6 @@ func TestLogOut_RepoError_SkipsCleanUp(t *testing.T) {
 
 	// Assert — ошибка пробрасывается, CleanUp не вызывается (AssertExpectations)
 	require.ErrorIs(t, err, logoutErr)
-}
-
-func TestClosedStateIsSkipped(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		// Arrange
-		repo := mocks.NewTelegramRepo(t)
-		states := make(chan domain.AuthStateEvent, 10)
-		repo.EXPECT().AuthStates().Return(states)
-		svc := auth.New(repo)
-
-		var mu sync.Mutex
-		var received []domain.AuthorizationState
-		svc.Subscribe(func(state domain.AuthorizationState, _ any) {
-			mu.Lock()
-			received = append(received, state)
-			mu.Unlock()
-		})
-
-		svc.Start(t.Context())
-
-		// Act — Closed не должен попадать в listeners
-		states <- domain.AuthStateEvent{State: domain.AuthStateClosed}
-		synctest.Wait()
-		states <- domain.AuthStateEvent{State: domain.AuthStateReady}
-		synctest.Wait()
-
-		// Assert — только Ready
-		mu.Lock()
-		assert.Equal(t, []domain.AuthorizationState{domain.AuthStateReady}, received)
-		mu.Unlock()
-	})
 }
 
 func TestCancelBeforeEvent(t *testing.T) {
