@@ -1,7 +1,7 @@
-package graphql
+package dto
 
-// StatusResponse — результат запроса status.
-type StatusResponse struct {
+// GraphQLStatusResponse — результат GraphQL-запроса status.
+type GraphQLStatusResponse struct {
 	ReleaseVersion string `json:"releaseVersion"`
 	TDLibVersion   string `json:"tdlibVersion"`
 	UserID         int64  `json:"userId"`

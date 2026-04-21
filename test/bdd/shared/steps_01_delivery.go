@@ -10,44 +10,7 @@ import (
 )
 
 // RegisterDeliverySteps регистрирует шаги эпика 01_delivery.
-// Некоторые из этих шагов (например, «правило пересылки в режиме», «пользователь
-// отправляет сообщение в исходный чат») переиспользуются feature-файлами других
-// эпиков, поэтому регистрация происходит для всех эпиков.
-func RegisterDeliverySteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
-	ctx.Given(`^правило пересылки в режиме "([^"]*)"$`, func(mode string) error {
-		s.DeliveryMode = mode
-		s.SendCopy = (mode == "копия")
-		return nil
-	})
-
-	ctx.When(`^пользователь отправляет сообщение в исходный чат$`, func() error {
-		s.ApplyRuleSet()
-
-		if s.MessageText == "" {
-			s.MessageText = "test message"
-		}
-
-		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent(s.MessageText), s.Prefix)
-		if err != nil {
-			return err
-		}
-		s.SentMsg = msg
-
-		s.Env.Handler.OnNewMessage(context.Background(), msg)
-		s.Env.DrainQueue()
-
-		return nil
-	})
-
-	ctx.Then(`^сообщение появляется во всех целевых чатах$`, func() error {
-		for _, targetID := range s.Env.TargetIDs {
-			if _, err := s.Env.CheckLastMessage(targetID, s.Prefix); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
+func RegisterDeliverySteps(ctx *godog.ScenarioContext, s *State) {
 	ctx.Then(`^копия сообщения появляется без авторства оригинала$`, func() error {
 		for _, targetID := range s.Env.TargetIDs {
 			msg, err := s.Env.CheckLastMessage(targetID, s.Prefix)
@@ -228,12 +191,7 @@ func RegisterDeliverySteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
 	})
 
 	ctx.Then(`^сообщение не пересылается в целевые чаты$`, func() error {
-		for _, targetID := range s.Env.TargetIDs {
-			if err := s.Env.CheckNoMessage(targetID, s.Prefix); err != nil {
-				return err
-			}
-		}
-		return nil
+		return assertNoMessageInTargets(s)
 	})
 
 	// --- Statistics ---

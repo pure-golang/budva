@@ -91,7 +91,7 @@ func RunEpic(t *testing.T) {
 			Strict:   true,
 		},
 		ScenarioInitializer: func(ctx *godog.ScenarioContext) {
-			s := &ScenarioCtx{}
+			s := &State{}
 			ctx.Before(func(gctx context.Context, _ *godog.Scenario) (context.Context, error) {
 				if err := s.Reset(); err != nil {
 					return gctx, err

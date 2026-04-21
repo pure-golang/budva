@@ -19,5 +19,5 @@
 //
 // Ограничения:
 //
-//   - GraphQL эндпоинт будет добавлен при реализации facade service.
+//   - GraphQL-маршруты `/graphql` и `/playground` добавляются только при ненулевом resolver.
 package http

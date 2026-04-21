@@ -3,7 +3,7 @@
 // Использование:
 //
 //	r := resolvers.New(statusService)
-//	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: r}))
+//	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{Resolvers: r}))
 //
 // Пакет не читает переменные окружения напрямую.
 //

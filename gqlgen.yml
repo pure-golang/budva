@@ -1,13 +1,13 @@
 schema:
-  - internal/transport/http/graph/*.graphqls
+  - internal/transport/http/graphql/*.graphqls
 
 exec:
-  package: graph
+  package: graphql
   layout: single-file
-  filename: internal/transport/http/graph/generated.go
+  filename: internal/transport/http/graphql/generated.go
 
 model:
-  filename: internal/transport/http/graph/model/models_gen.go
+  filename: internal/transport/http/graphql/model/models_gen.go
   package: model
 
 resolver:
@@ -23,4 +23,4 @@ models:
       - github.com/99designs/gqlgen/graphql.Int64
       - github.com/99designs/gqlgen/graphql.Int32
   Status:
-    model: github.com/pure-golang/budva-claude/internal/dto/graphql.StatusResponse
+    model: github.com/pure-golang/budva-claude/internal/dto.GraphQLStatusResponse

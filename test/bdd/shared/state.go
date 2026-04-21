@@ -1,5 +1,3 @@
-// Package shared содержит общий контекст BDD-сценариев и общие шаги,
-// переиспользуемые между feature-группами test/bdd/NN_*.
 package shared
 
 import (
@@ -11,8 +9,8 @@ import (
 	testsupport "github.com/pure-golang/budva-claude/internal/test/support"
 )
 
-// ScenarioCtx хранит состояние одного BDD-сценария.
-type ScenarioCtx struct {
+// State хранит состояние одного BDD-сценария.
+type State struct {
 	Env *testsupport.LiveStack
 
 	// Prefix — уникальный маркер сценария (см. GeneratePrefix). Добавляется к тексту
@@ -61,7 +59,7 @@ type ScenarioCtx struct {
 }
 
 // Reset сбрасывает состояние сценария и переиспользует общий LiveStack.
-func (s *ScenarioCtx) Reset() error {
+func (s *State) Reset() error {
 	env, err := GetOrCreateStack()
 	if err != nil {
 		return err
@@ -96,7 +94,7 @@ func (s *ScenarioCtx) Reset() error {
 }
 
 // ApplyRuleSet собирает RuleSet из накопленного состояния и устанавливает в handler.
-func (s *ScenarioCtx) ApplyRuleSet() {
+func (s *State) ApplyRuleSet() {
 	s.Src.DeleteSystemMessages = s.DeleteSystemMessages
 
 	// TargetIDs могут быть переопределены шагом «целевой чат типа» после того,

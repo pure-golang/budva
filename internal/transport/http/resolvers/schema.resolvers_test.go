@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	dtogql "github.com/pure-golang/budva-claude/internal/dto/graphql"
-	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
+	"github.com/pure-golang/budva-claude/internal/dto"
+	transportgraphql "github.com/pure-golang/budva-claude/internal/transport/http/graphql"
 	"github.com/pure-golang/budva-claude/internal/transport/http/resolvers"
 	"github.com/pure-golang/budva-claude/internal/transport/http/resolvers/mocks"
 )
@@ -21,7 +21,7 @@ func TestQueryResolver_Status_success(t *testing.T) {
 	// Arrange
 	svc := mocks.NewStatusService(t)
 	svc.EXPECT().GetStatus(mock.Anything).
-		Return(&dtogql.StatusResponse{TDLibVersion: "1.8.0", UserID: 12345}, nil)
+		Return(&dto.GraphQLStatusResponse{TDLibVersion: "1.8.0", UserID: 12345}, nil)
 
 	r := resolvers.New(svc)
 
@@ -53,5 +53,5 @@ func TestQueryResolver_Status_error(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// Проверка реализации graph.ResolverRoot — ловит регрессию сигнатур при смене схемы.
-var _ graph.ResolverRoot = (*resolvers.Resolver)(nil)
+// Проверка реализации graphql.ResolverRoot — ловит регрессию сигнатур при смене схемы.
+var _ transportgraphql.ResolverRoot = (*resolvers.Resolver)(nil)

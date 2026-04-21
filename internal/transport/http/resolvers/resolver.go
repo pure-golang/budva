@@ -8,11 +8,11 @@ package resolvers
 import (
 	"context"
 
-	dtogql "github.com/pure-golang/budva-claude/internal/dto/graphql"
+	"github.com/pure-golang/budva-claude/internal/dto"
 )
 
 type statusService interface {
-	GetStatus(ctx context.Context) (*dtogql.StatusResponse, error)
+	GetStatus(ctx context.Context) (*dto.GraphQLStatusResponse, error)
 }
 
 // Resolver связывает GraphQL-схему с сервисным слоем.

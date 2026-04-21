@@ -9,7 +9,7 @@ import (
 	"github.com/zelenin/go-tdlib/client"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
-	dtogql "github.com/pure-golang/budva-claude/internal/dto/graphql"
+	"github.com/pure-golang/budva-claude/internal/dto"
 )
 
 // telegramRepo — частично применяемый интерфейс к repo/telegram.
@@ -149,7 +149,7 @@ func (s *Service) GetMessageLinkInfo(_ context.Context, url string) (*client.Mes
 }
 
 // GetStatus возвращает текущий статус сервиса.
-func (s *Service) GetStatus(_ context.Context) (*dtogql.StatusResponse, error) {
+func (s *Service) GetStatus(_ context.Context) (*dto.GraphQLStatusResponse, error) {
 	versionOpt, err := s.telegramRepo.GetOption(&client.GetOptionRequest{Name: "version"})
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (s *Service) GetStatus(_ context.Context) (*dtogql.StatusResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &dtogql.StatusResponse{
+	return &dto.GraphQLStatusResponse{
 		ReleaseVersion: releaseVersion(),
 		TDLibVersion:   version,
 		UserID:         user.Id,

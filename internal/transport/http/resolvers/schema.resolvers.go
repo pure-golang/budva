@@ -8,16 +8,16 @@ package resolvers
 import (
 	"context"
 
-	graphql1 "github.com/pure-golang/budva-claude/internal/dto/graphql"
-	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
+	"github.com/pure-golang/budva-claude/internal/dto"
+	transportgraphql "github.com/pure-golang/budva-claude/internal/transport/http/graphql"
 )
 
 // Status is the resolver for the status field.
-func (r *queryResolver) Status(ctx context.Context) (*graphql1.StatusResponse, error) {
+func (r *queryResolver) Status(ctx context.Context) (*dto.GraphQLStatusResponse, error) {
 	return r.statusService.GetStatus(ctx)
 }
 
-// Query returns graph.QueryResolver implementation.
-func (r *Resolver) Query() graph.QueryResolver { return &queryResolver{r} }
+// Query returns transportgraphql.QueryResolver implementation.
+func (r *Resolver) Query() transportgraphql.QueryResolver { return &queryResolver{r} }
 
 type queryResolver struct{ *Resolver }

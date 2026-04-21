@@ -7,7 +7,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/pure-golang/budva-claude/internal/dto/graphql"
+	"github.com/pure-golang/budva-claude/internal/dto"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -39,23 +39,23 @@ func (_m *StatusService) EXPECT() *StatusService_Expecter {
 }
 
 // GetStatus provides a mock function for the type StatusService
-func (_mock *StatusService) GetStatus(ctx context.Context) (*graphql.StatusResponse, error) {
+func (_mock *StatusService) GetStatus(ctx context.Context) (*dto.GraphQLStatusResponse, error) {
 	ret := _mock.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetStatus")
 	}
 
-	var r0 *graphql.StatusResponse
+	var r0 *dto.GraphQLStatusResponse
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) (*graphql.StatusResponse, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (*dto.GraphQLStatusResponse, error)); ok {
 		return returnFunc(ctx)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context) *graphql.StatusResponse); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context) *dto.GraphQLStatusResponse); ok {
 		r0 = returnFunc(ctx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*graphql.StatusResponse)
+			r0 = ret.Get(0).(*dto.GraphQLStatusResponse)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
@@ -90,12 +90,12 @@ func (_c *StatusService_GetStatus_Call) Run(run func(ctx context.Context)) *Stat
 	return _c
 }
 
-func (_c *StatusService_GetStatus_Call) Return(statusResponse *graphql.StatusResponse, err error) *StatusService_GetStatus_Call {
-	_c.Call.Return(statusResponse, err)
+func (_c *StatusService_GetStatus_Call) Return(graphQLStatusResponse *dto.GraphQLStatusResponse, err error) *StatusService_GetStatus_Call {
+	_c.Call.Return(graphQLStatusResponse, err)
 	return _c
 }
 
-func (_c *StatusService_GetStatus_Call) RunAndReturn(run func(ctx context.Context) (*graphql.StatusResponse, error)) *StatusService_GetStatus_Call {
+func (_c *StatusService_GetStatus_Call) RunAndReturn(run func(ctx context.Context) (*dto.GraphQLStatusResponse, error)) *StatusService_GetStatus_Call {
 	_c.Call.Return(run)
 	return _c
 }

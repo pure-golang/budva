@@ -14,10 +14,9 @@ import (
 )
 
 // RegisterSyncSteps регистрирует шаги эпика 05_sync.
-func RegisterSyncSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
+func RegisterSyncSteps(ctx *godog.ScenarioContext, s *State) {
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" с опцией copy_once$`, func(mode string) error {
-		s.DeliveryMode = mode
-		s.SendCopy = (mode == "копия")
+		setDeliveryMode(s, mode)
 		s.CopyOnce = true
 		s.Src.Prev = &domain.Prev{
 			Title: domain.PrevTitle,
@@ -31,75 +30,20 @@ func RegisterSyncSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
 	})
 
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" без опции copy_once$`, func(mode string) error {
-		s.DeliveryMode = mode
-		s.SendCopy = (mode == "копия")
+		setDeliveryMode(s, mode)
 		s.CopyOnce = false
 		return nil
 	})
 
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" с опцией indelible$`, func(mode string) error {
-		s.DeliveryMode = mode
-		s.SendCopy = (mode == "копия")
+		setDeliveryMode(s, mode)
 		s.Indelible = true
 		return nil
 	})
 
 	ctx.Given(`^правило пересылки в режиме "([^"]*)" без опции indelible$`, func(mode string) error {
-		s.DeliveryMode = mode
-		s.SendCopy = (mode == "копия")
+		setDeliveryMode(s, mode)
 		s.Indelible = false
-		return nil
-	})
-
-	ctx.Given(`^пользователь ранее отправил сообщение с текстом "([^"]*)"$`, func(text string) error {
-		s.ApplyRuleSet()
-
-		s.MessageText = text
-		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent(text), s.Prefix)
-		if err != nil {
-			return err
-		}
-		s.SentMsg = msg
-
-		s.Env.Handler.OnNewMessage(context.Background(), msg)
-		s.Env.DrainQueue()
-
-		return nil
-	})
-
-	ctx.Given(`^пользователь ранее отправил сообщение$`, func() error {
-		s.ApplyRuleSet()
-
-		s.MessageText = "test message"
-		msg, err := s.Env.PutMessage(s.Env.SourceID, TextContent(s.MessageText), s.Prefix)
-		if err != nil {
-			return err
-		}
-		s.SentMsg = msg
-
-		s.Env.Handler.OnNewMessage(context.Background(), msg)
-		s.Env.DrainQueue()
-
-		return nil
-	})
-
-	ctx.Given(`^сообщение было скопировано в целевые чаты$`, func() error {
-		for _, targetID := range s.Env.TargetIDs {
-			if _, err := s.Env.CheckLastMessage(targetID, s.Prefix); err != nil {
-				return err
-			}
-		}
-		// processUpdates записывает temp→perm маппинг напрямую в state;
-		// DrainQueue обрабатывает оставшиеся handler tasks.
-		s.Env.DrainQueue()
-		// Ждём, что processUpdates успел записать temp→perm mapping для всех копий:
-		// без этого handler.deleteMessages на последующем шаге увидит GetNewMessageID=0
-		// и не сможет разослать каскадное удаление.
-		if s.SentMsg != nil {
-			if err := s.Env.WaitForCopyMappings(s.Env.SourceID, s.SentMsg.Id); err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 

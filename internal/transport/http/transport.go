@@ -10,7 +10,7 @@ import (
 	alogger "github.com/pure-golang/adapters/logger"
 
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/transport/http/graph"
+	transportgraphql "github.com/pure-golang/budva-claude/internal/transport/http/graphql"
 	"github.com/pure-golang/budva-claude/internal/transport/http/resolvers"
 )
 
@@ -43,7 +43,7 @@ func (t *Transport) EnrichRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/telegram/password", t.handlePostPassword)
 	if t.resolver != nil {
 		srv := handler.NewDefaultServer(
-			graph.NewExecutableSchema(graph.Config{Resolvers: t.resolver}),
+			transportgraphql.NewExecutableSchema(transportgraphql.Config{Resolvers: t.resolver}),
 		)
 		mux.Handle("POST /graphql", srv)
 		mux.Handle("GET /playground", playground.Handler("GraphQL playground", "/graphql"))

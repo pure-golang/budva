@@ -12,33 +12,10 @@ import (
 )
 
 // RegisterTransformSteps регистрирует шаги эпика 03_transform.
-func RegisterTransformSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
+func RegisterTransformSteps(ctx *godog.ScenarioContext, s *State) {
 	ctx.Given(`^правило замены фрагментов "([^"]*)" → "([^"]*)" и "([^"]*)" → "([^"]*)"$`, func(from1, to1, from2, to2 string) error {
 		s.ReplaceFrom = []string{from1, from2}
 		s.ReplaceTo = []string{to1, to2}
-		return nil
-	})
-
-	ctx.Given(`^для источника включена опция "([^"]*)"$`, func(option string) error {
-		switch option {
-		case "подпись":
-			s.Src.Sign = &domain.Sign{
-				Title: domain.SignTitle,
-				For:   s.Env.TargetIDs,
-			}
-		case "ссылка":
-			s.Src.Link = &domain.Link{
-				Title: domain.LinkTitle,
-				For:   s.Env.TargetIDs,
-			}
-		case "перевод":
-			s.Src.Translate = &domain.Translate{
-				Lang: "ru",
-				For:  s.Env.TargetIDs,
-			}
-		case "автоответы":
-			s.Src.AutoAnswer = true
-		}
 		return nil
 	})
 

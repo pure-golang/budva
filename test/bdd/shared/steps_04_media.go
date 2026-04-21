@@ -17,7 +17,7 @@ var testPhotos = []string{
 }
 
 // RegisterMediaSteps регистрирует шаги эпика 04_media.
-func RegisterMediaSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
+func RegisterMediaSteps(ctx *godog.ScenarioContext, s *State) {
 	ctx.When(`^пользователь отправляет медиа-альбом в исходный чат$`, func() error {
 		s.ApplyRuleSet()
 

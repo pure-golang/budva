@@ -9,7 +9,7 @@ import (
 )
 
 // RegisterAutoSteps регистрирует шаги эпика 06_auto.
-func RegisterAutoSteps(ctx *godog.ScenarioContext, s *ScenarioCtx) {
+func RegisterAutoSteps(ctx *godog.ScenarioContext, s *State) {
 	ctx.When(`^в исходном чате появляется сообщение с callback-запросом$`, func() error {
 		s.SendCopy = true
 		s.ApplyRuleSet()
