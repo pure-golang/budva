@@ -1,8 +1,8 @@
-// Package shared реализует общий runtime BDD-слоя для per-epic пакетов в test/bdd/NN_*.
+// Package suite реализует общий runtime BDD-слоя для per-epic пакетов в test/bdd/NN_*.
 //
 // Использование:
 //
-//	func Test(t *testing.T) { shared.RunEpic(t) }
+//	func Test(t *testing.T) { suite.RunEpic(t) }
 //
 // Конфигурация:
 //
@@ -14,4 +14,4 @@
 //   - Пакет меняет cwd на корень репозитория при первом RunEpic.
 //   - Пакет переиспользует один LiveStack на процесс и не предназначен для изолированного lifecycle на каждый сценарий.
 //   - Параллельные per-epic бинарники сериализуются через advisory lock на TDLib state.
-package shared
+package suite

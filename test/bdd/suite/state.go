@@ -1,4 +1,4 @@
-package shared
+package suite
 
 import (
 	"regexp"

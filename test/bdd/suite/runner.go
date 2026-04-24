@@ -1,4 +1,4 @@
-package shared
+package suite
 
 import (
 	"context"
@@ -24,9 +24,9 @@ var chdirOnce sync.Once
 func chdirProjectRoot() {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		panic("failed to resolve shared/runner.go path via runtime.Caller")
+		panic("failed to resolve suite/runner.go path via runtime.Caller")
 	}
-	// file == <repo>/test/bdd/shared/runner.go → поднимаемся на три уровня.
+	// file == <repo>/test/bdd/suite/runner.go → поднимаемся на три уровня.
 	root := filepath.Join(filepath.Dir(file), "..", "..", "..")
 	if err := os.Chdir(root); err != nil {
 		panic("failed to chdir to project root: " + err.Error())

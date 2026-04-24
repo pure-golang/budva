@@ -3,7 +3,7 @@ package delivery_test
 import (
 	"testing"
 
-	"github.com/pure-golang/budva-claude/test/bdd/shared"
+	"github.com/pure-golang/budva-claude/test/bdd/suite"
 )
 
-func Test(t *testing.T) { shared.RunEpic(t) }
+func Test(t *testing.T) { suite.RunEpic(t) }

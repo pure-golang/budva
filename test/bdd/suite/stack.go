@@ -1,4 +1,4 @@
-package shared
+package suite
 
 import (
 	testsupport "github.com/pure-golang/budva-claude/internal/test/support"
@@ -6,26 +6,26 @@ import (
 
 const fixturesPath = ".config/stand.json"
 
-// sharedStack создаётся один раз для всех сценариев (TDLib не пересоздаётся).
+// liveStack создаётся один раз для всех сценариев (TDLib не пересоздаётся).
 var (
-	sharedStack    *testsupport.LiveStack
-	sharedStackErr error
+	liveStack    *testsupport.LiveStack
+	liveStackErr error
 )
 
 // GetOrCreateStack возвращает общий LiveStack, создавая и запуская его при первом вызове.
 // После первой ошибки кэширует её и не пытается инициализировать повторно.
 func GetOrCreateStack() (*testsupport.LiveStack, error) {
-	if sharedStack != nil {
-		return sharedStack, nil
+	if liveStack != nil {
+		return liveStack, nil
 	}
-	if sharedStackErr != nil {
-		return nil, sharedStackErr
+	if liveStackErr != nil {
+		return nil, liveStackErr
 	}
 	stack := testsupport.NewLiveStack(fixturesPath)
 	if err := stack.Start(); err != nil {
-		sharedStackErr = err
+		liveStackErr = err
 		return nil, err
 	}
-	sharedStack = stack
+	liveStack = stack
 	return stack, nil
 }
