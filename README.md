@@ -92,6 +92,9 @@ cmd/
   engine/    — движок обработки сообщений
   facade/    — HTTP/gRPC API
   stand/     — утилита тестовых фикстур
+api/
+  graph/     — публичный GraphQL-контракт
+  proto/     — публичный gRPC-контракт
 internal/
   domain/    — бизнес-модели
   app/       — application services: auth, facade, handler
@@ -100,4 +103,5 @@ internal/
   transport/ — user interface layer: HTTP, gRPC, terminal, health endpoints
 test/
   bdd/       — BDD-сценарии (godog), живая бизнес-спецификация
+  smoke/     — smoke-тесты liveness/readiness собранного стека
 ```
