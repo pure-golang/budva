@@ -18,6 +18,8 @@ import (
 // telegramRepo — частично применяемый интерфейс к repo/telegram.
 // Обёртки clientAdapter: raw go-tdlib сигнатуры, без ctx и без domain-типов.
 type telegramRepo interface {
+	ClientDone() <-chan struct{}
+	Updates() <-chan client.Type
 	DeleteMessages(*client.DeleteMessagesRequest) (*client.Ok, error)
 	GetMessage(*client.GetMessageRequest) (*client.Message, error)
 	EditMessageText(*client.EditMessageTextRequest) (*client.Message, error)
@@ -126,6 +128,60 @@ func New(
 // SetRuleSet обновляет текущий набор правил.
 func (h *Handler) SetRuleSet(rs *domain.RuleSet) {
 	h.ruleset.Store(rs)
+}
+
+// Run читает поток обновлений Telegram и запускает обработчики событий.
+func (h *Handler) Run(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-h.telegramRepo.ClientDone():
+	}
+
+	updates := h.telegramRepo.Updates()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case update, ok := <-updates:
+			if !ok {
+				return
+			}
+			h.handleUpdate(ctx, update)
+		}
+	}
+}
+
+func (h *Handler) handleUpdate(ctx context.Context, update client.Type) {
+	switch u := update.(type) {
+	case *client.UpdateNewMessage:
+		h.OnNewMessage(ctx, u.Message)
+	case *client.UpdateMessageEdited:
+		// Resolve в отдельной горутине: синхронный GetMessage внутри update loop
+		// блокирует приём updates, что приводит к зависанию других listener-ов TDLib.
+		go func(chatID, messageID int64) {
+			msg, err := h.telegramRepo.GetMessage(&client.GetMessageRequest{
+				ChatId:    chatID,
+				MessageId: messageID,
+			})
+			if err != nil {
+				h.logger.Warn("Failed to get edited message",
+					slog.Int64("chat_id", chatID),
+					slog.Int64("message_id", messageID),
+					slog.Any("err", err),
+				)
+				return
+			}
+			h.OnEditedMessage(ctx, msg)
+		}(u.ChatId, u.MessageId)
+	case *client.UpdateDeleteMessages:
+		h.OnDeletedMessages(ctx, u.ChatId, u.MessageIds, u.IsPermanent)
+	case *client.UpdateMessageSendSucceeded:
+		if u.Message == nil {
+			return
+		}
+		h.OnMessageSendSucceeded(u.Message.ChatId, u.OldMessageId, u.Message.Id)
+	}
 }
 
 // OnNewMessage обрабатывает новое сообщение.

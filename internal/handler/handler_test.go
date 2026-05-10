@@ -16,6 +16,47 @@ import (
 	"github.com/pure-golang/budva-claude/internal/repo/queue"
 )
 
+func TestRun_DispatchesMessageSendSucceeded(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	clientDone := make(chan struct{})
+	close(clientDone)
+	updates := make(chan client.Type, 1)
+	updates <- &client.UpdateMessageSendSucceeded{
+		Message:      &client.Message{ChatId: 200, Id: 600},
+		OldMessageId: 500,
+	}
+	close(updates)
+
+	telegramRepo := mocks.NewTelegramRepo(t)
+	stateRepo := mocks.NewStateRepo(t)
+	taskQueue := queue.New()
+	h := New(
+		telegramRepo,
+		stateRepo,
+		mocks.NewMessageService(t),
+		mocks.NewFilterService(t),
+		mocks.NewTransformService(t),
+		mocks.NewAlbumService(t),
+		taskQueue,
+		mocks.NewRateLimiter(t),
+		func(_ []int64) DedupTracker { return mocks.NewDedupTracker(t) },
+	)
+
+	telegramRepo.EXPECT().ClientDone().Return(clientDone)
+	telegramRepo.EXPECT().Updates().Return((<-chan client.Type)(updates))
+	stateRepo.EXPECT().SetNewMessageID(int64(200), int64(500), int64(600)).Return(nil)
+	stateRepo.EXPECT().SetTmpMessageID(int64(200), int64(600), int64(500)).Return(nil)
+
+	// Act
+	h.Run(context.Background())
+	taskQueue.ProcessAll()
+
+	// Assert
+	assert.Zero(t, taskQueue.Len())
+}
+
 func TestOnNewMessage_NoRuleSet(t *testing.T) {
 	t.Parallel()
 

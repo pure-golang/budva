@@ -36,6 +36,52 @@ func (_m *TelegramRepo) EXPECT() *TelegramRepo_Expecter {
 	return &TelegramRepo_Expecter{mock: &_m.Mock}
 }
 
+// ClientDone provides a mock function for the type TelegramRepo
+func (_mock *TelegramRepo) ClientDone() <-chan struct{} {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClientDone")
+	}
+
+	var r0 <-chan struct{}
+	if returnFunc, ok := ret.Get(0).(func() <-chan struct{}); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(<-chan struct{})
+		}
+	}
+	return r0
+}
+
+// TelegramRepo_ClientDone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClientDone'
+type TelegramRepo_ClientDone_Call struct {
+	*mock.Call
+}
+
+// ClientDone is a helper method to define mock.On call
+func (_e *TelegramRepo_Expecter) ClientDone() *TelegramRepo_ClientDone_Call {
+	return &TelegramRepo_ClientDone_Call{Call: _e.mock.On("ClientDone")}
+}
+
+func (_c *TelegramRepo_ClientDone_Call) Run(run func()) *TelegramRepo_ClientDone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *TelegramRepo_ClientDone_Call) Return(valCh <-chan struct{}) *TelegramRepo_ClientDone_Call {
+	_c.Call.Return(valCh)
+	return _c
+}
+
+func (_c *TelegramRepo_ClientDone_Call) RunAndReturn(run func() <-chan struct{}) *TelegramRepo_ClientDone_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteMessages provides a mock function for the type TelegramRepo
 func (_mock *TelegramRepo) DeleteMessages(deleteMessagesRequest *client.DeleteMessagesRequest) (*client.Ok, error) {
 	ret := _mock.Called(deleteMessagesRequest)
@@ -528,6 +574,52 @@ func (_c *TelegramRepo_SendMessageAlbum_Call) Return(messages *client.Messages, 
 }
 
 func (_c *TelegramRepo_SendMessageAlbum_Call) RunAndReturn(run func(sendMessageAlbumRequest *client.SendMessageAlbumRequest) (*client.Messages, error)) *TelegramRepo_SendMessageAlbum_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Updates provides a mock function for the type TelegramRepo
+func (_mock *TelegramRepo) Updates() <-chan client.Type {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Updates")
+	}
+
+	var r0 <-chan client.Type
+	if returnFunc, ok := ret.Get(0).(func() <-chan client.Type); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(<-chan client.Type)
+		}
+	}
+	return r0
+}
+
+// TelegramRepo_Updates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Updates'
+type TelegramRepo_Updates_Call struct {
+	*mock.Call
+}
+
+// Updates is a helper method to define mock.On call
+func (_e *TelegramRepo_Expecter) Updates() *TelegramRepo_Updates_Call {
+	return &TelegramRepo_Updates_Call{Call: _e.mock.On("Updates")}
+}
+
+func (_c *TelegramRepo_Updates_Call) Run(run func()) *TelegramRepo_Updates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *TelegramRepo_Updates_Call) Return(typeCh <-chan client.Type) *TelegramRepo_Updates_Call {
+	_c.Call.Return(typeCh)
+	return _c
+}
+
+func (_c *TelegramRepo_Updates_Call) RunAndReturn(run func() <-chan client.Type) *TelegramRepo_Updates_Call {
 	_c.Call.Return(run)
 	return _c
 }
