@@ -15,12 +15,12 @@ import (
 	aenv "github.com/pure-golang/adapters/env"
 	"github.com/zelenin/go-tdlib/client"
 
+	"github.com/pure-golang/budva-claude/internal/app/handler"
 	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/handler"
-	"github.com/pure-golang/budva-claude/internal/repo/queue"
-	"github.com/pure-golang/budva-claude/internal/repo/state"
-	"github.com/pure-golang/budva-claude/internal/repo/telegram"
+	"github.com/pure-golang/budva-claude/internal/infra/queue"
+	"github.com/pure-golang/budva-claude/internal/infra/state"
+	"github.com/pure-golang/budva-claude/internal/infra/telegram"
 	"github.com/pure-golang/budva-claude/internal/service/album"
 	"github.com/pure-golang/budva-claude/internal/service/dedup"
 	"github.com/pure-golang/budva-claude/internal/service/filters"
@@ -44,7 +44,7 @@ func logCleanup(logger *slog.Logger, resource string, err error) {
 // LiveStack содержит собранный стек для BDD-тестов с реальным TDLib.
 type LiveStack struct {
 	Telegram      *telegram.Repo
-	Handler       *handler.Handler
+	Handler       *handler.Service
 	State         *state.Repo
 	Queue         *queue.Repo
 	Fixtures      *Fixtures

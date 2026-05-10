@@ -1,4 +1,4 @@
-package controller
+package health
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/pure-golang/budva-claude/internal/controller/mocks"
+	"github.com/pure-golang/budva-claude/internal/transport/http/health/mocks"
 )
 
 func TestLive_always_200(t *testing.T) {

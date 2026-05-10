@@ -18,10 +18,10 @@ import (
 	"github.com/pure-golang/platform/monitoring"
 	"github.com/zelenin/go-tdlib/client"
 
+	"github.com/pure-golang/budva-claude/internal/app/auth"
 	"github.com/pure-golang/budva-claude/internal/config"
-	"github.com/pure-golang/budva-claude/internal/repo/telegram"
-	"github.com/pure-golang/budva-claude/internal/repo/term"
-	"github.com/pure-golang/budva-claude/internal/service/auth"
+	"github.com/pure-golang/budva-claude/internal/infra/telegram"
+	"github.com/pure-golang/budva-claude/internal/infra/term"
 	"github.com/pure-golang/budva-claude/internal/test/support"
 	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
 )

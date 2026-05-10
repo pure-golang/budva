@@ -17,7 +17,7 @@ type authService interface {
 	LogOut(ctx context.Context) error
 }
 
-// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// telegramRepo — частично применяемый интерфейс к infra/telegram.
 // ClientDone — собственный метод Repo (канал lifecycle); GetMe — обёртка clientAdapter.
 // GetOption — метод *Repo, обёртка над пакетной функцией client.GetOption.
 type telegramRepo interface {

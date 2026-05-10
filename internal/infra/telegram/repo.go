@@ -59,7 +59,7 @@ type Repo struct {
 // New создаёт Telegram-репозиторий.
 func New(cfg config.TelegramConfig) *Repo {
 	return &Repo{
-		logger:     slog.Default().With("module", "repo.telegram"),
+		logger:     slog.Default().With("module", "infra.telegram"),
 		cfg:        cfg,
 		clientDone: make(chan struct{}),
 		updates:    make(chan client.Type, 100),

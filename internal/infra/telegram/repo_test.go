@@ -18,7 +18,7 @@ import (
 
 	"github.com/pure-golang/budva-claude/internal/config"
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/repo/telegram/mocks"
+	"github.com/pure-golang/budva-claude/internal/infra/telegram/mocks"
 )
 
 // --- parseFloodWait ---

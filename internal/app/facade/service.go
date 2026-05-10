@@ -12,7 +12,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/dto"
 )
 
-// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// telegramRepo — частично применяемый интерфейс к infra/telegram.
 // Обёртки clientAdapter с raw-TDLib сигнатурами.
 type telegramRepo interface {
 	GetMessage(*client.GetMessageRequest) (*client.Message, error)

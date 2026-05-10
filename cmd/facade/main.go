@@ -17,15 +17,15 @@ import (
 	"github.com/pure-golang/platform/monitoring"
 	"google.golang.org/grpc"
 
+	"github.com/pure-golang/budva-claude/internal/app/auth"
+	"github.com/pure-golang/budva-claude/internal/app/facade"
 	"github.com/pure-golang/budva-claude/internal/config"
-	"github.com/pure-golang/budva-claude/internal/controller"
-	"github.com/pure-golang/budva-claude/internal/repo/telegram"
-	"github.com/pure-golang/budva-claude/internal/repo/term"
-	"github.com/pure-golang/budva-claude/internal/service/auth"
-	"github.com/pure-golang/budva-claude/internal/service/facade"
+	"github.com/pure-golang/budva-claude/internal/infra/telegram"
+	"github.com/pure-golang/budva-claude/internal/infra/term"
 	tgrpc "github.com/pure-golang/budva-claude/internal/transport/grpc"
 	"github.com/pure-golang/budva-claude/internal/transport/grpc/pb"
 	thttp "github.com/pure-golang/budva-claude/internal/transport/http"
+	"github.com/pure-golang/budva-claude/internal/transport/http/health"
 	"github.com/pure-golang/budva-claude/internal/transport/http/resolvers"
 	tterm "github.com/pure-golang/budva-claude/internal/transport/term"
 )
@@ -77,7 +77,7 @@ func run() error {
 
 	// 6. HTTP transport
 	mux := http.NewServeMux()
-	ctrl := controller.New()
+	ctrl := health.New()
 	ctrl.EnrichRoutes(mux)
 	gqlResolver := resolvers.New(facadeService)
 	httpTransport := thttp.New(authService, gqlResolver)

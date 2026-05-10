@@ -26,7 +26,7 @@ type Repo struct {
 // New создаёт новый экземпляр хранилища.
 func New(cfg config.StorageConfig) *Repo {
 	return &Repo{
-		logger: slog.Default().With("module", "repo.state"),
+		logger: slog.Default().With("module", "infra.state"),
 		cfg:    cfg,
 	}
 }

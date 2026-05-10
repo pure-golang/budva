@@ -12,15 +12,15 @@ import (
 	aenv "github.com/pure-golang/adapters/env"
 	"github.com/pure-golang/platform/monitoring"
 
+	"github.com/pure-golang/budva-claude/internal/app/auth"
+	"github.com/pure-golang/budva-claude/internal/app/handler"
 	"github.com/pure-golang/budva-claude/internal/config"
-	"github.com/pure-golang/budva-claude/internal/handler"
-	"github.com/pure-golang/budva-claude/internal/repo/queue"
-	"github.com/pure-golang/budva-claude/internal/repo/ruleset"
-	"github.com/pure-golang/budva-claude/internal/repo/state"
-	"github.com/pure-golang/budva-claude/internal/repo/telegram"
-	"github.com/pure-golang/budva-claude/internal/repo/term"
+	"github.com/pure-golang/budva-claude/internal/infra/queue"
+	"github.com/pure-golang/budva-claude/internal/infra/ruleset"
+	"github.com/pure-golang/budva-claude/internal/infra/state"
+	"github.com/pure-golang/budva-claude/internal/infra/telegram"
+	"github.com/pure-golang/budva-claude/internal/infra/term"
 	"github.com/pure-golang/budva-claude/internal/service/album"
-	"github.com/pure-golang/budva-claude/internal/service/auth"
 	"github.com/pure-golang/budva-claude/internal/service/dedup"
 	"github.com/pure-golang/budva-claude/internal/service/filters"
 	"github.com/pure-golang/budva-claude/internal/service/limiter"
@@ -57,7 +57,7 @@ func run() error {
 
 	logger.Info("Starting engine")
 
-	// 4. Repository-адаптеры
+	// 4. Infra
 	stateRepo := state.New(cfg.Storage)
 	if err := stateRepo.Start(ctx); err != nil {
 		return fmt.Errorf("state repo: %w", err)
@@ -101,8 +101,7 @@ func run() error {
 
 	limiterService := limiter.New()
 
-	// 6. Handler
-	h := handler.New(
+	handlerService := handler.New(
 		telegramRepo,
 		stateRepo,
 		messageService,
@@ -116,22 +115,22 @@ func run() error {
 		},
 	)
 
-	// 7. Ruleset
+	// 6. Ruleset
 	rs, err := rulesetRepo.Load()
 	if err != nil {
 		logger.Warn("Failed to load ruleset", slog.Any("err", err))
 	} else {
-		h.SetRuleSet(rs)
+		handlerService.SetRuleSet(rs)
 	}
 
-	// 8. Watcher для hot-reload
+	// 7. Watcher для hot-reload
 	if err := rulesetRepo.WatchContext(ctx, func() {
 		newRS, loadErr := rulesetRepo.Load()
 		if loadErr != nil {
 			logger.Error("Failed to reload ruleset", slog.Any("err", loadErr))
 			return
 		}
-		h.SetRuleSet(newRS)
+		handlerService.SetRuleSet(newRS)
 		logger.Info("Ruleset reloaded")
 	}); err != nil {
 		logger.Warn("Failed to watch ruleset", slog.Any("err", err))
@@ -142,10 +141,10 @@ func run() error {
 		}
 	}()
 
-	// 9. Telegram update loop
-	go h.Run(ctx)
+	// 8. Telegram update loop
+	go handlerService.Run(ctx)
 
-	// 10. Terminal transport
+	// 9. Terminal transport
 	termRepo := term.New(os.Stdin, os.Stdout, syscall.Stdin)
 	termTransport := tterm.New(authService, telegramRepo, termRepo, cfg.Telegram.Phone)
 	go func() {

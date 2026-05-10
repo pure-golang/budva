@@ -18,7 +18,7 @@ type Repo struct {
 // New создаёт новый экземпляр очереди задач.
 func New() *Repo {
 	return &Repo{
-		logger: slog.Default().With("module", "repo.queue"),
+		logger: slog.Default().With("module", "infra.queue"),
 		queue:  list.New(),
 	}
 }

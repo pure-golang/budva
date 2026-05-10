@@ -10,7 +10,7 @@ import (
 	"github.com/pure-golang/budva-claude/internal/domain"
 )
 
-// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// telegramRepo — частично применяемый интерфейс к infra/telegram.
 // Composit-методы Repo (AuthStates, SubmitPhone/Code/Password, CleanUp)
 // живут рядом с raw-обёрткой LogOut — см. x-tdlib.
 type telegramRepo interface {
@@ -39,7 +39,7 @@ type Service struct {
 // New создаёт новый экземпляр сервиса авторизации.
 func New(telegramRepo telegramRepo) *Service {
 	return &Service{
-		logger:       slog.Default().With("module", "service.auth"),
+		logger:       slog.Default().With("module", "app.auth"),
 		telegramRepo: telegramRepo,
 		inputChan:    make(chan string, 1),
 	}

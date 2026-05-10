@@ -15,7 +15,7 @@ import (
 
 var tracer = otel.Tracer("github.com/pure-golang/budva-claude/internal/service/transform")
 
-// telegramRepo — частично применяемый интерфейс к repo/telegram.
+// telegramRepo — частично применяемый интерфейс к infra/telegram.
 // Содержит обёртки clientAdapter + то, что реально нужно transform-сервису.
 type telegramRepo interface {
 	TranslateText(*client.TranslateTextRequest) (*client.FormattedText, error)

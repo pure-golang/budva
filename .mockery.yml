@@ -6,22 +6,22 @@ template: testify
 template-data:
   unroll-variadic: true
 packages:
-  github.com/pure-golang/budva-claude/internal/handler:
+  github.com/pure-golang/budva-claude/internal/app/handler:
     config:
       all: true
-  github.com/pure-golang/budva-claude/internal/repo/telegram:
+  github.com/pure-golang/budva-claude/internal/infra/telegram:
     config:
       all: true
   github.com/pure-golang/budva-claude/internal/service/transform:
     config:
       all: true
-  github.com/pure-golang/budva-claude/internal/controller:
+  github.com/pure-golang/budva-claude/internal/transport/http/health:
     config:
       all: true
-  github.com/pure-golang/budva-claude/internal/service/facade:
+  github.com/pure-golang/budva-claude/internal/app/facade:
     config:
       all: true
-  github.com/pure-golang/budva-claude/internal/service/auth:
+  github.com/pure-golang/budva-claude/internal/app/auth:
     config:
       all: true
   github.com/pure-golang/budva-claude/internal/transport/http:

@@ -94,9 +94,10 @@ cmd/
   stand/     — утилита тестовых фикстур
 internal/
   domain/    — бизнес-модели
-  repo/      — адаптеры (Telegram, BadgerDB, очередь)
-  service/   — бизнес-логика (auth, transform, dedup, limiter…)
-  transport/ — протоколы (GraphQL, gRPC, terminal)
+  app/       — application services: auth, facade, handler
+  service/   — domain services: album, dedup, filters, limiter, message, transform
+  infra/      — infrastructure layer: Telegram, state, queue
+  transport/ — user interface layer: HTTP, gRPC, terminal, health endpoints
 test/
   bdd/       — BDD-сценарии (godog), живая бизнес-спецификация
 ```

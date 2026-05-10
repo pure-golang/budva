@@ -2,14 +2,15 @@
 
 ## Контекст
 
-Сервис пересылки и копирования сообщений между чатами Telegram. Поток обновлений обрабатывается через `internal/handler`, правила загружаются из YAML (`internal/repo/ruleset`), состояние и связи копий хранятся в BadgerDB (`internal/repo/state`), отправка и авторизация идут через TDLib (`internal/repo/telegram`). Внешние интерфейсы: gRPC facade, HTTP auth/GraphQL, terminal transport.
+Сервис пересылки и копирования сообщений между чатами Telegram. Поток обновлений обрабатывается через `internal/app/handler`, правила загружаются из YAML (`internal/infra/ruleset`), состояние и связи копий хранятся в BadgerDB (`internal/infra/state`), отправка и авторизация идут через TDLib (`internal/infra/telegram`). Внешние интерфейсы: gRPC facade, HTTP auth/GraphQL, terminal transport.
 
 **Архитектура:**
-- `internal/handler` — оркестрация `new/edit/delete` update и маршрутизация по ruleset
-- `internal/service/*` — бизнес-логика: auth, facade, transform, filters, limiter, album, dedup, message
-- `internal/repo/*` — адаптеры инфраструктуры: queue, ruleset, state, telegram, term
+- `internal/app/handler` — оркестрация `new/edit/delete` update и маршрутизация по ruleset
+- `internal/app/*` — application services: auth, facade, handler
+- `internal/service/*` — domain services: transform, filters, limiter, album, dedup, message
+- `internal/infra/*` — адаптеры инфраструктуры: queue, ruleset, state, telegram, term
 - `internal/transport/*` — gRPC, HTTP/GraphQL и terminal-транспорты
-- `internal/controller` — health/readiness/live endpoints
+- `internal/transport/http/health` — health/readiness/live endpoints
 - `internal/domain`, `internal/config` — доменные типы и конфигурация
 
 **Структура тестов:**
@@ -28,18 +29,18 @@
 | Пакет | Unit | BDD | Smoke |
 |-------|------|-----|-------|
 | `internal/config` | 4 | — | — |
-| `internal/controller` | 5 | — | 4 |
+| `internal/transport/http/health` | 5 | — | 4 |
 | `internal/domain` | 3 | — | — |
-| `internal/handler` | 75 | 443 scenario instances | — |
-| `internal/repo/queue` | 14 | — | — |
-| `internal/repo/ruleset` | 21 | — | — |
-| `internal/repo/state` | 25 | — | — |
-| `internal/repo/telegram` | 23 | 443 scenario instances | — |
-| `internal/repo/term` | 6 | — | — |
+| `internal/app/handler` | 75 | 443 scenario instances | — |
+| `internal/infra/queue` | 14 | — | — |
+| `internal/infra/ruleset` | 21 | — | — |
+| `internal/infra/state` | 25 | — | — |
+| `internal/infra/telegram` | 23 | 443 scenario instances | — |
+| `internal/infra/term` | 6 | — | — |
 | `internal/service/album` | 22 | 40 scenario instances | — |
-| `internal/service/auth` | 20 | — | — |
+| `internal/app/auth` | 20 | — | — |
 | `internal/service/dedup` | 10 | 1 scenario instance | — |
-| `internal/service/facade` | 14 | — | — |
+| `internal/app/facade` | 14 | — | — |
 | `internal/service/filters` | 8 | 161 scenario instances | — |
 | `internal/service/limiter` | 14 | 1 scenario instance | — |
 | `internal/service/message` | 40 | — | — |
@@ -63,7 +64,7 @@
 
 ---
 
-### Controller (`internal/controller`)
+### Transport / HTTP Health (`internal/transport/http/health`)
 
 Файлы: `controller_test.go`
 
@@ -84,7 +85,7 @@
 
 ---
 
-### Handler (`internal/handler`)
+### App / Handler (`internal/app/handler`)
 
 Файлы: `handler_test.go`
 
@@ -94,7 +95,7 @@
 
 ---
 
-### Repo / Queue (`internal/repo/queue`)
+### Infra / Queue (`internal/infra/queue`)
 
 Файлы: `repo_test.go`
 
@@ -104,7 +105,7 @@
 
 ---
 
-### Repo / Ruleset (`internal/repo/ruleset`)
+### Infra / Ruleset (`internal/infra/ruleset`)
 
 Файлы: `repo_test.go`
 
@@ -114,7 +115,7 @@
 
 ---
 
-### Repo / State (`internal/repo/state`)
+### Infra / State (`internal/infra/state`)
 
 Файлы: `repo_test.go`, `copies_test.go`
 
@@ -125,7 +126,7 @@
 
 ---
 
-### Repo / Telegram (`internal/repo/telegram`)
+### Infra / Telegram (`internal/infra/telegram`)
 
 Файлы: `repo_test.go`
 
@@ -135,7 +136,7 @@
 
 ---
 
-### Repo / Term (`internal/repo/term`)
+### Infra / Term (`internal/infra/term`)
 
 Файлы: `repo_test.go`
 
@@ -155,7 +156,7 @@
 
 ---
 
-### Service / Auth (`internal/service/auth`)
+### App / Auth (`internal/app/auth`)
 
 Файлы: `service_test.go`
 
@@ -175,7 +176,7 @@
 
 ---
 
-### Service / Facade (`internal/service/facade`)
+### App / Facade (`internal/app/facade`)
 
 Файлы: `service_test.go`
 
@@ -393,18 +394,18 @@
 | Пакет | Unit | BDD | Smoke |
 |-------|------|-----|-------|
 | `internal/config` | 4 | — | — |
-| `internal/controller` | 5 | — | 4 |
+| `internal/transport/http/health` | 5 | — | 4 |
 | `internal/domain` | 3 | — | — |
-| `internal/handler` | 75 | 443 | — |
-| `internal/repo/queue` | 14 | — | — |
-| `internal/repo/ruleset` | 21 | — | — |
-| `internal/repo/state` | 25 | — | — |
-| `internal/repo/telegram` | 23 | 443 | — |
-| `internal/repo/term` | 6 | — | — |
+| `internal/app/handler` | 75 | 443 | — |
+| `internal/infra/queue` | 14 | — | — |
+| `internal/infra/ruleset` | 21 | — | — |
+| `internal/infra/state` | 25 | — | — |
+| `internal/infra/telegram` | 23 | 443 | — |
+| `internal/infra/term` | 6 | — | — |
 | `internal/service/album` | 22 | 40 | — |
-| `internal/service/auth` | 20 | — | — |
+| `internal/app/auth` | 20 | — | — |
 | `internal/service/dedup` | 10 | 1 | — |
-| `internal/service/facade` | 14 | — | — |
+| `internal/app/facade` | 14 | — | — |
 | `internal/service/filters` | 8 | 161 | — |
 | `internal/service/limiter` | 14 | 1 | — |
 | `internal/service/message` | 40 | — | — |
@@ -423,18 +424,18 @@
 
 | Пакет | Покрытие | Примечание |
 |-------|----------|------------|
-| `internal/controller` | 100.0% | health endpoints |
+| `internal/transport/http/health` | 100.0% | health endpoints |
 | `internal/domain` | 100.0% | domain helpers и string mapping |
-| `internal/handler` | 100.0% | update dispatcher и orchestration |
-| `internal/repo/queue` | 100.0% | in-memory queue |
-| `internal/repo/ruleset` | 96.0% | YAML loader, validation, watcher |
-| `internal/repo/state` | 95.9% | Badger CRUD, counters, copy mappings |
-| `internal/repo/telegram` | 88.6% | TDLib wrapper, auth mapping, send/wait, update dispatch |
-| `internal/repo/term` | 91.7% | terminal adapter |
+| `internal/app/handler` | 100.0% | update dispatcher и orchestration |
+| `internal/infra/queue` | 100.0% | in-memory queue |
+| `internal/infra/ruleset` | 96.0% | YAML loader, validation, watcher |
+| `internal/infra/state` | 95.9% | Badger CRUD, counters, copy mappings |
+| `internal/infra/telegram` | 88.6% | TDLib wrapper, auth mapping, send/wait, update dispatch |
+| `internal/infra/term` | 91.7% | terminal adapter |
 | `internal/service/album` | 100.0% | album grouping |
-| `internal/service/auth` | 100.0% | auth flow orchestration |
+| `internal/app/auth` | 100.0% | auth flow orchestration |
 | `internal/service/dedup` | 100.0% | dedup tracker |
-| `internal/service/facade` | 98.1% | facade proxy logic |
+| `internal/app/facade` | 98.1% | facade proxy logic |
 | `internal/service/filters` | 100.0% | include/exclude/submatch |
 | `internal/service/limiter` | 100.0% | per-chat rate limiter |
 | `internal/service/message` | 100.0% | formatted text, reply markup, input content builders |

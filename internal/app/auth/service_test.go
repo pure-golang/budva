@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zelenin/go-tdlib/client"
 
+	"github.com/pure-golang/budva-claude/internal/app/auth"
+	"github.com/pure-golang/budva-claude/internal/app/auth/mocks"
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/service/auth"
-	"github.com/pure-golang/budva-claude/internal/service/auth/mocks"
 )
 
 func TestNew(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zelenin/go-tdlib/client"
 
+	"github.com/pure-golang/budva-claude/internal/app/facade/mocks"
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/service/facade/mocks"
 )
 
 func TestNew(t *testing.T) {

@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zelenin/go-tdlib/client"
 
+	"github.com/pure-golang/budva-claude/internal/app/handler/mocks"
 	"github.com/pure-golang/budva-claude/internal/domain"
-	"github.com/pure-golang/budva-claude/internal/handler/mocks"
-	"github.com/pure-golang/budva-claude/internal/repo/queue"
+	"github.com/pure-golang/budva-claude/internal/infra/queue"
 )
 
 func TestRun_DispatchesMessageSendSucceeded(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/pure-golang/budva-claude/internal/repo/term"
+	"github.com/pure-golang/budva-claude/internal/infra/term"
 )
 
 // errReader эмулирует io.Reader, возвращающий ошибку на первом чтении.

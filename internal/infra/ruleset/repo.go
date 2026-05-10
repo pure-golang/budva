@@ -28,7 +28,7 @@ type Repo struct {
 // New создаёт новый экземпляр загрузчика правил.
 func New(cfg config.RulesetConfig) *Repo {
 	return &Repo{
-		logger: slog.Default().With("module", "repo.ruleset"),
+		logger: slog.Default().With("module", "infra.ruleset"),
 		cfg:    cfg,
 	}
 }
